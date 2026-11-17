@@ -10,6 +10,7 @@ const validProfile = {
   phone: "",
   dateOfBirth: "2010-02-28",
   gender: "female",
+  homeAddress: "",
 };
 
 describe("educationStudentProfileInputSchema", () => {
@@ -19,6 +20,20 @@ describe("educationStudentProfileInputSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.email).toBe("ada@example.com");
+    }
+  });
+
+  it("accepts profile details that are stored on the student record and trims them", () => {
+    const result = educationStudentProfileInputSchema.safeParse({
+      ...validProfile,
+      gender: " Female ",
+      homeAddress: " 123 Main Street, Accra  ",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.gender).toBe("Female");
+      expect(result.data.homeAddress).toBe("123 Main Street, Accra");
     }
   });
 

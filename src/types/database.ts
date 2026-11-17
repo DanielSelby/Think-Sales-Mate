@@ -102,6 +102,18 @@ type EducationSubject = {
   created_at: string;
   updated_at: string;
 };
+type EducationClassSubject = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  class_id: string;
+  subject_id: string;
+  lead_staff_id: string | null;
+  status: "active" | "inactive";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
 type EducationGradeBand = {
   id: string;
   org_id: string;
@@ -145,6 +157,7 @@ type EducationStudent = {
   phone: string | null;
   date_of_birth: string | null;
   gender: string | null;
+  home_address: string | null;
   status: "active" | "on_hold" | "graduated" | "transferred" | "withdrawn" | "archived";
   created_by: string | null;
   created_at: string;
@@ -176,6 +189,20 @@ type EducationStudentGuardian = {
   verified_at: string | null;
   created_by: string | null;
   created_at: string;
+};
+type EducationStudentConsentEvent = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  student_id: string;
+  consent_type: string;
+  disclosure_version: string;
+  decision: "granted" | "denied" | "withdrawn";
+  signer_name: string;
+  signer_relationship: string;
+  evidence_note: string | null;
+  recorded_by: string;
+  recorded_at: string;
 };
 type EducationExpense = {
   id: string;
@@ -355,6 +382,7 @@ type EducationDocument = {
   org_id: string;
   branch_id: string;
   student_id: string | null;
+  admission_id: string | null;
   title: string;
   category: "student_record" | "admission" | "medical" | "finance" | "staff" | "institutional" | "other";
   file_name: string;
@@ -363,6 +391,10 @@ type EducationDocument = {
   storage_path: string;
   retention_until: string | null;
   status: "active" | "archived";
+  verification_status: "not_required" | "pending" | "verified" | "rejected";
+  verification_note: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
   uploaded_by: string;
   created_at: string;
   updated_at: string;
@@ -660,8 +692,17 @@ type EducationAdmission = {
   application_number: string;
   applicant_first_name: string;
   applicant_last_name: string;
+  applicant_other_names: string | null;
   applicant_email: string | null;
   applicant_phone: string | null;
+  applicant_date_of_birth: string | null;
+  applicant_gender: string | null;
+  applicant_address: string | null;
+  guardian_first_name: string | null;
+  guardian_last_name: string | null;
+  guardian_email: string | null;
+  guardian_phone: string | null;
+  guardian_relationship: string | null;
   requested_class_id: string | null;
   status: "pending" | "under_review" | "admitted" | "rejected" | "withdrawn" | "enrolled";
   applied_at: string;
@@ -670,6 +711,19 @@ type EducationAdmission = {
   decision_note: string | null;
   enrolled_student_id: string | null;
   created_at: string;
+};
+type EducationAdmissionOffer = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  admission_id: string;
+  offer_number: number;
+  expires_on: string;
+  terms: string;
+  status: "offered" | "accepted" | "declined" | "expired" | "withdrawn";
+  issued_by: string;
+  issued_at: string;
+  responded_at: string | null;
 };
 type EducationAttendance = {
   id: string;
@@ -683,6 +737,19 @@ type EducationAttendance = {
   note: string | null;
   recorded_by: string | null;
   created_at: string;
+};
+type EducationLessonAttendance = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  timetable_entry_id: string;
+  student_id: string;
+  attendance_date: string;
+  status: "present" | "absent" | "late" | "excused";
+  note: string | null;
+  recorded_by: string | null;
+  created_at: string;
+  updated_at: string;
 };
 type EducationExamination = {
   id: string;
@@ -715,6 +782,29 @@ type EducationResult = {
   approved_by: string | null;
   created_at: string;
   updated_at: string;
+};
+type EducationAssessmentComponent = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  examination_id: string;
+  subject_id: string;
+  name: string;
+  weight_percentage: number;
+  maximum_score: number;
+  created_by: string | null;
+  created_at: string;
+};
+type EducationResultComponentScore = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  examination_id: string;
+  subject_id: string;
+  result_id: string;
+  component_id: string;
+  score: number;
+  created_at: string;
 };
 type EducationStudentTransfer = {
   id: string;
@@ -2103,6 +2193,10 @@ export interface Database {
         "org_id" | "name" | "starts_on" | "ends_on"
       >;
       education_subjects: EducationDatabaseTable<EducationSubject, "org_id" | "name">;
+      education_class_subjects: EducationDatabaseTable<
+        EducationClassSubject,
+        "org_id" | "branch_id" | "class_id" | "subject_id"
+      >;
       education_grade_bands: EducationDatabaseTable<
         EducationGradeBand,
         "org_id" | "label" | "minimum_percentage"
@@ -2123,6 +2217,10 @@ export interface Database {
       education_student_guardians: EducationDatabaseTable<
         EducationStudentGuardian,
         "org_id" | "branch_id" | "student_id" | "guardian_id" | "relationship"
+      >;
+      education_student_consent_events: EducationDatabaseTable<
+        EducationStudentConsentEvent,
+        "org_id" | "branch_id" | "student_id" | "consent_type" | "disclosure_version" | "decision" | "signer_name" | "signer_relationship"
       >;
       education_expenses: EducationDatabaseTable<
         EducationExpense,
@@ -2260,9 +2358,17 @@ export interface Database {
         EducationAdmission,
         "org_id" | "branch_id" | "application_number" | "applicant_first_name" | "applicant_last_name"
       >;
+      education_admission_offers: EducationDatabaseTable<
+        EducationAdmissionOffer,
+        "org_id" | "branch_id" | "admission_id" | "offer_number" | "expires_on" | "issued_by"
+      >;
       education_attendance: EducationDatabaseTable<
         EducationAttendance,
         "org_id" | "branch_id" | "student_id" | "staff_id" | "attendance_date" | "status"
+      >;
+      education_lesson_attendance: EducationDatabaseTable<
+        EducationLessonAttendance,
+        "org_id" | "branch_id" | "timetable_entry_id" | "student_id" | "attendance_date" | "status"
       >;
       education_examinations: EducationDatabaseTable<
         EducationExamination,
@@ -2271,6 +2377,14 @@ export interface Database {
       education_results: EducationDatabaseTable<
         EducationResult,
         "org_id" | "branch_id" | "examination_id" | "student_id" | "subject_name" | "score" | "maximum_score"
+      >;
+      education_assessment_components: EducationDatabaseTable<
+        EducationAssessmentComponent,
+        "org_id" | "branch_id" | "examination_id" | "subject_id" | "name" | "weight_percentage" | "maximum_score"
+      >;
+      education_result_component_scores: EducationDatabaseTable<
+        EducationResultComponentScore,
+        "org_id" | "branch_id" | "examination_id" | "subject_id" | "result_id" | "component_id" | "score"
       >;
       education_student_transfers: EducationDatabaseTable<
         EducationStudentTransfer,
@@ -7235,6 +7349,90 @@ export interface Database {
         };
         Returns: string;
       };
+      education_set_class_subject: {
+        Args: {
+          p_org_id: string;
+          p_class_id: string;
+          p_subject_id: string;
+          p_lead_staff_id: string | null;
+          p_status: string;
+        };
+        Returns: string;
+      };
+      education_update_timetable_entry: {
+        Args: {
+          p_org_id: string;
+          p_entry_id: string;
+          p_expected_updated_at: string;
+          p_class_id: string;
+          p_staff_id: string | null;
+          p_weekday: number;
+          p_starts_at: string;
+          p_ends_at: string;
+          p_room: string | null;
+        };
+        Returns: boolean;
+      };
+      education_record_lesson_attendance: {
+        Args: {
+          p_org_id: string;
+          p_timetable_entry_id: string;
+          p_student_id: string;
+          p_attendance_date: string;
+          p_status: string;
+          p_note: string | null;
+        };
+        Returns: string;
+      };
+      education_cancel_timetable_entry: {
+        Args: {
+          p_org_id: string;
+          p_entry_id: string;
+          p_expected_updated_at: string;
+        };
+        Returns: boolean;
+      };
+      education_save_assessment_components: {
+        Args: {
+          p_org_id: string;
+          p_examination_id: string;
+          p_subject_id: string;
+          p_components: Json;
+        };
+        Returns: boolean;
+      };
+      education_create_result: {
+        Args: {
+          p_org_id: string;
+          p_examination_id: string;
+          p_student_id: string;
+          p_subject_id: string;
+          p_score: number | null;
+          p_maximum_score: number | null;
+          p_grade_override: string | null;
+          p_component_scores: Json;
+        };
+        Returns: string;
+      };
+      education_update_draft_result_score: {
+        Args: {
+          p_org_id: string;
+          p_result_id: string;
+          p_score: number;
+          p_maximum_score: number;
+          p_grade_override: string | null;
+        };
+        Returns: boolean;
+      };
+      education_update_draft_result_components: {
+        Args: {
+          p_org_id: string;
+          p_result_id: string;
+          p_grade_override: string | null;
+          p_component_scores: Json;
+        };
+        Returns: boolean;
+      };
       education_promote_student: {
         Args: {
           p_org_id: string;
@@ -7282,6 +7480,28 @@ export interface Database {
           p_class_id?: string | null;
         };
         Returns: string;
+      };
+      education_issue_admission_offer: {
+        Args: {
+          p_org_id: string;
+          p_admission_id: string;
+          p_expires_on: string;
+          p_terms?: string | null;
+        };
+        Returns: string;
+      };
+      education_record_student_consent: {
+       Args: {
+         p_org_id: string;
+         p_student_id: string;
+         p_consent_type: string;
+         p_disclosure_version: string;
+         p_decision: string;
+         p_signer_name: string;
+         p_signer_relationship: string;
+         p_evidence_note?: string | null;
+       };
+       Returns: string;
       };
       education_record_fee_payment: {
         Args: {
@@ -7521,6 +7741,16 @@ export interface Database {
         };
         Returns: string;
       };
+      education_communication_update_draft: {
+        Args: {
+          p_org_id: string;
+          p_communication_id: string;
+          p_title: string;
+          p_body: string;
+          p_audience: string;
+        };
+        Returns: boolean;
+      };
       education_communication_publish: {
         Args: { p_org_id: string; p_communication_id: string };
         Returns: boolean;
@@ -7549,8 +7779,18 @@ export interface Database {
           p_file_size: number;
           p_storage_path: string;
           p_retention_until: string | null;
+          p_admission_id?: string | null;
         };
         Returns: string;
+      };
+      education_admission_document_review: {
+        Args: {
+          p_org_id: string;
+          p_document_id: string;
+          p_verification_status: string;
+          p_note?: string | null;
+        };
+        Returns: boolean;
       };
       education_document_archive: {
         Args: { p_org_id: string; p_document_id: string };

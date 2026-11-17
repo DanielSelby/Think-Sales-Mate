@@ -41,9 +41,11 @@ export default async function EducationStaffAttendancePage({
   const campusIds = campuses.map((campus) => campus.id);
   const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
-  const [canCreate, canEdit] = await Promise.all([
+  const [canCreate, canEdit, canViewStaffReport, canViewStaffDirectory] = await Promise.all([
     canTabPermission("education_attendance", "attendance", "staff", "create"),
     canTabPermission("education_attendance", "attendance", "staff", "edit"),
+    canTabPermission("education_reports", "reports", "staff", "view"),
+    canTabPermission("education_staff", "staff", "directory", "view"),
   ]);
   const supabase = await createClient();
   let staff: Array<{ id: string; staff_number: string; first_name: string; last_name: string; branch_id: string }> = [];
@@ -99,12 +101,15 @@ export default async function EducationStaffAttendancePage({
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
 
   return <main className="mx-auto max-w-[1500px] space-y-4 p-3 md:p-5">
-    <header className="space-y-2">
-      <Link href={getProductAppPath("think-education", "/staff")} className="inline-flex items-center gap-1 text-sm font-medium" style={{ color: "var(--theme-primary, #2563eb)" }}>
-        <ArrowLeft className="h-4 w-4" /> Staff Management
-      </Link>
-      <h1 className="text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>Staff Attendance</h1>
-      <p className="text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>Record or correct daily attendance for active staff in your authorized campuses.</p>
+    <header className="flex flex-wrap items-end justify-between gap-3">
+      <div className="space-y-2">
+        <Link href={getProductAppPath("think-education", "/staff")} className="inline-flex items-center gap-1 text-sm font-medium" style={{ color: "var(--theme-primary, #2563eb)" }}>
+          <ArrowLeft className="h-4 w-4" /> Staff Management
+        </Link>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>Staff Attendance</h1>
+        <p className="text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>Record or correct daily attendance for active staff in your authorized campuses.</p>
+      </div>
+      {canViewStaffReport && canViewStaffDirectory && <Link href={getProductAppPath("think-education", "/reports/staff-attendance")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">Staff attendance report</Link>}
     </header>
 
     {params.saved === "1" && <p role="status" className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "rgba(16,185,129,0.3)", backgroundColor: "rgba(16,185,129,0.08)", color: "#065f46" }}>Staff attendance saved for {attendanceDate}.</p>}

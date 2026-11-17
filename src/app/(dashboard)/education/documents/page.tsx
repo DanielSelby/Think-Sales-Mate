@@ -34,11 +34,12 @@ export default async function EducationDocumentsPage({
   const requestedCategory = readParam(params.category);
   const requestedStatus = readParam(params.status);
   const requestedSearch = readParam(params.search).trim().toLowerCase();
-  const [canCreate, canEdit, canDelete, canViewStudents, { campuses }] = await Promise.all([
+  const [canCreate, canEdit, canDelete, canViewStudents, canExport, { campuses }] = await Promise.all([
     canTabPermission("education_documents", "documents", "library", "create"),
     canTabPermission("education_documents", "documents", "library", "edit"),
     canTabPermission("education_documents", "documents", "library", "delete"),
     canTabPermission("education_students", "students", "list", "view"),
+    canTabPermission("education_documents", "documents", "library", "export"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   const campusIds = campuses.map((campus) => campus.id);
@@ -211,7 +212,7 @@ export default async function EducationDocumentsPage({
           </select>
           <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Apply filters</button>
           <Link href={getProductAppPath("think-education", "/documents")} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</Link>
-          <a href={csvHref} download="education-documents.csv" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Export CSV</a>
+          {canExport && <a href={csvHref} download="education-documents.csv" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Export CSV</a>}
         </form>
       </div>
       {filteredDocuments.length > exportLimit && <p className="px-4 pb-2 pt-3 text-xs text-amber-700">Showing the first {exportLimit.toLocaleString()} matching records in the CSV export. Narrow the filters to export the full result set.</p>}

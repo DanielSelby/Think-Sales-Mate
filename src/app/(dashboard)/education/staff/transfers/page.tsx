@@ -46,10 +46,11 @@ export default async function EducationStaffTransfersPage({
   const normalizedStatus = ["all", "pending", "approved", "rejected", "completed"].includes(requestedStatus)
     ? requestedStatus
     : "all";
-  const [canCreate, canApproveAction, canEdit] = await Promise.all([
+  const [canCreate, canApproveAction, canEdit, canExport] = await Promise.all([
     canTabPermission("education_staff", "staff", "transfers", "create"),
     canTabPermission("education_staff", "staff", "transfers", "approve"),
     canTabPermission("education_staff", "staff", "transfers", "edit"),
+    canTabPermission("education_staff", "staff", "transfers", "export"),
   ]);
   const canApprove = canApproveAction && canEdit;
   const parsedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10);
@@ -183,7 +184,7 @@ export default async function EducationStaffTransfersPage({
           </select>
         </label>
         <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Apply filters</button>
-        <a href={csvHref} download="staff-transfers.csv" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>
+        {canExport && <a href={csvHref} download="staff-transfers.csv" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
       {visibleTransfers.length > exportLimit && <p className="px-4 pb-2 pt-3 text-xs text-amber-700">Showing the first {exportLimit.toLocaleString()} matching rows in the CSV export. Narrow the filters to export the full result set.</p>}
 

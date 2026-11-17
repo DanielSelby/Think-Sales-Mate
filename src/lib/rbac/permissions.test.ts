@@ -356,6 +356,7 @@ describe("role permission inheritance", () => {
     expect(administrator?.permissions["education_reports.reports.inventory"]).toEqual(["view", "export"]);
     expect(administrator?.permissions["education_reports.reports.transport"]).toEqual(["view", "export"]);
     expect(administrator?.permissions["education_reports.reports.fees"]).toEqual(["view", "export"]);
+    expect(administrator?.permissions.education_notifications).toContain("export");
     expect(getEducationRolePreset("education_accountant")?.permissions["education_reports.reports.fees"])
       .toEqual(["view", "export"]);
     expect(getEducationRolePreset("education_accountant")?.permissions["education_finance.finance.chart_of_accounts"])

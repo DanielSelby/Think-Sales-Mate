@@ -34,9 +34,10 @@ export default async function EducationStudentsPage({
   const allowedBranchIds = campuses.map((campus) => campus.id);
   const selectedBranch = allowedBranchIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = selectedBranch ? [selectedBranch] : allowedBranchIds;
-  const [canCreate, canImportCapability] = await Promise.all([
+  const [canCreate, canImportCapability, canExport] = await Promise.all([
     canTabPermission("education_students", "students", "list", "create"),
     canPermission("education_students", "import"),
+    canTabPermission("education_students", "students", "list", "export"),
   ]);
   const canImport = canImportCapability && canCreate;
   const canCreateAccount = isOrganizationSuperAdminMember({
@@ -128,6 +129,8 @@ export default async function EducationStudentsPage({
           { key: "email", label: "Email" },
           { key: "phone", label: "Phone" },
           { key: "date_of_birth", label: "Date of Birth" },
+          { key: "gender", label: "Gender" },
+          { key: "home_address", label: "Home Address" },
         ]} />}
         {canCreate && campuses.length > 0 && <EducationRecordModal
           title="Add student"
@@ -146,6 +149,8 @@ export default async function EducationStudentsPage({
             { name: "email", label: "Email", type: "email", maxLength: 254 },
             { name: "phone", label: "Phone", type: "tel", maxLength: 32 },
             { name: "date_of_birth", label: "Date of birth", type: "date" },
+            { name: "gender", label: "Gender", maxLength: 50 },
+            { name: "home_address", label: "Home address", maxLength: 500 },
           ]}
         />}
       </div>
@@ -180,7 +185,7 @@ export default async function EducationStudentsPage({
           {STUDENT_STATUSES.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}
         </select>
         <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {students.length > 0 && <a href={csvHref} download={`education-students-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && students.length > 0 && <a href={csvHref} download={`education-students-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
 
       {campuses.length === 0 ? <div className="p-8 text-center">

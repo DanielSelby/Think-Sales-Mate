@@ -25,8 +25,9 @@ export default async function EducationNotificationsPage({
   const requestedStatus = typeof params.status === "string" ? params.status : "";
   const requestedType = typeof params.type === "string" ? params.type : "";
   const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
-  const [canEditPreferences, { campuses }] = await Promise.all([
+  const [canEditPreferences, canExport, { campuses }] = await Promise.all([
     canTabPermission("education_notifications", "notifications", "preferences", "edit"),
+    canTabPermission("education_notifications", "notifications", "inbox", "export"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   const campusIds = campuses.map((campus) => campus.id);
@@ -143,7 +144,7 @@ export default async function EducationNotificationsPage({
           <h2 className="font-semibold text-slate-950">Your inbox</h2>
           <p className="mt-1 text-sm text-slate-500">{filteredNotifications.filter((notification) => notification.delivery_status === "delivered").length} unread · {filteredNotifications.length.toLocaleString()} matching notifications</p>
         </div>
-        {filteredNotifications.length > 0 && <a href={csvHref} download={`education-notifications-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && filteredNotifications.length > 0 && <a href={csvHref} download={`education-notifications-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </div>
       {!filteredNotifications.length ? <div className="p-8 text-center">
         <Bell className="mx-auto h-8 w-8 text-slate-300" />

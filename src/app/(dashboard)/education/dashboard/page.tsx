@@ -299,6 +299,7 @@ export default async function ThinkEducationDashboardPage() {
             { label: "Timetables", href: "/timetables", icon: CalendarCheck, allowed: canReadTimetables },
             { label: "Examinations", href: "/examinations", icon: CalendarCheck, allowed: canReadExaminations },
             { label: "Results", href: "/results", icon: FileText, allowed: canReadResults },
+            { label: "Campus comparison", href: "/reports/campus-comparison", icon: TrendingUp, allowed: branchIds.length > 0 },
             { label: "Promotion & graduation", href: "/promotion", icon: TrendingUp, allowed: canReadPromotion },
           ].filter((item) => item.allowed).map(({ label, href, icon: Icon }) => <Link key={href} href={getProductAppPath("think-education", href)} className="rounded-xl border border-slate-200 p-3 transition hover:border-blue-300 hover:bg-blue-50">
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-700"><Icon className="h-4 w-4" /></span>

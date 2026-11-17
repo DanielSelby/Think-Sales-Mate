@@ -39,6 +39,12 @@ export default async function EducationSettingsPage({
     redirect("/dashboard?accessDenied=think-education.settings");
   }
 
+  const [canViewRoles, canViewUsers, canViewActivity] = await Promise.all([
+    canTabPermission("education_user_management", "users", "directory", "view"),
+    canTabPermission("education_user_management", "users", "branch_access", "view"),
+    canTabPermission("education_audit", "activity", "records", "view_audit"),
+  ]);
+
   const params = await searchParams;
   const [{ hasOrganizationScope }, supabase] = await Promise.all([
     getAccessibleEducationCampuses(context.orgId, context.userId),
@@ -115,6 +121,24 @@ export default async function EducationSettingsPage({
         <p><span className="font-medium" style={{ color: "var(--theme-text-muted, #4b5563)" }}>Institution:</span> {institution?.institution_name ?? "Not configured"}</p>
         <p><span className="font-medium" style={{ color: "var(--theme-text-muted, #4b5563)" }}>Code:</span> {institution?.institution_code ?? "—"}</p>
         <p><span className="font-medium" style={{ color: "var(--theme-text-muted, #4b5563)" }}>Type:</span> {INSTITUTION_TYPES.find(([value]) => value === institution?.institution_type)?.[1] ?? "—"}</p>
+      </div>}
+
+      {(canViewRoles || canViewUsers || canViewActivity) && <div className="mt-6 border-t border-slate-200 pt-5">
+        <h2 className="text-lg font-semibold text-slate-950">Management shortcuts</h2>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {canViewRoles && <Link href={getProductAppPath("think-education", "/settings/roles")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50">
+            <p className="text-sm font-semibold text-slate-900">Roles &amp; permissions</p>
+            <p className="mt-1 text-sm text-slate-600">Manage product-specific permission templates and member access.</p>
+          </Link>}
+          {canViewUsers && <Link href={getProductAppPath("think-education", "/settings/users")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50">
+            <p className="text-sm font-semibold text-slate-900">User access</p>
+            <p className="mt-1 text-sm text-slate-600">Assign organization or campus scope to active members.</p>
+          </Link>}
+          {canViewActivity && <Link href={getProductAppPath("think-education", "/activity")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50">
+            <p className="text-sm font-semibold text-slate-900">Audit &amp; activity</p>
+            <p className="mt-1 text-sm text-slate-600">Review recent education changes and workflow activity.</p>
+          </Link>}
+        </div>
       </div>}
     </section>}
   </main>;

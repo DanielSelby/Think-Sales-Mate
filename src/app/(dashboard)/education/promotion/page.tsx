@@ -30,10 +30,11 @@ export default async function EducationPromotionPage({
   const params = await searchParams;
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const branchIds = campuses.map((campus) => campus.id);
-  const [canEdit, canApprove, canCreate] = await Promise.all([
+  const [canEdit, canApprove, canCreate, canExport] = await Promise.all([
     canTabPermission("education_promotion", "promotion", "progression", "edit"),
     canTabPermission("education_promotion", "promotion", "progression", "approve"),
     canTabPermission("education_promotion", "promotion", "progression", "create"),
+    canTabPermission("education_promotion", "promotion", "progression", "export"),
   ]);
   const supabase = await createClient();
   const [{ data: years, error: yearsError }, enrollmentsResult, { data: classes, error: classesError }] = await Promise.all([
@@ -108,7 +109,7 @@ export default async function EducationPromotionPage({
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Promotion &amp; Graduation</h1>
         <p className="mt-1 text-sm text-slate-600">Progress active students from completed academic years into the next class, or record graduation.</p>
       </div>
-      {completedYearEnrollments.length > 0 && <a href={csvHref} download={`education-promotion-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      {canExport && completedYearEnrollments.length > 0 && <a href={csvHref} download={`education-promotion-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </header>
 
     {params.updated === "promote" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Student promoted and enrolled in the destination class.</p>}

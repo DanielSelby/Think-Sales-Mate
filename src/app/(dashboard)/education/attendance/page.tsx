@@ -41,9 +41,10 @@ export default async function EducationAttendancePage({
   const campusIds = campuses.map((campus) => campus.id);
   const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
-  const [canCreate, canEdit] = await Promise.all([
+  const [canCreate, canEdit, canExport] = await Promise.all([
     canTabPermission("education_attendance", "attendance", "register", "create"),
     canTabPermission("education_attendance", "attendance", "register", "edit"),
+    canTabPermission("education_attendance", "attendance", "register", "export"),
   ]);
   const supabase = await createClient();
   let students: Array<{ id: string; student_number: string; first_name: string; last_name: string; branch_id: string }> = [];
@@ -116,6 +117,7 @@ export default async function EducationAttendancePage({
       </Link>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Student Attendance</h1>
       <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Record or correct daily attendance for active students in your authorized campuses.</p>
+      <Link href={getProductAppPath("think-education", "/attendance/lessons")} className="mt-3 inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Switch to lesson attendance</Link>
     </header>
 
     {params.saved === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Attendance saved for {attendanceDate}.</p>}
@@ -146,7 +148,7 @@ export default async function EducationAttendancePage({
           <input type="date" name="date" defaultValue={attendanceDate} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal" />
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {students.length > 0 && <a href={csvHref} download={`education-attendance-${attendanceDate}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && students.length > 0 && <a href={csvHref} download={`education-attendance-${attendanceDate}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
 
       {campuses.length === 0 ? <div className="p-8 text-center">

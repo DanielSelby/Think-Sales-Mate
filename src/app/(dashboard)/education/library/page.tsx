@@ -35,12 +35,13 @@ export default async function EducationLibraryPage({
   const search = requestedSearch.replace(/[^A-Za-z0-9\s_-]/g, "").trim();
   const requestedLoanFilter = typeof params.loan_status === "string" ? params.loan_status : "";
   const loanFilter: LoanFilter = isLoanFilter(requestedLoanFilter) ? requestedLoanFilter : "all";
-  const [canViewCatalog, canCreate, canViewCirculation, canCreateLoan, canEdit, { campuses }] = await Promise.all([
+  const [canViewCatalog, canCreate, canViewCirculation, canCreateLoan, canEdit, canExportCirculation, { campuses }] = await Promise.all([
     canTabPermission("education_library", "library", "catalog", "view"),
     canTabPermission("education_library", "library", "catalog", "create"),
     canTabPermission("education_library", "library", "circulation", "view"),
     canTabPermission("education_library", "library", "circulation", "create"),
     canTabPermission("education_library", "library", "circulation", "edit"),
+    canTabPermission("education_library", "library", "circulation", "export"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   if (!canViewCatalog && !canViewCirculation) {
@@ -198,7 +199,7 @@ export default async function EducationLibraryPage({
         </select>
       </label>}
       <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-      {visibleLoans.length > 0 && <a href={csvHref} download={`education-library-loans-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      {canExportCirculation && visibleLoans.length > 0 && <a href={csvHref} download={`education-library-loans-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </form>
 
     {canViewCatalog && canCreate && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

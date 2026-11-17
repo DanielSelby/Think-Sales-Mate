@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Megaphone } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import {
+  escapeEducationCommunicationCsvCell,
+  escapeEducationCommunicationSearchTerm,
   EDUCATION_COMMUNICATION_AUDIENCES,
 } from "@/lib/education/communications";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -13,6 +15,7 @@ import {
   archiveEducationCommunication,
   createEducationCommunicationDraft,
   publishEducationCommunication,
+  updateEducationCommunicationDraft,
 } from "../actions";
 
 const AUDIENCE_LABELS = Object.fromEntries(EDUCATION_COMMUNICATION_AUDIENCES);
@@ -21,6 +24,8 @@ const STATUS_LABELS: Record<string, string> = {
   published: "Published",
   archived: "Archived",
 };
+const ANNOUNCEMENTS_PAGE_SIZE = 100;
+type EducationCommunicationAudience = (typeof EDUCATION_COMMUNICATION_AUDIENCES)[number][0];
 
 export default async function EducationCommunicationPage({
   searchParams,
@@ -39,10 +44,15 @@ export default async function EducationCommunicationPage({
   const requestedStatus = readParam(params.status);
   const requestedAudience = readParam(params.audience);
   const requestedSearch = readParam(params.search).trim().toLowerCase();
-  const [canCreate, canPublish, canArchive, { campuses }] = await Promise.all([
+  const parsedPage = Number.parseInt(readParam(params.page), 10);
+  const requestedPage = Number.isSafeInteger(parsedPage) && parsedPage > 0
+    ? Math.min(parsedPage, 100000)
+    : 1;
+  const [canCreate, canPublish, canArchive, canExport, { campuses }] = await Promise.all([
     canTabPermission("education_communication", "communication", "announcements", "create"),
     canTabPermission("education_communication", "communication", "announcements", "publish"),
     canTabPermission("education_communication", "communication", "announcements", "edit"),
+    canTabPermission("education_communication", "communication", "announcements", "export"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   const campusIds = campuses.map((campus) => campus.id);
@@ -53,33 +63,48 @@ export default async function EducationCommunicationPage({
     : "") as "draft" | "published" | "archived" | "";
   const audienceFilter = (Object.keys(AUDIENCE_LABELS).includes(requestedAudience)
     ? requestedAudience
-    : "") as "all" | "campus" | "students" | "staff" | "parents" | "";
+    : "") as EducationCommunicationAudience | "";
+  const pageHref = (page: number) => {
+    const query = new URLSearchParams();
+    if (requestedSearch) query.set("search", requestedSearch);
+    if (selectedBranch) query.set("branch", selectedBranch);
+    if (statusFilter) query.set("status", statusFilter);
+    if (audienceFilter) query.set("audience", audienceFilter);
+    query.set("page", String(page));
+    return `${getProductAppPath("think-education", "/communication")}?${query.toString()}`;
+  };
+  const pageOffset = (requestedPage - 1) * ANNOUNCEMENTS_PAGE_SIZE;
   const supabase = await createClient();
-  const { data: announcements, error } = branchIds.length
+  const { data: announcements, error, count } = branchIds.length
     ? await (async () => {
         let query = supabase.from("education_communications")
-          .select("id, branch_id, title, body, audience, status, created_at, published_at")
+          .select("id, branch_id, title, body, audience, status, created_at, published_at", { count: "exact" })
           .eq("org_id", context.orgId)
           .in("branch_id", branchIds)
           .order("created_at", { ascending: false })
-          .limit(100);
+          .range(pageOffset, pageOffset + ANNOUNCEMENTS_PAGE_SIZE - 1);
         if (statusFilter) query = query.eq("status", statusFilter);
+        if (audienceFilter) query = query.eq("audience", audienceFilter);
+        if (requestedSearch) {
+          const escapedSearch = escapeEducationCommunicationSearchTerm(requestedSearch);
+          query = query.or(`title.ilike.%${escapedSearch}%,body.ilike.%${escapedSearch}%`);
+        }
         return query;
       })()
-    : { data: [], error: null };
+    : { data: [], error: null, count: 0 };
   if (error) throw new Error(`Could not load Think Education announcements: ${error.message}`);
 
-  const filteredAnnouncements = (announcements ?? []).filter((announcement) => {
-    if (audienceFilter && announcement.audience !== audienceFilter) return false;
-    if (!requestedSearch) return true;
-    const announcementText = `${announcement.title} ${announcement.body}`.toLowerCase();
-    return announcementText.includes(requestedSearch);
-  });
+  const totalAnnouncements = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalAnnouncements / ANNOUNCEMENTS_PAGE_SIZE));
+  if (requestedPage > totalPages) redirect(pageHref(totalPages));
+  const firstAnnouncement = totalAnnouncements ? pageOffset + 1 : 0;
+  const lastAnnouncement = Math.min(pageOffset + ANNOUNCEMENTS_PAGE_SIZE, totalAnnouncements);
+  const visibleAnnouncements = announcements ?? [];
 
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const csvRows = [
     ["Title", "Campus", "Audience", "Status", "Created", "Published", "Message"],
-    ...filteredAnnouncements.map((announcement) => [
+    ...visibleAnnouncements.map((announcement) => [
       announcement.title,
       campusNameById.get(announcement.branch_id) ?? announcement.branch_id,
       AUDIENCE_LABELS[announcement.audience as keyof typeof AUDIENCE_LABELS] ?? announcement.audience,
@@ -89,7 +114,7 @@ export default async function EducationCommunicationPage({
       announcement.body,
     ]),
   ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map(escapeEducationCommunicationCsvCell).join(",")).join("\n"))}`;
   const errorMessage = params.error === "invalid"
     ? "Enter a valid campus, title, message, and audience."
     : params.error === "transition"
@@ -110,6 +135,7 @@ export default async function EducationCommunicationPage({
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Announcement saved as a draft.</p>}
+    {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Draft announcement updated.</p>}
     {params.published === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Announcement published to the selected audience.</p>}
     {params.archived === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Announcement archived.</p>}
     {params.error && errorMessage && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errorMessage}</p>}
@@ -144,7 +170,7 @@ export default async function EducationCommunicationPage({
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 p-4">
         <div>
           <h2 className="font-semibold text-slate-950">Campus announcements</h2>
-          <p className="mt-1 text-sm text-slate-500">Showing up to 100 most recent records across your accessible campuses.</p>
+          <p className="mt-1 text-sm text-slate-500">Showing {firstAnnouncement}-{lastAnnouncement} of {totalAnnouncements} matching announcements.</p>
         </div>
         <form method="get" className="flex flex-wrap gap-2">
           <input name="search" defaultValue={requestedSearch} placeholder="Search title or content" aria-label="Search announcements" className="min-w-[180px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
@@ -161,12 +187,12 @@ export default async function EducationCommunicationPage({
             {EDUCATION_COMMUNICATION_AUDIENCES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
           <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Apply filters</button>
-          {filteredAnnouncements.length > 0 && <a href={csvHref} download={`education-announcements-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Export CSV</a>}
+          {canExport && visibleAnnouncements.length > 0 && <a href={csvHref} download={`education-announcements-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Export page CSV</a>}
           <Link href={getProductAppPath("think-education", "/communication")} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</Link>
         </form>
       </div>
-      {!filteredAnnouncements.length ? <p className="p-6 text-sm text-slate-500">No announcements match these filters.</p> : <ul className="divide-y divide-slate-100">
-        {filteredAnnouncements.map((announcement) => <li key={announcement.id} className="space-y-3 p-4 sm:p-5">
+      {!visibleAnnouncements.length ? <p className="p-6 text-sm text-slate-500">No announcements match these filters.</p> : <ul className="divide-y divide-slate-100">
+        {visibleAnnouncements.map((announcement) => <li key={announcement.id} className="space-y-3 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -180,6 +206,24 @@ export default async function EducationCommunicationPage({
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
+              {announcement.status === "draft" && canArchive && <details className="relative">
+                <summary className="cursor-pointer list-none rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Edit draft</summary>
+                <form action={updateEducationCommunicationDraft} className="absolute right-0 z-10 mt-2 grid w-[min(90vw,32rem)] gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-lg">
+                  <input type="hidden" name="communication_id" value={announcement.id} />
+                  <label className="text-sm font-medium text-slate-700">Title
+                    <input required name="title" maxLength={160} defaultValue={announcement.title} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+                  </label>
+                  <label className="text-sm font-medium text-slate-700">Audience
+                    <select required name="audience" defaultValue={announcement.audience} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+                      {EDUCATION_COMMUNICATION_AUDIENCES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-sm font-medium text-slate-700">Message
+                    <textarea required name="body" maxLength={5000} rows={5} defaultValue={announcement.body} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+                  </label>
+                  <button type="submit" className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800">Save draft</button>
+                </form>
+              </details>}
               {announcement.status === "draft" && canPublish && <form action={publishEducationCommunication}>
                 <input type="hidden" name="communication_id" value={announcement.id} />
                 <button type="submit" className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800">Publish</button>
@@ -193,6 +237,15 @@ export default async function EducationCommunicationPage({
           <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{announcement.body}</p>
         </li>)}
       </ul>}
+      <nav aria-label="Announcement pages" className="flex items-center justify-between border-t border-slate-100 p-4">
+        {requestedPage > 1
+          ? <Link href={pageHref(requestedPage - 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous</Link>
+          : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400">Previous</span>}
+        <span className="text-sm text-slate-600">Page {requestedPage} of {totalPages}</span>
+        {requestedPage < totalPages
+          ? <Link href={pageHref(requestedPage + 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next</Link>
+          : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400">Next</span>}
+      </nav>
     </section>
   </main>;
 }

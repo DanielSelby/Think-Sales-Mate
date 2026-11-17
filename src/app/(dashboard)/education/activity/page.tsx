@@ -38,6 +38,7 @@ export default async function EducationActivityPage({
   if (!await canTabPermission("education_audit", "activity", "records", "view_audit")) {
     redirect("/dashboard?accessDenied=think-education.activity");
   }
+  const canExport = await canTabPermission("education_audit", "activity", "records", "export");
 
   const params = await searchParams;
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -134,7 +135,7 @@ export default async function EducationActivityPage({
       </label>
       <div className="flex items-end gap-2">
         <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"><Search className="h-4 w-4" /> Apply filters</button>
-        {records.length > 0 && <a href={csvHref} download={`education-activity-${new Date().toISOString().slice(0, 10)}.csv`} className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && records.length > 0 && <a href={csvHref} download={`education-activity-${new Date().toISOString().slice(0, 10)}.csv`} className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </div>
     </form>
 

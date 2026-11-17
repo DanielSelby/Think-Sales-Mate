@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, FileText, Plus, Trophy } from "lucide-react";
+import { ArrowLeft, FileText, Trophy } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { ResultScoreEditor } from "./result-score-editor";
+import { AssessmentComponentsManager } from "./assessment-components-manager";
+import { AssessmentResultEntryForm } from "./assessment-result-entry-form";
 import {
-  createEducationResult,
   updateEducationExaminationStatus,
   updateEducationResultStatus,
 } from "../actions";
@@ -16,12 +17,25 @@ import {
 type EducationResultRow = {
   id: string;
   student_id: string;
+  subject_id: string | null;
   subject_name: string;
   score: number;
   maximum_score: number;
   grade: string | null;
   grade_override: string | null;
   status: string;
+};
+type EducationAssessmentComponentRow = {
+  id: string;
+  subject_id: string;
+  name: string;
+  weight_percentage: number;
+  maximum_score: number;
+};
+type EducationResultComponentScoreRow = {
+  result_id: string;
+  component_id: string;
+  score: number;
 };
 
 export default async function EducationResultsPage({
@@ -41,11 +55,12 @@ export default async function EducationResultsPage({
   const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const requestedStatus = typeof params.status === "string" ? params.status : "";
   const validStatus = ["draft", "submitted", "approved", "published"].includes(requestedStatus) ? requestedStatus : "";
-  const [canCreate, canEdit, canApprove, canPublish] = await Promise.all([
+  const [canCreate, canEdit, canApprove, canPublish, canExport] = await Promise.all([
     canTabPermission("education_results", "results", "gradebook", "create"),
     canTabPermission("education_results", "results", "gradebook", "edit"),
     canTabPermission("education_results", "results", "gradebook", "approve"),
     canTabPermission("education_results", "results", "gradebook", "publish"),
+    canTabPermission("education_results", "results", "gradebook", "export"),
   ]);
   const canViewSubjectCatalog = await canTabPermission("education_academics", "academics", "calendar", "view");
   const supabase = await createClient();
@@ -72,13 +87,64 @@ export default async function EducationResultsPage({
     ?? exams.find((exam) => exam.status === "completed" || exam.status === "results_pending")
     ?? null;
   let results: EducationResultRow[] = [];
+  let assessmentComponents: EducationAssessmentComponentRow[] = [];
   if (selectedExam) {
-    const { data, error } = await supabase.from("education_results")
-      .select("id, student_id, subject_name, score, maximum_score, grade, grade_override, status")
-      .eq("org_id", context.orgId).eq("examination_id", selectedExam.id)
-      .order("subject_name");
-    if (error) throw new Error(`Could not load Think Education results: ${error.message}`);
-    results = data ?? [];
+    const [
+      { data: resultData, error: resultError },
+      { data: componentData, error: componentError },
+    ] = await Promise.all([
+      supabase.from("education_results")
+        .select("id, student_id, subject_id, subject_name, score, maximum_score, grade, grade_override, status")
+        .eq("org_id", context.orgId).eq("examination_id", selectedExam.id)
+        .order("subject_name"),
+      supabase.from("education_assessment_components")
+        .select("id, subject_id, name, weight_percentage, maximum_score")
+        .eq("org_id", context.orgId)
+        .eq("branch_id", selectedExam.branch_id)
+        .eq("examination_id", selectedExam.id)
+        .order("created_at"),
+    ]);
+    if (resultError) throw new Error(`Could not load Think Education results: ${resultError.message}`);
+    if (componentError) throw new Error(`Could not load Think Education assessment components: ${componentError.message}`);
+    results = resultData ?? [];
+    assessmentComponents = componentData ?? [];
+  }
+  const resultIds = results.map((result) => result.id);
+  let componentScoreRows: EducationResultComponentScoreRow[] = [];
+  if (resultIds.length) {
+    const { data, error } = await supabase.from("education_result_component_scores")
+      .select("result_id, component_id, score")
+      .eq("org_id", context.orgId)
+      .in("result_id", resultIds);
+    if (error) throw new Error(`Could not load component scores for Think Education results: ${error.message}`);
+    componentScoreRows = data ?? [];
+  }
+  const componentsBySubject = new Map<string, EducationAssessmentComponentRow[]>();
+  for (const component of assessmentComponents) {
+    const subjectComponents = componentsBySubject.get(component.subject_id) ?? [];
+    subjectComponents.push(component);
+    componentsBySubject.set(component.subject_id, subjectComponents);
+  }
+  const componentById = new Map(assessmentComponents.map((component) => [component.id, component]));
+  const componentScoresByResult = new Map<string, Array<{
+    componentId: string;
+    score: number;
+    name: string;
+    weightPercentage: number;
+    maximumScore: number;
+  }>>();
+  for (const score of componentScoreRows) {
+    const component = componentById.get(score.component_id);
+    if (!component) continue;
+    const resultScores = componentScoresByResult.get(score.result_id) ?? [];
+    resultScores.push({
+      componentId: component.id,
+      score: Number(score.score),
+      name: component.name,
+      weightPercentage: Number(component.weight_percentage),
+      maximumScore: Number(component.maximum_score),
+    });
+    componentScoresByResult.set(score.result_id, resultScores);
   }
   const studentIds = Array.from(new Set(results.map((result) => result.student_id)));
   const studentNameById = new Map<string, { number: string; name: string }>();
@@ -130,6 +196,8 @@ export default async function EducationResultsPage({
         ? "Check the examination, student number, subject, score, and maximum score."
         : params.error === "subject"
           ? "Select an active subject from your organization’s catalog. The selected subject may have been deactivated."
+            : params.error === "components"
+              ? "Check that component weights total 100% and every component has a valid name, weight, and maximum score."
         : params.error === "save" ? "The result could not be saved. Please try again." : null;
 
   return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
@@ -144,6 +212,7 @@ export default async function EducationResultsPage({
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Result added.</p>}
+    {params.components === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Assessment components saved.</p>}
     {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Result status updated.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
@@ -192,7 +261,7 @@ export default async function EducationResultsPage({
         </label>
         <div className="flex items-end gap-2">
           <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-          {filteredResults.length > 0 && <a href={csvHref} download={`education-results-${selectedExam?.name ?? "exam"}-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+          {canExport && filteredResults.length > 0 && <a href={csvHref} download={`education-results-${selectedExam?.name ?? "exam"}-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
           <Link href={getProductAppPath("think-education", "/results")} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
         </div>
       </form>
@@ -210,6 +279,14 @@ export default async function EducationResultsPage({
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Student number</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Grade</th><th className="px-4 py-3">Status / actions</th></tr></thead>
           <tbody className="divide-y divide-slate-100">{filteredResults.map((result) => {
             const student = studentNameById.get(result.student_id);
+            const resultComponents = result.subject_id ? componentsBySubject.get(result.subject_id) ?? [] : [];
+            const resultComponentScores = componentScoresByResult.get(result.id) ?? [];
+            const editorComponents = resultComponents.map((component) => ({
+              id: component.id,
+              name: component.name,
+              weightPercentage: Number(component.weight_percentage),
+              maximumScore: Number(component.maximum_score),
+            }));
             const nextStatus = result.status === "draft" ? "submitted"
               : result.status === "submitted" ? "approved"
                 : result.status === "approved" ? "published" : null;
@@ -220,11 +297,32 @@ export default async function EducationResultsPage({
               <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{student?.number ?? "—"}</td>
               <td className="px-4 py-3 font-medium text-slate-900">{student?.name ?? "Student"}</td>
               <td className="px-4 py-3 text-slate-700">{result.subject_name}</td>
-              <td className="px-4 py-3 text-slate-700">{result.score} / {result.maximum_score}</td>
+              <td className="px-4 py-3 text-slate-700">
+                {resultComponents.length
+                  ? <div>
+                    <span className="font-semibold">{Number(result.score).toFixed(2)}%</span>
+                    {resultComponentScores.length > 0 && <details className="mt-1 text-xs text-slate-500">
+                      <summary className="cursor-pointer">Component breakdown</summary>
+                      <ul className="mt-1 space-y-1">
+                        {resultComponentScores.map((component) => <li key={component.componentId}>
+                          {component.name}: {component.score} / {component.maximumScore} ({component.weightPercentage}%)
+                        </li>)}
+                      </ul>
+                    </details>}
+                  </div>
+                  : `${result.score} / ${result.maximum_score}`}
+              </td>
               <td className="px-4 py-3 text-slate-700">{result.grade ?? "—"}</td>
               <td className="px-4 py-3">
                 <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{result.status}</span>
-                {result.status === "draft" && canEdit && <ResultScoreEditor resultId={result.id} score={result.score} maximumScore={result.maximum_score} gradeOverride={result.grade_override} />}
+                {result.status === "draft" && canEdit && <ResultScoreEditor
+                  resultId={result.id}
+                  score={result.score}
+                  maximumScore={result.maximum_score}
+                  gradeOverride={result.grade_override}
+                  components={editorComponents}
+                  componentScores={resultComponentScores.map(({ componentId, score }) => ({ componentId, score }))}
+                />}
                 {nextStatus && canUpdate && <form action={updateEducationResultStatus} className="mt-2">
                   <input type="hidden" name="result_id" value={result.id} /><input type="hidden" name="status" value={nextStatus} />
                   <button className="rounded-md bg-blue-700 px-2.5 py-1 text-xs font-semibold capitalize text-white hover:bg-blue-800">{nextStatus === "submitted" ? "Submit" : nextStatus}</button>
@@ -240,32 +338,19 @@ export default async function EducationResultsPage({
       No active subjects are available to enter results. Add or reactivate subjects in the <Link className="font-semibold underline" href={getProductAppPath("think-education", "/subjects")}>organization subject catalog</Link>.
     </p>}
 
-    {canEnterResults && selectedExam && activeSubjects.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Enter result</h2>
-      <p className="mt-1 text-sm text-slate-500">Add a score for a student in {selectedExam.name}. Student numbers are checked against this examination’s campus.</p>
-      <form action={createEducationResult} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <input type="hidden" name="examination_id" value={selectedExam.id} />
-        <label className="text-sm font-medium text-slate-700">Student number
-          <input required name="student_number" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Subject
-          <select required name="subject_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            <option value="" disabled>Select a subject</option>
-            {activeSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Score
-          <input required name="score" type="number" min={0} step="0.01" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Maximum score
-          <input required name="maximum_score" type="number" min="0.01" step="0.01" defaultValue={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Grade (optional)
-          <input name="grade_override" maxLength={10} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <div className="sm:col-span-2 lg:col-span-5"><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"><Plus className="h-4 w-4" /> Save result</button></div>
-      </form>
-    </section>}
+    {selectedExam && canEdit && activeSubjects.length > 0 && !["published", "cancelled"].includes(selectedExam.status) && <AssessmentComponentsManager
+      examinationId={selectedExam.id}
+      subjects={activeSubjects}
+      components={assessmentComponents}
+      lockedSubjectIds={results.flatMap((result) => result.subject_id ? [result.subject_id] : [])}
+    />}
+
+    {canEnterResults && selectedExam && activeSubjects.length > 0 && <AssessmentResultEntryForm
+      examinationId={selectedExam.id}
+      examinationName={selectedExam.name}
+      subjects={activeSubjects}
+      components={assessmentComponents}
+    />}
 
     {selectedExam?.status === "results_pending" && canEdit && canPublish && <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
       <h2 className="font-semibold text-blue-950">Publish examination</h2>

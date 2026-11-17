@@ -711,9 +711,14 @@ export default async function EducationReportsPage({
           <h1 className="text-2xl font-bold text-slate-950">Education Reports</h1>
           <p className="mt-1 text-sm text-slate-600">Campus-scoped staff, attendance, academic outcomes, enrollment, fee collections, expenses, library, inventory, and transport summaries.</p>
         </div>
-        {canExportStaff && canViewStaff && <a href={exportHref} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-          <ArrowDownToLine className="h-4 w-4" /> Download CSV
-        </a>}
+        <div className="flex flex-wrap gap-2">
+          <Link href="/education/reports/campus-comparison" className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            <BarChart3 className="h-4 w-4" /> Campus comparison
+          </Link>
+          {canExportStaff && canViewStaff && <a href={exportHref} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            <ArrowDownToLine className="h-4 w-4" /> Download CSV
+          </a>}
+        </div>
       </div>
     </header>
 

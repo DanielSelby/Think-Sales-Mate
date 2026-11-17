@@ -20,11 +20,13 @@ export default async function EducationGuardiansPage({
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
 
-  const [canViewGuardians, canCreateGuardian, canVerifyGuardians, canViewStudents] = await Promise.all([
+  const [canViewGuardians, canCreateGuardian, canVerifyGuardians, canViewStudents, canExportGuardians, canExportStudents] = await Promise.all([
     canTabPermission("education_guardians", "guardians", "directory", "view"),
     canTabPermission("education_guardians", "guardians", "directory", "create"),
     canTabPermission("education_guardians", "guardians", "relationships", "edit"),
     canTabPermission("education_students", "students", "list", "view"),
+    canTabPermission("education_guardians", "guardians", "directory", "export"),
+    canTabPermission("education_students", "students", "list", "export"),
   ]);
   if (!canViewGuardians || !canViewStudents) {
     redirect("/dashboard?accessDenied=think-education.guardians");
@@ -255,7 +257,7 @@ export default async function EducationGuardiansPage({
           </select>
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {relationshipRows.length > 0 && <a href={csvHref} download={`education-guardians-${new Date().toISOString().slice(0, 10)}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExportGuardians && canExportStudents && relationshipRows.length > 0 && <a href={csvHref} download={`education-guardians-${new Date().toISOString().slice(0, 10)}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
       {relationshipRows.length ? <div className="divide-y divide-slate-100">
         {relationshipRows.map((row) => {

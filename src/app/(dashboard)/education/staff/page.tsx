@@ -36,9 +36,10 @@ export default async function EducationStaffPage({
     ? (requestedCategory as StaffCategory)
     : "";
   const branchIds = selectedBranch ? [selectedBranch] : allowedBranchIds;
-  const [canCreate, canImportCapability] = await Promise.all([
+  const [canCreate, canImportCapability, canExport] = await Promise.all([
     canTabPermission("education_staff", "staff", "directory", "create"),
     canPermission("education_staff", "import"),
+    canTabPermission("education_staff", "staff", "directory", "export"),
   ]);
   const canImport = canImportCapability && canCreate;
   const canCreateAccount = isOrganizationSuperAdminMember({
@@ -174,7 +175,7 @@ export default async function EducationStaffPage({
           {STAFF_CATEGORIES.map((category) => <option key={category} value={category}>{category.replace("_", " ")}</option>)}
         </select>
         <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {staff.length > 0 && <a href={csvHref} download={`education-staff-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && staff.length > 0 && <a href={csvHref} download={`education-staff-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
       {campuses.length === 0 ? <div className="p-8 text-center">
         <Users className="mx-auto h-10 w-10 text-slate-300" />

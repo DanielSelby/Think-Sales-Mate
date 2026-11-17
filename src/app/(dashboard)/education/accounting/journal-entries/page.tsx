@@ -41,7 +41,7 @@ export default async function EducationJournalEntriesPage({
       .eq("org_id", context.orgId)
       .order("starts_on"),
     supabase.from("education_accounting_journals")
-      .select("id, journal_number, branch_id, fiscal_year_id, period_id, entry_date, reference, description, status, total_debit, total_credit, posted_at")
+      .select("id, journal_number, branch_id, fiscal_year_id, period_id, entry_date, reference, description, source_module, status, total_debit, total_credit, posted_at")
       .eq("org_id", context.orgId)
       .order("journal_number", { ascending: false })
       .limit(100),
@@ -166,6 +166,11 @@ export default async function EducationJournalEntriesPage({
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        {journal.source_module === "manual"
+                          ? "Manual"
+                          : `Automatic · ${journal.source_module.replaceAll("_", " ")}`}
+                      </span>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${journal.status === "posted" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
                         {journal.status === "posted" ? "Posted" : "Draft"}
                       </span>
@@ -218,7 +223,9 @@ export default async function EducationJournalEntriesPage({
       </section>
 
       <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        Posted journals are immutable and included in the General Ledger. Fees, receipts, and expenses are still operational records and are not automatically journalized.
+        Posted journals are immutable and included in the General Ledger. Fee charges, receipts, approved expenses, and expense payments are journalized automatically using the campus mappings.
+        {" "}
+        <Link href={getProductAppPath("think-education", "/accounting/settings")} className="font-semibold underline">Review automated posting mappings</Link>.
       </p>
     </main>
   );

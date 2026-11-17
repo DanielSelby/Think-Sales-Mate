@@ -38,7 +38,7 @@ export default async function EducationTransportPage({
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
 
-  const [canViewFleet, canCreateFleet, canEditFleet, canViewAssignments, canCreateAssignment, canEndAssignment, canViewStudents, { campuses }] = await Promise.all([
+  const [canViewFleet, canCreateFleet, canEditFleet, canViewAssignments, canCreateAssignment, canEndAssignment, canViewStudents, canExportFleet, canExportAssignments, { campuses }] = await Promise.all([
     canTabPermission("education_transport", "transport", "fleet", "view"),
     canTabPermission("education_transport", "transport", "fleet", "create"),
     canTabPermission("education_transport", "transport", "fleet", "edit"),
@@ -46,10 +46,13 @@ export default async function EducationTransportPage({
     canTabPermission("education_transport", "transport", "assignments", "create"),
     canTabPermission("education_transport", "transport", "assignments", "edit"),
     canTabPermission("education_students", "students", "list", "view"),
+    canTabPermission("education_transport", "transport", "fleet", "export"),
+    canTabPermission("education_transport", "transport", "assignments", "export"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   if (!canViewFleet && !canViewAssignments) redirect("/dashboard?accessDenied=think-education.transport");
   const canAssign = canViewAssignments && canCreateAssignment && canViewStudents;
+  const canExportTransport = canViewFleet && canViewAssignments && canExportFleet && canExportAssignments;
 
   const params = await searchParams;
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
@@ -196,7 +199,7 @@ export default async function EducationTransportPage({
         </select>
       </label>
       <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply campus filter</button>
-      {routeSummaries.length > 0 && <a href={csvHref} download={`education-transport-routes-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      {canExportTransport && routeSummaries.length > 0 && <a href={csvHref} download={`education-transport-routes-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </form>
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

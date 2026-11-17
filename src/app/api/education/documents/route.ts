@@ -10,9 +10,14 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 
-function redirectWith(request: NextRequest, name: string, value: string) {
-  const url = new URL(getProductAppPath("think-education", "/documents"), request.url);
-  url.searchParams.set(name, value);
+function redirectWith(request: NextRequest, name: string, value: string, admissionId?: string | null) {
+  const isAdmissionUpload = !!admissionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(admissionId);
+  const url = new URL(getProductAppPath("think-education", isAdmissionUpload ? "/admissions" : "/documents"), request.url);
+  if (isAdmissionUpload) {
+    url.searchParams.set(name === "uploaded" ? "documentsUploaded" : "document_error", value);
+  } else {
+    url.searchParams.set(name, value);
+  }
   return NextResponse.redirect(url, 303);
 }
 
@@ -32,6 +37,7 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const branchId = String(formData.get("branch_id") ?? "");
   const studentId = String(formData.get("student_id") ?? "") || null;
+  const admissionId = String(formData.get("admission_id") ?? "").trim() || null;
   const title = String(formData.get("title") ?? "").trim();
   const category = String(formData.get("category") ?? "");
   const retentionValue = String(formData.get("retention_until") ?? "");
@@ -42,23 +48,28 @@ export async function POST(request: NextRequest) {
   const categoryAllowed = EDUCATION_DOCUMENT_CATEGORIES.some(([value]) => value === category);
   if (!(file instanceof File) || !file.size || file.size > EDUCATION_DOCUMENT_MAX_BYTES
     || !title || title.length > 160 || !categoryAllowed
+    || (admissionId && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(admissionId)
+      || category !== "admission" || studentId))
     || (retentionValue && !isValidDate(retentionValue))
     || !await isAllowedEducationDocumentFile(file)) {
-    return redirectWith(request, "error", "invalid");
+    return redirectWith(request, "error", "invalid", admissionId);
   }
   if (!fileName || fileName.length > 255) {
-    return redirectWith(request, "error", "invalid");
+    return redirectWith(request, "error", "invalid", admissionId);
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (!campuses.some((campus) => campus.id === branchId)) {
-    return redirectWith(request, "error", "campus");
+    return redirectWith(request, "error", "campus", admissionId);
+  }
+  if (admissionId && !await canTabPermission("education_admissions", "admissions", "applications", "edit")) {
+    return redirectWith(request, "error", "permission", admissionId);
   }
 
   const supabase = await createClient();
   if (studentId) {
     if (!await canTabPermission("education_students", "students", "list", "view")) {
-      return redirectWith(request, "error", "permission");
+      return redirectWith(request, "error", "permission", admissionId);
     }
     const { data: student, error: studentError } = await supabase.from("education_students")
       .select("id")
@@ -68,12 +79,12 @@ export async function POST(request: NextRequest) {
       .eq("status", "active")
       .maybeSingle();
     if (studentError) throw new Error(`Could not verify the selected student: ${studentError.message}`);
-    if (!student) return redirectWith(request, "error", "student");
+    if (!student) return redirectWith(request, "error", "student", admissionId);
   }
 
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
-  if (!user) return redirectWith(request, "error", "auth");
+  if (!user) return redirectWith(request, "error", "auth", admissionId);
 
   const storagePath = `${context.orgId}/${branchId}/${crypto.randomUUID()}`;
   const { error: uploadError } = await supabase.storage.from("education-documents").upload(storagePath, file, {
@@ -82,7 +93,7 @@ export async function POST(request: NextRequest) {
   });
   if (uploadError) {
     console.error("Could not upload Think Education document:", uploadError.message);
-    return redirectWith(request, "error", "upload");
+    return redirectWith(request, "error", "upload", admissionId);
   }
 
   const { error: registerError } = await supabase.rpc("education_document_register", {
@@ -96,17 +107,18 @@ export async function POST(request: NextRequest) {
     p_file_size: file.size,
     p_storage_path: storagePath,
     p_retention_until: retentionValue || null,
+    p_admission_id: admissionId,
   });
   if (registerError) {
     const { error: cleanupError } = await supabase.storage.from("education-documents").remove([storagePath]);
     if (cleanupError) {
       console.error("Could not remove unregistered Think Education upload:", cleanupError.message);
     }
-    if (registerError.code === "22023") return redirectWith(request, "error", "invalid");
-    if (registerError.code === "42501") return redirectWith(request, "error", "permission");
+    if (registerError.code === "22023") return redirectWith(request, "error", "invalid", admissionId);
+    if (registerError.code === "42501") return redirectWith(request, "error", "permission", admissionId);
     console.error("Could not register Think Education document:", registerError.message);
-    return redirectWith(request, "error", "save");
+    return redirectWith(request, "error", "save", admissionId);
   }
 
-  return redirectWith(request, "uploaded", "1");
+  return redirectWith(request, "uploaded", "1", admissionId);
 }

@@ -28,11 +28,12 @@ export default async function EducationAcademicsPage({
   const params = await searchParams;
   const { campuses, hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const branchIds = campuses.map((campus) => campus.id);
-  const [canCreateYear, canCreateClass, canEditYear, canApproveYear] = await Promise.all([
+  const [canCreateYear, canCreateClass, canEditYear, canApproveYear, canExportClasses] = await Promise.all([
     hasOrganizationScope && await canTabPermission("education_academics", "academics", "calendar", "create"),
     await canTabPermission("education_academics", "academics", "classes", "create"),
     hasOrganizationScope && await canTabPermission("education_academics", "academics", "calendar", "edit"),
     hasOrganizationScope && await canTabPermission("education_academics", "academics", "calendar", "approve"),
+    canTabPermission("education_academics", "academics", "classes", "export"),
   ]);
   const supabase = await createClient();
   const [{ data: years, error: yearsError }, termsResult, classesResult] = await Promise.all([
@@ -94,7 +95,10 @@ export default async function EducationAcademicsPage({
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Academic Management</h1>
       <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Manage academic years and campus classes within your authorized scope.</p>
       </div>
-      <Link href={getProductAppPath("think-education", "/subjects")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">Organization subject catalog</Link>
+      <div className="flex flex-wrap gap-2">
+        <Link href={getProductAppPath("think-education", "/academics/curriculum")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">Class curriculum</Link>
+        <Link href={getProductAppPath("think-education", "/subjects")} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Organization subject catalog</Link>
+      </div>
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic record created.</p>}
@@ -174,7 +178,7 @@ export default async function EducationAcademicsPage({
         </div>
         {classes.length === 0 ? <p className="p-6 text-sm text-slate-500">{campuses.length ? "No classes found in your assigned campuses." : "Campus access has not been assigned."}</p> : <div>
           <div className="flex justify-end border-b border-slate-200 px-4 py-3">
-            <a href={csvHref} download={`education-classes-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>
+            {canExportClasses && <a href={csvHref} download={`education-classes-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
           </div>
           <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-sm">

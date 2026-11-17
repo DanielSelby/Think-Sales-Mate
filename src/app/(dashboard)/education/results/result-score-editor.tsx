@@ -2,19 +2,35 @@
 
 import { useState } from "react";
 import { updateEducationDraftResult } from "../actions";
+import type {
+  EducationAssessmentComponent,
+  EducationAssessmentComponentScore,
+} from "@/lib/education/assessment-components";
 
 type Props = {
   resultId: string;
   score: number;
   maximumScore: number;
   gradeOverride: string | null;
+  components?: EducationAssessmentComponent[];
+  componentScores?: EducationAssessmentComponentScore[];
 };
 
-export function ResultScoreEditor({ resultId, score, maximumScore, gradeOverride }: Props) {
+export function ResultScoreEditor({
+  resultId,
+  score,
+  maximumScore,
+  gradeOverride,
+  components = [],
+  componentScores = [],
+}: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [scores, setScores] = useState<Record<string, string>>(() =>
+    Object.fromEntries(componentScores.map((item) => [item.componentId, String(item.score)]))
+  );
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,14 +63,27 @@ export function ResultScoreEditor({ resultId, score, maximumScore, gradeOverride
   return (
     <form onSubmit={handleSubmit} className="mt-2 grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
       <input type="hidden" name="result_id" value={resultId} />
-      <label className="text-xs font-medium text-slate-700">
-        Score
-        <input required name="score" type="number" min="0" step="0.01" defaultValue={score} className={inputClassName} />
-      </label>
-      <label className="text-xs font-medium text-slate-700">
-        Maximum score
-        <input required name="maximum_score" type="number" min="0.01" step="0.01" defaultValue={maximumScore} className={inputClassName} />
-      </label>
+      {components.length
+        ? <>
+          <input type="hidden" name="component_scores_json" value={JSON.stringify(components.map((component) => ({
+            componentId: component.id,
+            score: scores[component.id] ?? "",
+          })))} />
+          {components.map((component) => <label key={component.id} className="text-xs font-medium text-slate-700">
+            {component.name} ({component.weightPercentage}% weight · max {component.maximumScore})
+            <input required type="number" min="0" max={component.maximumScore} step="0.01" value={scores[component.id] ?? ""} onChange={(event) => setScores((current) => ({ ...current, [component.id]: event.target.value }))} className={inputClassName} />
+          </label>)}
+        </>
+        : <>
+          <label className="text-xs font-medium text-slate-700">
+            Score
+            <input required name="score" type="number" min="0" step="0.01" defaultValue={score} className={inputClassName} />
+          </label>
+          <label className="text-xs font-medium text-slate-700">
+            Maximum score
+            <input required name="maximum_score" type="number" min="0.01" step="0.01" defaultValue={maximumScore} className={inputClassName} />
+          </label>
+        </>}
       <label className="text-xs font-medium text-slate-700">
         Grade override
         <input name="grade_override" maxLength={10} defaultValue={gradeOverride ?? ""} className={inputClassName} />

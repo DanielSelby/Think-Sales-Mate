@@ -6,7 +6,11 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { createEducationTimetableEntry } from "../actions";
+import {
+  cancelEducationTimetableEntry,
+  createEducationTimetableEntry,
+  updateEducationTimetableEntry,
+} from "../actions";
 
 const WEEKDAYS = [
   { value: 1, label: "Monday" },
@@ -29,6 +33,8 @@ type TimetableRow = {
   starts_at: string;
   ends_at: string;
   room: string | null;
+  status: "active" | "cancelled";
+  updated_at: string;
 };
 
 export default async function EducationTimetablesPage({
@@ -51,8 +57,12 @@ export default async function EducationTimetablesPage({
   const requestedYear = typeof params.year === "string" ? params.year : "";
   const requestedWeekday = Number(typeof params.weekday === "string" ? params.weekday : "");
   const selectedWeekday = WEEKDAYS.some((day) => day.value === requestedWeekday) ? requestedWeekday : 0;
-  const canCreate = await canTabPermission("education_timetables", "timetables", "schedule", "create");
-  const canViewSubjectCatalog = await canTabPermission("education_academics", "academics", "calendar", "view");
+  const [canCreate, canEdit, canExport, canViewSubjectCatalog] = await Promise.all([
+    canTabPermission("education_timetables", "timetables", "schedule", "create"),
+    canTabPermission("education_timetables", "timetables", "schedule", "edit"),
+    canTabPermission("education_timetables", "timetables", "schedule", "export"),
+    canTabPermission("education_academics", "academics", "calendar", "view"),
+  ]);
   const supabase = await createClient();
   let activeSubjects: Array<{ id: string; name: string }> = [];
   if (canViewSubjectCatalog) {
@@ -63,7 +73,7 @@ export default async function EducationTimetablesPage({
     if (error) throw new Error(`Could not load active Think Education subjects: ${error.message}`);
     activeSubjects = data ?? [];
   }
-  const [{ data: years, error: yearsError }, classesResult, staffResult, entriesResult] = await Promise.all([
+  const [{ data: years, error: yearsError }, classesResult, staffResult, entriesResult, classSubjectsResult] = await Promise.all([
     supabase.from("education_academic_years")
       .select("id, name, status")
       .eq("org_id", context.orgId)
@@ -81,18 +91,25 @@ export default async function EducationTimetablesPage({
       : Promise.resolve({ data: [], error: null }),
     filterBranchIds.length
       ? supabase.from("education_timetable_entries")
-        .select("id, branch_id, class_id, staff_id, academic_year_id, subject_name, weekday, starts_at, ends_at, room")
+        .select("id, branch_id, class_id, staff_id, academic_year_id, subject_name, weekday, starts_at, ends_at, room, status, updated_at")
         .eq("org_id", context.orgId).in("branch_id", filterBranchIds).eq("status", "active")
         .order("weekday").order("starts_at")
       : Promise.resolve({ data: [] as TimetableRow[], error: null }),
+    filterBranchIds.length && canViewSubjectCatalog
+      ? supabase.from("education_class_subjects")
+        .select("id, class_id, subject_id")
+        .eq("org_id", context.orgId).in("branch_id", filterBranchIds).eq("status", "active")
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (yearsError) throw new Error(`Could not load academic years for timetables: ${yearsError.message}`);
   if (classesResult.error) throw new Error(`Could not load classes for timetables: ${classesResult.error.message}`);
   if (staffResult.error) throw new Error(`Could not load staff for timetables: ${staffResult.error.message}`);
   if (entriesResult.error) throw new Error(`Could not load Think Education timetable: ${entriesResult.error.message}`);
+  if (classSubjectsResult.error) throw new Error(`Could not load class curriculum for timetables: ${classSubjectsResult.error.message}`);
   const academicYears = years ?? [];
   const availableAcademicYears = academicYears.filter((year) => year.status === "active" || year.status === "planned");
   const classes = classesResult.data ?? [];
+  const classSubjects = classSubjectsResult.data ?? [];
   const staff = staffResult.data ?? [];
   const entries: TimetableRow[] = entriesResult.data ?? [];
   const yearIds = academicYears.map((year) => year.id);
@@ -121,6 +138,11 @@ export default async function EducationTimetablesPage({
     && Boolean(createYearId)
     && classroom.academic_year_id === createYearId
   );
+  const selectedClassIds = new Set(selectedCampusClasses.map((classroom) => classroom.id));
+  const subjectNameById = new Map(activeSubjects.map((subject) => [subject.id, subject.name]));
+  const activeClassSubjects = classSubjects.filter((assignment) =>
+    selectedClassIds.has(assignment.class_id) && subjectNameById.has(assignment.subject_id)
+  );
   const selectedCampusStaff = staff.filter((member) => member.branch_id === createBranchId);
   const csvRows = [
     ["Day", "Time", "Subject", "Class", "Teacher", "Campus", "Room", "Academic year"],
@@ -141,8 +163,14 @@ export default async function EducationTimetablesPage({
     : params.error === "invalid"
       ? "Check the campus, class, academic year, subject, day, and time."
       : params.error === "subject"
-        ? "Select an active subject from your organization’s catalog. The selected subject may have been deactivated."
-      : params.error === "save" ? "The timetable entry could not be saved. Please try again." : null;
+        ? "Select an active subject from the catalog. It may have been deactivated."
+        : params.error === "allocation"
+          ? "Assign this subject to the selected class in Class curriculum before scheduling it."
+      : params.error === "stale"
+        ? "This timetable entry changed or is no longer active. Refresh the schedule and try again."
+        : params.error === "transition"
+          ? "Only active timetable entries can be changed."
+          : params.error === "save" ? "The timetable entry could not be saved. Please try again." : null;
 
   return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-4">
@@ -152,7 +180,10 @@ export default async function EducationTimetablesPage({
         </Link>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Class Timetables</h1>
         <p className="mt-1 text-sm text-slate-600">View weekly lessons and schedule classes without overlapping their class, teacher, or room.</p>
-        <Link href={getProductAppPath("think-education", "/subjects")} className="mt-2 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Manage subject catalog</Link>
+        <div className="mt-2 flex flex-wrap gap-4 text-sm font-semibold">
+          <Link href={getProductAppPath("think-education", "/academics/curriculum")} className="text-blue-700 hover:text-blue-900">Manage class curriculum</Link>
+          <Link href={getProductAppPath("think-education", "/subjects")} className="text-slate-600 hover:text-slate-900">Subject catalog</Link>
+        </div>
       </div>
       {canCreate && selectedCampusClasses.length > 0 && <a href="#add-lesson" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
         <Plus className="h-4 w-4" /> Add lesson
@@ -160,6 +191,8 @@ export default async function EducationTimetablesPage({
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Timetable entry added.</p>}
+    {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Timetable entry updated.</p>}
+    {params.cancelled === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Timetable entry cancelled.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
     <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
@@ -196,7 +229,7 @@ export default async function EducationTimetablesPage({
           </select>
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {visibleEntries.length > 0 && <a href={csvHref} download={`education-timetable-${new Date().toISOString().slice(0, 10)}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && visibleEntries.length > 0 && <a href={csvHref} download={`education-timetable-${new Date().toISOString().slice(0, 10)}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
 
       {campuses.length === 0 ? <div className="p-8 text-center">
@@ -216,23 +249,72 @@ export default async function EducationTimetablesPage({
               <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium tabular-nums text-slate-600 ring-1 ring-slate-200">{dayEntries.length} {dayEntries.length === 1 ? "lesson" : "lessons"}</span>
             </header>
             {dayEntries.length === 0 ? <p className="px-4 py-5 text-sm text-slate-500">No lessons scheduled</p> : <ol className="divide-y divide-slate-100">
-              {dayEntries.map((entry) => <li key={entry.id} className="border-l-2 border-blue-500 px-4 py-3 transition-colors hover:bg-slate-50/70">
-                <p className="text-xs font-semibold tabular-nums text-blue-800">{entry.starts_at.slice(0, 5)}–{entry.ends_at.slice(0, 5)}</p>
-                <h3 className="mt-1 font-semibold text-slate-900">{entry.subject_name}</h3>
-                <p className="mt-1 text-sm text-slate-600">{classNameById.get(entry.class_id) ?? "Class"} · {entry.staff_id ? staffById.get(entry.staff_id) ?? "Staff" : "Unassigned"}</p>
-                <p className="mt-1 text-xs text-slate-500">{campusNameById.get(entry.branch_id) ?? "Campus"}{entry.room ? ` · ${entry.room}` : ""} · {yearNameById.get(entry.academic_year_id) ?? "—"}</p>
-              </li>)}
+              {dayEntries.map((entry) => {
+                const entryClasses = classes.filter((classroom) =>
+                  classroom.branch_id === entry.branch_id && classroom.academic_year_id === entry.academic_year_id
+                );
+                const entryStaff = staff.filter((member) => member.branch_id === entry.branch_id);
+                return <li key={entry.id} className="border-l-2 border-blue-500 px-4 py-3 transition-colors hover:bg-slate-50/70">
+                  <p className="text-xs font-semibold tabular-nums text-blue-800">{entry.starts_at.slice(0, 5)}–{entry.ends_at.slice(0, 5)}</p>
+                  <h3 className="mt-1 font-semibold text-slate-900">{entry.subject_name}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{classNameById.get(entry.class_id) ?? "Class"} · {entry.staff_id ? staffById.get(entry.staff_id) ?? "Staff" : "Unassigned"}</p>
+                  <p className="mt-1 text-xs text-slate-500">{campusNameById.get(entry.branch_id) ?? "Campus"}{entry.room ? ` · ${entry.room}` : ""} · {yearNameById.get(entry.academic_year_id) ?? "—"}</p>
+                  {canEdit && <details className="mt-3 border-t border-slate-100 pt-2">
+                    <summary className="cursor-pointer text-sm font-semibold text-blue-700">Edit or cancel lesson</summary>
+                    <form action={updateEducationTimetableEntry} className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <input type="hidden" name="entry_id" value={entry.id} />
+                      <input type="hidden" name="expected_updated_at" value={entry.updated_at} />
+                      <label className="text-xs font-medium text-slate-600">Class
+                        <select required name="class_id" defaultValue={entry.class_id} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-normal">
+                          {!entryClasses.some((classroom) => classroom.id === entry.class_id) && <option value={entry.class_id}>{classNameById.get(entry.class_id) ?? "Current class (inactive)"}</option>}
+                          {entryClasses.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">Teacher
+                        <select name="staff_id" defaultValue={entry.staff_id ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-normal">
+                          <option value="">Unassigned</option>
+                          {entry.staff_id && !entryStaff.some((member) => member.id === entry.staff_id) && <option value={entry.staff_id}>{staffById.get(entry.staff_id) ?? "Current teacher (inactive)"}</option>}
+                          {entryStaff.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">Day
+                        <select required name="weekday" defaultValue={entry.weekday} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-normal">
+                          {WEEKDAYS.map((weekday) => <option key={weekday.value} value={weekday.value}>{weekday.label}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">Room
+                        <input name="room" maxLength={80} defaultValue={entry.room ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-normal" />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">Starts
+                        <input required type="time" name="starts_at" defaultValue={entry.starts_at.slice(0, 5)} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-normal" />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">Ends
+                        <input required type="time" name="ends_at" defaultValue={entry.ends_at.slice(0, 5)} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-normal" />
+                      </label>
+                      <div className="sm:col-span-2">
+                        <button type="submit" className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800">Save changes</button>
+                      </div>
+                    </form>
+                    <form action={cancelEducationTimetableEntry} className="mt-3 border-t border-slate-100 pt-3">
+                      <input type="hidden" name="entry_id" value={entry.id} />
+                      <input type="hidden" name="expected_updated_at" value={entry.updated_at} />
+                      <button type="submit" className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">Cancel lesson</button>
+                      <p className="mt-1 text-xs text-slate-500">The cancelled lesson is retained for audit and no longer blocks its time slot.</p>
+                    </form>
+                  </details>}
+                </li>;
+              })}
             </ol>}
           </section>;
         })}
       </div>}
     </section>
 
-    {canCreate && selectedCampusClasses.length > 0 && activeSubjects.length === 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      No active subjects are available to schedule. Add or reactivate subjects in the <Link className="font-semibold underline" href={getProductAppPath("think-education", "/subjects")}>organization subject catalog</Link>.
+    {canCreate && selectedCampusClasses.length > 0 && activeClassSubjects.length === 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      No subjects are assigned to classes in this campus and academic year. Manage them in <Link className="font-semibold underline" href={getProductAppPath("think-education", "/academics/curriculum")}>Class curriculum</Link>.
     </p>}
 
-    {canCreate && selectedCampusClasses.length > 0 && activeSubjects.length > 0 && <section id="add-lesson" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    {canCreate && selectedCampusClasses.length > 0 && activeClassSubjects.length > 0 && <section id="add-lesson" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-slate-950">Add lesson to timetable</h2>
       <p className="mt-1 text-sm text-slate-500">The server checks for class, teacher, and room conflicts before saving.</p>
       <form action={createEducationTimetableEntry} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -247,20 +329,15 @@ export default async function EducationTimetablesPage({
           </span>
           {createYearId && <input type="hidden" name="academic_year_id" value={createYearId} />}
         </label>
-        <label className="text-sm font-medium text-slate-700">Class
-          <select required name="class_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            {selectedCampusClasses.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name} · {yearNameById.get(classroom.academic_year_id) ?? "Year"}</option>)}
-          </select>
-        </label>
         <label className="text-sm font-medium text-slate-700">Teacher
           <select name="staff_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
             <option value="">Unassigned</option>{selectedCampusStaff.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name} · {member.staff_number}</option>)}
           </select>
         </label>
-        <label className="text-sm font-medium text-slate-700">Subject
-          <select required name="subject_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            <option value="" disabled>Select a subject</option>
-            {activeSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+        <label className="text-sm font-medium text-slate-700">Class · subject
+          <select required name="class_subject_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="" disabled>Select an assigned subject</option>
+            {activeClassSubjects.map((assignment) => <option key={assignment.id} value={assignment.id}>{classNameById.get(assignment.class_id) ?? "Class"} · {subjectNameById.get(assignment.subject_id)}</option>)}
           </select>
         </label>
         <label className="text-sm font-medium text-slate-700">Day

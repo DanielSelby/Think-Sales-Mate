@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { StudentProfileForm } from "../student-profile-form";
+import { StudentConsentForm } from "../student-consent-form";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { getProductAppPath } from "@/lib/product-app-routes";
@@ -32,7 +33,7 @@ export default async function EducationStudentProfilePage({ params }: PageProps)
 
   const supabase = await createClient();
   const { data: student, error } = await supabase.from("education_students")
-    .select("id, student_number, first_name, last_name, other_names, email, phone, date_of_birth, gender, branch_id, status")
+    .select("id, student_number, first_name, last_name, other_names, email, phone, date_of_birth, gender, home_address, branch_id, status")
     .eq("org_id", context.orgId)
     .eq("id", studentId)
     .in("branch_id", branchIds)
@@ -42,6 +43,16 @@ export default async function EducationStudentProfilePage({ params }: PageProps)
     throw new Error("The student profile could not be loaded.");
   }
   if (!student) notFound();
+
+  const { data: consentEvents, error: consentError } = await supabase.from("education_student_consent_events")
+    .select("id, consent_type, disclosure_version, decision, signer_name, signer_relationship, evidence_note, recorded_at")
+    .eq("org_id", context.orgId)
+    .eq("student_id", student.id)
+    .order("recorded_at", { ascending: false });
+  if (consentError) {
+    console.error("Could not load Think Education student consent history:", consentError.message);
+    throw new Error("The student consent history could not be loaded.");
+  }
 
   const campusName = campuses.find((campus) => campus.id === student.branch_id)?.name ?? "Campus";
   const fullName = [student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ");
@@ -57,6 +68,7 @@ export default async function EducationStudentProfilePage({ params }: PageProps)
         <p className="mt-2 text-sm text-slate-600">{student.student_number} · {campusName} · {student.status.replaceAll("_", " ")}</p>
       </header>
       <StudentProfileForm student={student} canEdit={canEdit} />
+      <StudentConsentForm studentId={student.id} canEdit={canEdit} events={consentEvents ?? []} />
     </main>
   );
 }

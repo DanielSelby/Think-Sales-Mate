@@ -18,7 +18,15 @@ import {
   isValidEducationExpenseDate,
 } from "@/lib/education/expenses";
 import { educationStudentProfileInputSchema } from "@/lib/education/student-profile";
+import { educationStudentConsentInputSchema } from "@/lib/education/student-consent";
 import { educationResultScoreInputSchema } from "@/lib/education/result-score";
+import { educationCommunicationDraftInputSchema } from "@/lib/education/communications";
+import { educationLessonAttendanceInputSchema } from "@/lib/education/lesson-attendance";
+import {
+  calculateEducationWeightedScore,
+  educationAssessmentComponentsSchema,
+  educationAssessmentComponentScoresSchema,
+} from "@/lib/education/assessment-components";
 import {
   educationGradeBandInputSchema,
   getEducationResultGrade,
@@ -27,6 +35,10 @@ import {
   getActiveEducationSubject,
   isValidEducationSubjectName,
 } from "@/lib/education/subjects";
+import {
+  educationStudentPromotionInputSchema,
+  educationStudentTransferInputSchema,
+} from "@/lib/education/student-progression";
 
 export type EducationImportEntity = "students" | "staff" | "campuses";
 
@@ -47,6 +59,46 @@ function isValidEducationISODate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+async function syncEducationResultGrade(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  resultId: string,
+  score: number,
+  maximumScore: number,
+  gradeOverride: string,
+) {
+  const { data: bandRows, error: bandError } = await supabase.from("education_grade_bands")
+    .select("label, minimum_percentage")
+    .eq("org_id", orgId)
+    .order("minimum_percentage");
+  if (bandError) {
+    const missingTableCode = bandError.code ?? "";
+    if (missingTableCode === "42P01" || missingTableCode === "42703") return;
+    throw new Error(`Could not load Think Education grade bands: ${bandError.message}`);
+  }
+
+  const bands = (bandRows ?? []).map((band) => ({
+    label: band.label,
+    minimumPercentage: Number(band.minimum_percentage),
+  }));
+  const computedGrade = getEducationResultGrade(gradeOverride, score, maximumScore, bands);
+  if (computedGrade === null) return;
+
+  const { error: updateError } = await supabase.from("education_results")
+    .update({
+      grade: computedGrade,
+      grade_override: gradeOverride.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("org_id", orgId)
+    .eq("id", resultId);
+
+  if (updateError) {
+    console.error("Could not sync Think Education result grade:", updateError.message);
+    throw new Error(`The result grade could not be synced: ${updateError.message}`);
+  }
 }
 
 export async function grantOwnEducationOrganizationScope() {
@@ -743,14 +795,19 @@ export async function createEducationStudent(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const phone = String(formData.get("phone") ?? "").trim();
   const dateOfBirth = String(formData.get("date_of_birth") ?? "").trim();
+  const gender = String(formData.get("gender") ?? "").trim();
+  const homeAddress = String(formData.get("home_address") ?? "").trim();
   const createAccount = formData.get("create_account") === "true";
   if (!branchId || !/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber) || !firstName || !lastName) {
     return { error: "Check the student number, name, and campus fields." };
   }
   if (firstName.length > 100 || lastName.length > 100 || otherNames.length > 100
     || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    || phone.length > 32 || (dateOfBirth && !isValidEducationStaffDate(dateOfBirth))) {
-    return { error: "Enter a valid email address and date of birth." };
+    || phone.length > 32
+    || gender.length > 50
+    || homeAddress.length > 500
+    || (dateOfBirth && !isValidEducationStaffDate(dateOfBirth))) {
+    return { error: "Enter a valid email address, date of birth, gender, and address." };
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -793,6 +850,8 @@ export async function createEducationStudent(formData: FormData) {
     email: email || null,
     phone: phone || null,
     date_of_birth: dateOfBirth || null,
+    gender: gender || null,
+    home_address: homeAddress || null,
     created_by: context.userId,
   });
   if (error) {
@@ -827,6 +886,7 @@ export async function updateEducationStudent(formData: FormData) {
     phone: String(formData.get("phone") ?? ""),
     dateOfBirth: String(formData.get("date_of_birth") ?? ""),
     gender: String(formData.get("gender") ?? ""),
+    homeAddress: String(formData.get("home_address") ?? ""),
   });
   if (!parsed.success) {
     return { error: "Check the student name, email, phone, and date of birth." };
@@ -848,6 +908,7 @@ export async function updateEducationStudent(formData: FormData) {
       phone: parsed.data.phone || null,
       date_of_birth: parsed.data.dateOfBirth || null,
       gender: parsed.data.gender || null,
+      home_address: parsed.data.homeAddress || null,
       updated_at: new Date().toISOString(),
     })
     .eq("org_id", context.orgId)
@@ -865,6 +926,44 @@ export async function updateEducationStudent(formData: FormData) {
   }
 
   revalidatePath("/education/students");
+  revalidatePath(`/education/students/${parsed.data.studentId}`);
+  return { success: true };
+}
+
+export async function recordEducationStudentConsent(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) return { error: "Session expired. Sign in again." };
+  if (!await canTabPermission("education_students", "students", "list", "edit")) {
+    return { error: "You do not have permission to record student consent." };
+  }
+
+  const parsed = educationStudentConsentInputSchema.safeParse({
+    studentId: String(formData.get("student_id") ?? ""),
+    consentType: String(formData.get("consent_type") ?? ""),
+    disclosureVersion: String(formData.get("disclosure_version") ?? ""),
+    decision: String(formData.get("decision") ?? ""),
+    signerName: String(formData.get("signer_name") ?? ""),
+    signerRelationship: String(formData.get("signer_relationship") ?? ""),
+    evidenceNote: String(formData.get("evidence_note") ?? ""),
+  });
+  if (!parsed.success) return { error: "Check the consent category, disclosure version, signer, and evidence note." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_record_student_consent", {
+    p_org_id: context.orgId,
+    p_student_id: parsed.data.studentId,
+    p_consent_type: parsed.data.consentType,
+    p_disclosure_version: parsed.data.disclosureVersion,
+    p_decision: parsed.data.decision,
+    p_signer_name: parsed.data.signerName,
+    p_signer_relationship: parsed.data.signerRelationship,
+    p_evidence_note: parsed.data.evidenceNote || null,
+  });
+  if (error) {
+    console.error("Could not record Think Education student consent:", error.message);
+    return { error: `Consent could not be recorded: ${error.message}` };
+  }
+
   revalidatePath(`/education/students/${parsed.data.studentId}`);
   return { success: true };
 }
@@ -1230,13 +1329,37 @@ export async function createEducationAdmission(formData: FormData) {
   const applicationNumber = String(formData.get("application_number") ?? "").trim();
   const firstName = String(formData.get("first_name") ?? "").trim();
   const lastName = String(formData.get("last_name") ?? "").trim();
+  const otherNames = String(formData.get("other_names") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
+  const dateOfBirth = String(formData.get("date_of_birth") ?? "").trim();
+  const gender = String(formData.get("gender") ?? "").trim();
+  const address = String(formData.get("address") ?? "").trim();
+  const guardianFirstName = String(formData.get("guardian_first_name") ?? "").trim();
+  const guardianLastName = String(formData.get("guardian_last_name") ?? "").trim();
+  const guardianEmail = String(formData.get("guardian_email") ?? "").trim();
+  const guardianPhone = String(formData.get("guardian_phone") ?? "").trim();
+  const guardianRelationship = String(formData.get("guardian_relationship") ?? "").trim();
+  const hasGuardianDetails = Boolean(
+    guardianFirstName || guardianLastName || guardianEmail || guardianPhone || guardianRelationship,
+  );
   const requestedClassId = String(formData.get("requested_class_id") ?? "").trim();
   if (!branchId || !/^[A-Za-z0-9._/-]{1,32}$/.test(applicationNumber)
     || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
+    || otherNames.length > 100
     || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    || phone.length > 32 || (requestedClassId && !/^[0-9a-f-]{36}$/i.test(requestedClassId))) {
+    || phone.length > 32
+    || (dateOfBirth && !isValidEducationStaffDate(dateOfBirth))
+    || gender.length > 50 || address.length > 500
+    || (hasGuardianDetails && (
+      !guardianFirstName || guardianFirstName.length > 100
+      || !guardianLastName || guardianLastName.length > 100
+      || !guardianRelationship || guardianRelationship.length > 60
+      || (!guardianEmail && !guardianPhone)
+    ))
+    || guardianEmail.length > 254 || (guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmail))
+    || guardianPhone.length > 40
+    || (requestedClassId && !/^[0-9a-f-]{36}$/i.test(requestedClassId))) {
     redirect(`${getProductAppPath("think-education", "/admissions")}?error=invalid`);
   }
 
@@ -1268,8 +1391,17 @@ export async function createEducationAdmission(formData: FormData) {
     application_number: applicationNumber,
     applicant_first_name: firstName,
     applicant_last_name: lastName,
+    applicant_other_names: otherNames || null,
     applicant_email: email || null,
     applicant_phone: phone || null,
+    applicant_date_of_birth: dateOfBirth || null,
+    applicant_gender: gender || null,
+    applicant_address: address || null,
+    guardian_first_name: guardianFirstName || null,
+    guardian_last_name: guardianLastName || null,
+    guardian_email: guardianEmail || null,
+    guardian_phone: guardianPhone || null,
+    guardian_relationship: guardianRelationship || null,
     requested_class_id: requestedClassId || null,
   });
   if (error) {
@@ -1280,6 +1412,46 @@ export async function createEducationAdmission(formData: FormData) {
 
   revalidatePath("/education/admissions");
   redirect(`${getProductAppPath("think-education", "/admissions")}?created=1`);
+}
+
+export async function recordEducationAdmissionOffer(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_admissions", "admissions", "applications", "edit")
+    || !await canTabPermission("education_admissions", "admissions", "applications", "approve")) {
+    throw new Error("You need application edit and approval access to issue an admission offer.");
+  }
+
+  const admissionId = String(formData.get("admission_id") ?? "");
+  const expiresOn = String(formData.get("expires_on") ?? "");
+  const terms = String(formData.get("terms") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const today = new Date().toISOString().slice(0, 10);
+  const maximumExpiry = new Date(`${today}T00:00:00.000Z`);
+  maximumExpiry.setUTCDate(maximumExpiry.getUTCDate() + 365);
+  if (!uuidPattern.test(admissionId) || !isValidEducationISODate(expiresOn)
+    || expiresOn < today || expiresOn > maximumExpiry.toISOString().slice(0, 10) || terms.length > 2000) {
+    redirect(`${getProductAppPath("think-education", "/admissions")}?error=offer`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_issue_admission_offer", {
+    p_org_id: context.orgId,
+    p_admission_id: admissionId,
+    p_expires_on: expiresOn,
+    p_terms: terms || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error(`Admission offer was not authorized: ${error.message}`);
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/admissions")}?error=not-found`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/admissions")}?error=offer`);
+    console.error("Could not issue Think Education admission offer:", error.message);
+    redirect(`${getProductAppPath("think-education", "/admissions")}?error=save`);
+  }
+
+  revalidatePath("/education/admissions");
+  revalidatePath("/education/activity");
+  redirect(`${getProductAppPath("think-education", "/admissions")}?offer=1`);
 }
 
 export async function updateEducationAdmissionStatus(formData: FormData) {
@@ -1332,6 +1504,9 @@ export async function updateEducationAdmissionStatus(formData: FormData) {
       if (error.message.includes("selected class")) {
         redirect(`${getProductAppPath("think-education", "/admissions")}?error=class`);
       }
+      if (error.message.includes("offer")) {
+        redirect(`${getProductAppPath("think-education", "/admissions")}?error=offer`);
+      }
       redirect(`${getProductAppPath("think-education", "/admissions")}?error=transition`);
     }
     if (error.code === "P0002") {
@@ -1341,6 +1516,7 @@ export async function updateEducationAdmissionStatus(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/admissions")}?error=save`);
   }
   revalidatePath("/education/students");
+  if (status === "enrolled") revalidatePath("/education/guardians");
   revalidatePath("/education/academics");
   revalidatePath("/education/attendance");
   revalidatePath("/education/finance");
@@ -1746,6 +1922,65 @@ export async function createEducationClass(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/academics")}?created=1`);
 }
 
+export async function saveEducationClassSubject(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const [canCreate, canEdit] = await Promise.all([
+    canTabPermission("education_academics", "academics", "classes", "create"),
+    canTabPermission("education_academics", "academics", "classes", "edit"),
+  ]);
+  if (!canCreate && !canEdit) {
+    throw new Error("You do not have permission to manage Think Education class subjects.");
+  }
+
+  const classId = String(formData.get("class_id") ?? "");
+  const subjectId = String(formData.get("subject_id") ?? "");
+  const leadStaffId = String(formData.get("lead_staff_id") ?? "").trim();
+  const status = String(formData.get("status") ?? "");
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const returnPath = getProductAppPath("think-education", "/academics/curriculum");
+  if (!uuidPattern.test(classId) || !uuidPattern.test(subjectId)
+    || (leadStaffId && !uuidPattern.test(leadStaffId))
+    || !["active", "inactive"].includes(status)) {
+    redirect(`${returnPath}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: classroom, error: classError } = await supabase.from("education_classes")
+    .select("id, branch_id")
+    .eq("org_id", context.orgId).eq("id", classId)
+    .maybeSingle();
+  if (classError) throw new Error(`Could not verify the selected Think Education class: ${classError.message}`);
+  if (!classroom) redirect(`${returnPath}?error=class`);
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === classroom.branch_id)) {
+    throw new Error("You cannot manage class subjects outside your assigned Think Education campuses.");
+  }
+
+  const { error } = await supabase.rpc("education_set_class_subject", {
+    p_org_id: context.orgId,
+    p_class_id: classId,
+    p_subject_id: subjectId,
+    p_lead_staff_id: leadStaffId || null,
+    p_status: status,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error(`Class-subject assignment was not authorized: ${error.message}`);
+    if (error.code === "22023") {
+      const errorType = error.message.includes("teacher") ? "teacher" : "subject";
+      redirect(`${returnPath}?error=${errorType}`);
+    }
+    console.error("Could not save Think Education class-subject assignment:", error.message);
+    redirect(`${returnPath}?error=save`);
+  }
+
+  revalidatePath("/education/academics");
+  revalidatePath("/education/academics/curriculum");
+  revalidatePath("/education/timetables");
+  redirect(`${returnPath}?saved=1`);
+}
+
 export async function saveEducationAttendance(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
@@ -1801,6 +2036,58 @@ export async function saveEducationAttendance(formData: FormData) {
   }
   revalidatePath("/education/attendance");
   redirect(`${getProductAppPath("think-education", "/attendance")}?saved=1&date=${encodeURIComponent(attendanceDate)}`);
+}
+
+export async function saveEducationLessonAttendance(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+
+  const parsed = educationLessonAttendanceInputSchema.safeParse({
+    timetableEntryId: String(formData.get("timetable_entry_id") ?? ""),
+    studentId: String(formData.get("student_id") ?? ""),
+    attendanceDate: String(formData.get("attendance_date") ?? ""),
+    status: String(formData.get("status") ?? ""),
+    note: String(formData.get("note") ?? "").trim(),
+  });
+  if (!parsed.success) {
+    redirect(`${getProductAppPath("think-education", "/attendance/lessons")}?error=invalid`);
+  }
+  if (!await canTabPermission("education_attendance", "attendance", "register", "create")
+    && !await canTabPermission("education_attendance", "attendance", "register", "edit")) {
+    throw new Error("You do not have permission to record Think Education lesson attendance.");
+  }
+
+  const supabase = await createClient();
+  const { data: timetableEntry, error: timetableError } = await supabase.from("education_timetable_entries")
+    .select("id, branch_id, status")
+    .eq("org_id", context.orgId).eq("id", parsed.data.timetableEntryId)
+    .maybeSingle();
+  if (timetableError) throw new Error(`Could not load timetable lesson for attendance: ${timetableError.message}`);
+  if (!timetableEntry || timetableEntry.status !== "active") {
+    redirect(`${getProductAppPath("think-education", "/attendance/lessons")}?error=lesson`);
+  }
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === timetableEntry.branch_id)) {
+    throw new Error("You cannot record lesson attendance outside your assigned campuses.");
+  }
+
+  const { error } = await supabase.rpc("education_record_lesson_attendance", {
+    p_org_id: context.orgId,
+    p_timetable_entry_id: parsed.data.timetableEntryId,
+    p_student_id: parsed.data.studentId,
+    p_attendance_date: parsed.data.attendanceDate,
+    p_status: parsed.data.status,
+    p_note: parsed.data.note || null,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/attendance/lessons")}?error=invalid`);
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/attendance/lessons")}?error=lesson`);
+    if (error.code === "42501") throw new Error(`Lesson attendance was not authorized: ${error.message}`);
+    console.error("Could not save Think Education lesson attendance:", error.message);
+    redirect(`${getProductAppPath("think-education", "/attendance/lessons")}?error=save`);
+  }
+  revalidatePath("/education/attendance/lessons");
+  redirect(`${getProductAppPath("think-education", "/attendance/lessons")}?saved=1&date=${encodeURIComponent(parsed.data.attendanceDate)}&lesson=${encodeURIComponent(parsed.data.timetableEntryId)}`);
 }
 
 export async function saveEducationStaffAttendance(formData: FormData) {
@@ -2156,6 +2443,50 @@ export async function updateEducationExaminationStatus(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/examinations")}?updated=1`);
 }
 
+export async function saveEducationAssessmentComponents(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_results", "results", "gradebook", "edit")) {
+    throw new Error("You do not have permission to configure Think Education assessment components.");
+  }
+
+  const examinationId = String(formData.get("examination_id") ?? "");
+  const subjectId = String(formData.get("subject_id") ?? "");
+  let rawComponents: unknown;
+  try {
+    rawComponents = JSON.parse(String(formData.get("components_json") ?? ""));
+  } catch {
+    redirect(`${getProductAppPath("think-education", "/results")}?error=components`);
+  }
+  const parsedComponents = educationAssessmentComponentsSchema.safeParse(rawComponents);
+  if (!parsedComponents.success || !examinationId || !subjectId) {
+    redirect(`${getProductAppPath("think-education", "/results")}?error=components`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_save_assessment_components", {
+    p_org_id: context.orgId,
+    p_examination_id: examinationId,
+    p_subject_id: subjectId,
+    p_components: parsedComponents.data.map((component) => ({
+      id: component.id,
+      name: component.name,
+      weight_percentage: component.weightPercentage,
+      maximum_score: component.maximumScore,
+    })),
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/results")}?error=components`);
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/results")}?error=not-found`);
+    if (error.code === "42501") throw new Error("You are not authorized to configure assessment components at this campus.");
+    console.error("Could not save Think Education assessment components:", error.message);
+    redirect(`${getProductAppPath("think-education", "/results")}?error=save`);
+  }
+
+  revalidatePath("/education/results");
+  redirect(`${getProductAppPath("think-education", "/results")}?examination=${encodeURIComponent(examinationId)}&components=1`);
+}
+
 export async function createEducationResult(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
@@ -2169,13 +2500,24 @@ export async function createEducationResult(formData: FormData) {
   const examinationId = String(formData.get("examination_id") ?? "");
   const studentNumber = String(formData.get("student_number") ?? "").trim();
   const subjectId = String(formData.get("subject_id") ?? "");
-  const score = Number(String(formData.get("score") ?? ""));
-  const maximumScore = Number(String(formData.get("maximum_score") ?? ""));
+  const scoreValue = String(formData.get("score") ?? "").trim();
+  const maximumScoreValue = String(formData.get("maximum_score") ?? "").trim();
+  const score = scoreValue ? Number(scoreValue) : null;
+  const maximumScore = maximumScoreValue ? Number(maximumScoreValue) : null;
   const gradeOverride = String(formData.get("grade_override") ?? "").trim();
+  let rawComponentScores: unknown = [];
+  const componentScoresValue = String(formData.get("component_scores_json") ?? "");
+  if (componentScoresValue) {
+    try {
+      rawComponentScores = JSON.parse(componentScoresValue);
+    } catch {
+      redirect(`${getProductAppPath("think-education", "/results")}?error=invalid`);
+    }
+  }
+  const parsedComponentScores = educationAssessmentComponentScoresSchema.safeParse(rawComponentScores);
   if (!examinationId || !/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber)
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subjectId)
-    || !Number.isFinite(score) || score < 0
-    || !Number.isFinite(maximumScore) || maximumScore <= 0 || score > maximumScore || gradeOverride.length > 10) {
+    || gradeOverride.length > 10 || !parsedComponentScores.success) {
     redirect(`${getProductAppPath("think-education", "/results")}?error=invalid`);
   }
   const supabase = await createClient();
@@ -2209,33 +2551,59 @@ export async function createEducationResult(formData: FormData) {
   if (studentError) throw new Error(`Could not find the student for result entry: ${studentError.message}`);
   if (!student) redirect(`${getProductAppPath("think-education", "/results")}?error=student`);
 
-  const { data: gradeBandRows, error: gradeBandError } = await supabase.from("education_grade_bands")
-    .select("label, minimum_percentage")
+  const { data: componentRows, error: componentError } = await supabase.from("education_assessment_components")
+    .select("id, name, weight_percentage, maximum_score")
     .eq("org_id", context.orgId)
-    .order("minimum_percentage");
-  if (gradeBandError) throw new Error(`Could not load Think Education grade bands: ${gradeBandError.message}`);
-  const grade = getEducationResultGrade(gradeOverride, score, maximumScore, (gradeBandRows ?? []).map((band) => ({
-    label: band.label,
-    minimumPercentage: Number(band.minimum_percentage),
-  })));
-  const { error } = await supabase.from("education_results").insert({
-    org_id: context.orgId,
-    branch_id: examination.branch_id,
-    examination_id: examination.id,
-    student_id: student.id,
-    subject_id: subject.id,
-    subject_name: subject.name,
-    score,
-    maximum_score: maximumScore,
-    grade,
-    grade_override: gradeOverride || null,
-    entered_by: context.userId,
+    .eq("branch_id", examination.branch_id)
+    .eq("examination_id", examination.id)
+    .eq("subject_id", subject.id)
+    .order("created_at");
+  if (componentError) throw new Error(`Could not load assessment components: ${componentError.message}`);
+
+  let weightedScore: number | null = null;
+  if (componentRows?.length) {
+    const components = componentRows.map((component) => ({
+      id: component.id,
+      name: component.name,
+      weightPercentage: Number(component.weight_percentage),
+      maximumScore: Number(component.maximum_score),
+    }));
+    weightedScore = calculateEducationWeightedScore(components, parsedComponentScores.data);
+    if (weightedScore === null) {
+      redirect(`${getProductAppPath("think-education", "/results")}?error=components`);
+    }
+  } else if (parsedComponentScores.data.length || score === null || maximumScore === null
+    || !Number.isFinite(score) || score < 0
+    || !Number.isFinite(maximumScore) || maximumScore <= 0 || score > maximumScore) {
+    redirect(`${getProductAppPath("think-education", "/results")}?error=invalid`);
+  }
+
+  const resultScore = weightedScore ?? score;
+  const resultMaximumScore = weightedScore === null ? maximumScore : 100;
+  if (resultScore === null || resultMaximumScore === null) {
+    redirect(`${getProductAppPath("think-education", "/results")}?error=invalid`);
+  }
+  const { data: createdResultId, error } = await supabase.rpc("education_create_result", {
+    p_org_id: context.orgId,
+    p_examination_id: examination.id,
+    p_student_id: student.id,
+    p_subject_id: subject.id,
+    p_score: resultScore,
+    p_maximum_score: resultMaximumScore,
+    p_grade_override: gradeOverride || null,
+    p_component_scores: parsedComponentScores.data.map((component) => ({
+      component_id: component.componentId,
+      score: component.score,
+    })),
   });
   if (error) {
     if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/results")}?error=duplicate`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/results")}?error=subject`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/results")}?error=${componentRows?.length ? "components" : "invalid"}`);
     console.error("Could not save Think Education result:", error.message);
     redirect(`${getProductAppPath("think-education", "/results")}?error=save`);
+  }
+  if (createdResultId) {
+    await syncEducationResultGrade(supabase, context.orgId, createdResultId, resultScore, resultMaximumScore, gradeOverride);
   }
   revalidatePath("/education/results");
   revalidatePath("/education/examinations");
@@ -2249,14 +2617,12 @@ export async function updateEducationDraftResult(formData: FormData) {
     return { error: "You do not have permission to edit Think Education results." };
   }
 
-  const parsed = educationResultScoreInputSchema.safeParse({
-    resultId: String(formData.get("result_id") ?? ""),
-    score: String(formData.get("score") ?? ""),
-    maximumScore: String(formData.get("maximum_score") ?? ""),
-    gradeOverride: String(formData.get("grade_override") ?? ""),
-  });
-  if (!parsed.success) {
-    return { error: "Enter a valid score, maximum score, and grade override." };
+  const resultId = String(formData.get("result_id") ?? "");
+  const scoreValue = String(formData.get("score") ?? "");
+  const maximumScoreValue = String(formData.get("maximum_score") ?? "");
+  const gradeOverride = String(formData.get("grade_override") ?? "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(resultId)) {
+    return { error: "The result identifier is invalid." };
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -2267,9 +2633,9 @@ export async function updateEducationDraftResult(formData: FormData) {
 
   const supabase = await createClient();
   const { data: result, error: resultError } = await supabase.from("education_results")
-    .select("id, branch_id, status")
+    .select("id, branch_id, examination_id, subject_id, status")
     .eq("org_id", context.orgId)
-    .eq("id", parsed.data.resultId)
+    .eq("id", resultId)
     .in("branch_id", branchIds)
     .maybeSingle();
   if (resultError) {
@@ -2280,33 +2646,80 @@ export async function updateEducationDraftResult(formData: FormData) {
     return { error: "Only draft results can be corrected." };
   }
 
-  const { data: gradeBandRows, error: gradeBandError } = await supabase.from("education_grade_bands")
-    .select("label, minimum_percentage")
-    .eq("org_id", context.orgId)
-    .order("minimum_percentage");
-  if (gradeBandError) {
-    console.error("Could not load Think Education grade bands:", gradeBandError.message);
-    return { error: `The configured grade scale could not be loaded: ${gradeBandError.message}` };
+  const { data: componentRows, error: componentError } = result.subject_id
+    ? await supabase.from("education_assessment_components")
+      .select("id, name, weight_percentage, maximum_score")
+      .eq("org_id", context.orgId)
+      .eq("branch_id", result.branch_id)
+      .eq("examination_id", result.examination_id)
+      .eq("subject_id", result.subject_id)
+      .order("created_at")
+    : { data: [], error: null };
+  if (componentError) {
+    console.error("Could not load assessment components for result correction:", componentError.message);
+    return { error: `The assessment components could not be loaded: ${componentError.message}` };
   }
-  const grade = getEducationResultGrade(parsed.data.gradeOverride, parsed.data.score, parsed.data.maximumScore, (gradeBandRows ?? []).map((band) => ({
-    label: band.label,
-    minimumPercentage: Number(band.minimum_percentage),
-  })));
-  const { data: updatedResult, error } = await supabase.from("education_results")
-    .update({
-      score: parsed.data.score,
-      maximum_score: parsed.data.maximumScore,
-      grade,
-      grade_override: parsed.data.gradeOverride || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("org_id", context.orgId)
-    .eq("id", parsed.data.resultId)
-    .eq("branch_id", result.branch_id)
-    .eq("status", "draft")
-    .in("branch_id", branchIds)
-    .select("id")
-    .maybeSingle();
+
+  if (componentRows?.length) {
+    let rawComponentScores: unknown;
+    try {
+      rawComponentScores = JSON.parse(String(formData.get("component_scores_json") ?? ""));
+    } catch {
+      return { error: "Enter a score for every assessment component." };
+    }
+    const parsedComponentScores = educationAssessmentComponentScoresSchema.safeParse(rawComponentScores);
+    const components = componentRows.map((component) => ({
+      id: component.id,
+      name: component.name,
+      weightPercentage: Number(component.weight_percentage),
+      maximumScore: Number(component.maximum_score),
+    }));
+    if (!parsedComponentScores.success
+      || calculateEducationWeightedScore(components, parsedComponentScores.data) === null
+      || gradeOverride.trim().length > 10) {
+      return { error: "Check each component score and the grade override." };
+    }
+    const { error } = await supabase.rpc("education_update_draft_result_components", {
+      p_org_id: context.orgId,
+      p_result_id: resultId,
+      p_grade_override: gradeOverride.trim() || null,
+      p_component_scores: parsedComponentScores.data.map((component) => ({
+        component_id: component.componentId,
+        score: component.score,
+      })),
+    });
+    if (error) {
+      console.error("Could not update weighted Think Education result:", error.message);
+      return { error: `The weighted result could not be saved: ${error.message}` };
+    }
+    const weightedScore = calculateEducationWeightedScore(components, parsedComponentScores.data);
+    if (weightedScore !== null) {
+      await syncEducationResultGrade(supabase, context.orgId, resultId, weightedScore, 100, gradeOverride);
+    }
+    revalidatePath("/education/results");
+    return { success: true };
+  }
+
+  if (String(formData.get("component_scores_json") ?? "")) {
+    return { error: "This result does not use weighted assessment components." };
+  }
+  const parsed = educationResultScoreInputSchema.safeParse({
+    resultId,
+    score: scoreValue,
+    maximumScore: maximumScoreValue,
+    gradeOverride,
+  });
+  if (!parsed.success) {
+    return { error: "Enter a valid score, maximum score, and grade override." };
+  }
+
+  const { data: updatedResult, error } = await supabase.rpc("education_update_draft_result_score", {
+    p_org_id: context.orgId,
+    p_result_id: resultId,
+    p_score: parsed.data.score,
+    p_maximum_score: parsed.data.maximumScore,
+    p_grade_override: parsed.data.gradeOverride || null,
+  });
   if (error) {
     console.error("Could not update Think Education draft result:", error.message);
     return { error: `The draft result could not be saved: ${error.message}` };
@@ -2314,6 +2727,8 @@ export async function updateEducationDraftResult(formData: FormData) {
   if (!updatedResult) {
     return { error: "This result is no longer a draft or is outside your assigned campuses." };
   }
+
+  await syncEducationResultGrade(supabase, context.orgId, resultId, parsed.data.score, parsed.data.maximumScore, parsed.data.gradeOverride);
 
   revalidatePath("/education/results");
   return { success: true };
@@ -2377,20 +2792,17 @@ export async function createEducationStudentTransfer(formData: FormData) {
     throw new Error("You do not have permission to request Think Education student transfers.");
   }
 
-  const studentNumber = String(formData.get("student_number") ?? "").trim();
-  const sourceBranchId = String(formData.get("source_branch_id") ?? "");
-  const destinationBranchId = String(formData.get("destination_branch_id") ?? "");
-  const effectiveOn = String(formData.get("effective_on") ?? "");
-  const reason = String(formData.get("reason") ?? "").trim();
-  if (!/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber) || !sourceBranchId || !destinationBranchId
-    || sourceBranchId === destinationBranchId || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveOn)
-    || !reason || reason.length > 500) {
+  const parsed = educationStudentTransferInputSchema.safeParse({
+    studentNumber: String(formData.get("student_number") ?? ""),
+    sourceBranchId: String(formData.get("source_branch_id") ?? ""),
+    destinationBranchId: String(formData.get("destination_branch_id") ?? ""),
+    effectiveOn: String(formData.get("effective_on") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
+  });
+  if (!parsed.success) {
     redirect(`${getProductAppPath("think-education", "/transfers")}?error=invalid`);
   }
-  const parsedEffectiveOn = new Date(`${effectiveOn}T00:00:00.000Z`);
-  if (Number.isNaN(parsedEffectiveOn.getTime()) || parsedEffectiveOn.toISOString().slice(0, 10) !== effectiveOn) {
-    redirect(`${getProductAppPath("think-education", "/transfers")}?error=invalid`);
-  }
+  const { studentNumber, sourceBranchId, destinationBranchId, effectiveOn, reason } = parsed.data;
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (!campuses.some((campus) => campus.id === sourceBranchId)
@@ -3231,6 +3643,43 @@ export async function createEducationCommunicationDraft(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/communication")}?created=1`);
 }
 
+export async function updateEducationCommunicationDraft(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_communication", "communication", "announcements", "edit")) {
+    throw new Error("You do not have permission to edit Think Education announcements.");
+  }
+
+  const parsed = educationCommunicationDraftInputSchema.safeParse({
+    communicationId: String(formData.get("communication_id") ?? ""),
+    title: String(formData.get("title") ?? ""),
+    body: String(formData.get("body") ?? ""),
+    audience: String(formData.get("audience") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect(`${getProductAppPath("think-education", "/communication")}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_communication_update_draft", {
+    p_org_id: context.orgId,
+    p_communication_id: parsed.data.communicationId,
+    p_title: parsed.data.title,
+    p_body: parsed.data.body,
+    p_audience: parsed.data.audience,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/communication")}?error=transition`);
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/communication")}?error=not-found`);
+    if (error.code === "42501") throw new Error("You are not authorized to edit this announcement.");
+    console.error("Could not update Think Education announcement draft:", error.message);
+    redirect(`${getProductAppPath("think-education", "/communication")}?error=save`);
+  }
+
+  revalidatePath("/education/communication");
+  redirect(`${getProductAppPath("think-education", "/communication")}?updated=1`);
+}
+
 export async function publishEducationCommunication(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
@@ -3307,6 +3756,47 @@ export async function archiveEducationDocument(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/documents")}?archived=1`);
 }
 
+export async function reviewEducationAdmissionDocument(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+
+  const documentId = String(formData.get("document_id") ?? "");
+  const verificationStatus = String(formData.get("verification_status") ?? "");
+  const note = String(formData.get("note") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(documentId) || !["verified", "rejected"].includes(verificationStatus)
+    || note.length > 1000 || (verificationStatus === "rejected" && !note)) {
+    redirect(`${getProductAppPath("think-education", "/admissions")}?document_error=review-invalid`);
+  }
+  const [canEditAdmissions, canViewDocuments] = await Promise.all([
+    canTabPermission("education_admissions", "admissions", "applications", "edit"),
+    canTabPermission("education_documents", "documents", "library", "view"),
+  ]);
+  if (!canEditAdmissions || !canViewDocuments) {
+    throw new Error("Admission edit and document view access are required to review applicant documents.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_admission_document_review", {
+    p_org_id: context.orgId,
+    p_document_id: documentId,
+    p_verification_status: verificationStatus,
+    p_note: note || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error(`Applicant document review was not authorized: ${error.message}`);
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/admissions")}?document_error=not-found`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/admissions")}?document_error=review-invalid`);
+    console.error("Could not review Think Education admission document:", error.message);
+    redirect(`${getProductAppPath("think-education", "/admissions")}?document_error=save`);
+  }
+
+  revalidatePath("/education/admissions");
+  revalidatePath("/education/documents");
+  revalidatePath("/education/activity");
+  redirect(`${getProductAppPath("think-education", "/admissions")}?documentReviewed=${verificationStatus}`);
+}
+
 export async function purgeExpiredEducationDocument(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
@@ -3359,16 +3849,15 @@ export async function createEducationTimetableEntry(formData: FormData) {
   }
 
   const branchId = String(formData.get("branch_id") ?? "");
-  const classId = String(formData.get("class_id") ?? "");
   const staffId = String(formData.get("staff_id") ?? "").trim();
   const academicYearId = String(formData.get("academic_year_id") ?? "");
-  const subjectId = String(formData.get("subject_id") ?? "");
+  const classSubjectId = String(formData.get("class_subject_id") ?? "");
   const weekday = Number(String(formData.get("weekday") ?? ""));
   const startsAt = String(formData.get("starts_at") ?? "");
   const endsAt = String(formData.get("ends_at") ?? "");
   const room = String(formData.get("room") ?? "").trim();
-  if (!branchId || !classId || !academicYearId
-    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subjectId)
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!branchId || !uuidPattern.test(academicYearId) || !uuidPattern.test(classSubjectId)
     || !Number.isInteger(weekday) || weekday < 1 || weekday > 7
     || !/^\d{2}:\d{2}$/.test(startsAt) || !/^\d{2}:\d{2}$/.test(endsAt) || endsAt <= startsAt
     || room.length > 80) {
@@ -3380,20 +3869,38 @@ export async function createEducationTimetableEntry(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const { data: assignment, error: assignmentError } = await supabase.from("education_class_subjects")
+    .select("id, branch_id, class_id, subject_id")
+    .eq("org_id", context.orgId).eq("id", classSubjectId).eq("status", "active")
+    .maybeSingle();
+  if (assignmentError) throw new Error(`Could not validate the selected class subject: ${assignmentError.message}`);
+  if (!assignment || assignment.branch_id !== branchId) {
+    redirect(`${getProductAppPath("think-education", "/timetables")}?error=allocation`);
+  }
+
+  const { data: classroom, error: classError } = await supabase.from("education_classes")
+    .select("id, branch_id, academic_year_id, status")
+    .eq("org_id", context.orgId).eq("id", assignment.class_id)
+    .maybeSingle();
+  if (classError) throw new Error(`Could not validate the class for the timetable entry: ${classError.message}`);
+  if (!classroom || classroom.branch_id !== branchId || classroom.academic_year_id !== academicYearId || classroom.status !== "active") {
+    redirect(`${getProductAppPath("think-education", "/timetables")}?error=allocation`);
+  }
+
   const { data: subjectData, error: subjectError } = await supabase.from("education_subjects")
     .select("id, name, status")
-    .eq("org_id", context.orgId).eq("id", subjectId).eq("status", "active")
+    .eq("org_id", context.orgId).eq("id", assignment.subject_id).eq("status", "active")
     .maybeSingle();
   if (subjectError) throw new Error(`Could not validate the selected Think Education subject: ${subjectError.message}`);
   const subject = subjectData
-    ? getActiveEducationSubject([subjectData], subjectId)
+    ? getActiveEducationSubject([subjectData], assignment.subject_id)
     : null;
   if (!subject) redirect(`${getProductAppPath("think-education", "/timetables")}?error=subject`);
 
   const { error } = await supabase.rpc("education_create_timetable_entry", {
     p_org_id: context.orgId,
     p_branch_id: branchId,
-    p_class_id: classId,
+    p_class_id: classroom.id,
     p_staff_id: staffId || null,
     p_academic_year_id: academicYearId,
     p_subject_name: subject.name,
@@ -3405,7 +3912,9 @@ export async function createEducationTimetableEntry(formData: FormData) {
   if (error) {
     if (error.code === "23P01") redirect(`${getProductAppPath("think-education", "/timetables")}?error=conflict`);
     if (error.code === "22023") {
-      const errorType = error.message.includes("selected subject") ? "subject" : "invalid";
+      const errorType = error.message.includes("assigned to this class")
+        ? "allocation"
+        : error.message.includes("selected subject") ? "subject" : "invalid";
       redirect(`${getProductAppPath("think-education", "/timetables")}?error=${errorType}`);
     }
     if (error.code === "42501") throw new Error(`Timetable entry was not authorized: ${error.message}`);
@@ -3416,18 +3925,126 @@ export async function createEducationTimetableEntry(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/timetables")}?created=1`);
 }
 
+export async function updateEducationTimetableEntry(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_timetables", "timetables", "schedule", "edit")) {
+    throw new Error("You do not have permission to edit Think Education timetable entries.");
+  }
+
+  const entryId = String(formData.get("entry_id") ?? "");
+  const expectedUpdatedAt = String(formData.get("expected_updated_at") ?? "");
+  const classId = String(formData.get("class_id") ?? "");
+  const staffId = String(formData.get("staff_id") ?? "").trim();
+  const weekday = Number(String(formData.get("weekday") ?? ""));
+  const startsAt = String(formData.get("starts_at") ?? "");
+  const endsAt = String(formData.get("ends_at") ?? "");
+  const room = String(formData.get("room") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (!uuidPattern.test(entryId) || !uuidPattern.test(classId)
+    || (staffId && !uuidPattern.test(staffId))
+    || !Number.isFinite(Date.parse(expectedUpdatedAt))
+    || !Number.isInteger(weekday) || weekday < 1 || weekday > 7
+    || !timePattern.test(startsAt) || !timePattern.test(endsAt) || endsAt <= startsAt
+    || room.length > 80) {
+    redirect(`${getProductAppPath("think-education", "/timetables")}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: entry, error: entryError } = await supabase.from("education_timetable_entries")
+    .select("id, branch_id, status")
+    .eq("org_id", context.orgId).eq("id", entryId)
+    .maybeSingle();
+  if (entryError) throw new Error(`Could not load timetable entry for editing: ${entryError.message}`);
+  if (!entry || entry.status !== "active") {
+    redirect(`${getProductAppPath("think-education", "/timetables")}?error=transition`);
+  }
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === entry.branch_id)) {
+    throw new Error("You cannot edit a timetable entry outside your assigned campuses.");
+  }
+
+  const { error } = await supabase.rpc("education_update_timetable_entry", {
+    p_org_id: context.orgId,
+    p_entry_id: entryId,
+    p_expected_updated_at: expectedUpdatedAt,
+    p_class_id: classId,
+    p_staff_id: staffId || null,
+    p_weekday: weekday,
+    p_starts_at: startsAt,
+    p_ends_at: endsAt,
+    p_room: room || null,
+  });
+  if (error) {
+    if (error.code === "23P01") redirect(`${getProductAppPath("think-education", "/timetables")}?error=conflict`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/timetables")}?error=invalid`);
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/timetables")}?error=stale`);
+    if (error.code === "42501") throw new Error(`Timetable entry was not authorized: ${error.message}`);
+    console.error("Could not update Think Education timetable entry:", error.message);
+    redirect(`${getProductAppPath("think-education", "/timetables")}?error=save`);
+  }
+  revalidatePath("/education/timetables");
+  redirect(`${getProductAppPath("think-education", "/timetables")}?updated=1`);
+}
+
+export async function cancelEducationTimetableEntry(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_timetables", "timetables", "schedule", "edit")) {
+    throw new Error("You do not have permission to cancel Think Education timetable entries.");
+  }
+
+  const entryId = String(formData.get("entry_id") ?? "");
+  const expectedUpdatedAt = String(formData.get("expected_updated_at") ?? "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(entryId)
+    || !Number.isFinite(Date.parse(expectedUpdatedAt))) {
+    redirect(`${getProductAppPath("think-education", "/timetables")}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: entry, error: entryError } = await supabase.from("education_timetable_entries")
+    .select("id, branch_id, status")
+    .eq("org_id", context.orgId).eq("id", entryId)
+    .maybeSingle();
+  if (entryError) throw new Error(`Could not load timetable entry for cancellation: ${entryError.message}`);
+  if (!entry || entry.status !== "active") {
+    redirect(`${getProductAppPath("think-education", "/timetables")}?error=transition`);
+  }
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === entry.branch_id)) {
+    throw new Error("You cannot cancel a timetable entry outside your assigned campuses.");
+  }
+
+  const { error } = await supabase.rpc("education_cancel_timetable_entry", {
+    p_org_id: context.orgId,
+    p_entry_id: entryId,
+    p_expected_updated_at: expectedUpdatedAt,
+  });
+  if (error) {
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/timetables")}?error=stale`);
+    if (error.code === "42501") throw new Error(`Timetable entry was not authorized: ${error.message}`);
+    console.error("Could not cancel Think Education timetable entry:", error.message);
+    redirect(`${getProductAppPath("think-education", "/timetables")}?error=save`);
+  }
+  revalidatePath("/education/timetables");
+  redirect(`${getProductAppPath("think-education", "/timetables")}?cancelled=1`);
+}
+
 export async function promoteEducationStudent(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
-  const studentId = String(formData.get("student_id") ?? "");
-  const sourceEnrollmentId = String(formData.get("source_enrollment_id") ?? "");
-  const destinationClassId = String(formData.get("destination_class_id") ?? "").trim();
-  const action = String(formData.get("action") ?? "");
-  if (!studentId || !sourceEnrollmentId || !["promote", "graduate"].includes(action)
-    || (action === "promote" && !destinationClassId)) {
+  const parsed = educationStudentPromotionInputSchema.safeParse({
+    studentId: String(formData.get("student_id") ?? ""),
+    sourceEnrollmentId: String(formData.get("source_enrollment_id") ?? ""),
+    destinationClassId: String(formData.get("destination_class_id") ?? ""),
+    action: String(formData.get("action") ?? ""),
+  });
+  if (!parsed.success) {
     redirect(`${getProductAppPath("think-education", "/promotion")}?error=invalid`);
   }
-  const progressionAction = action as "promote" | "graduate";
+  const { studentId, sourceEnrollmentId, destinationClassId, action } = parsed.data;
+  const progressionAction = action;
   if (!await canTabPermission("education_promotion", "promotion", "progression", "edit")
     || !await canTabPermission("education_promotion", "promotion", "progression", "approve")
     || (progressionAction === "promote" && !await canTabPermission("education_promotion", "promotion", "progression", "create"))) {

@@ -24,6 +24,7 @@ export default async function EducationOrganizationPage({
   const { campuses, hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const canCreate = hasOrganizationScope
     && await canTabPermission("education_organization", "organization", "campuses", "create");
+  const canExport = await canTabPermission("education_organization", "organization", "campuses", "export");
   const filteredCampuses = campuses.filter((campus) =>
     !search || [campus.name, campus.code, campus.city, campus.region]
       .some((value) => value?.toLowerCase().includes(search))
@@ -121,7 +122,7 @@ export default async function EducationOrganizationPage({
           <input name="search" defaultValue={search} placeholder="Search campus name, code, or location" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </label>
         <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Search campuses</button>
-        {filteredCampuses.length > 0 && <a href={csvHref} download={`education-campuses-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && filteredCampuses.length > 0 && <a href={csvHref} download={`education-campuses-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
       {filteredCampuses.length === 0 ? <div className="p-8 text-center">
         <Building2 className="mx-auto h-10 w-10 text-slate-300" />

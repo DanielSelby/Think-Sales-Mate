@@ -40,10 +40,11 @@ export default async function EducationTransfersPage({
   const normalizedStatus = validStatuses.has(statusFilter) ? statusFilter : "all";
   const normalizedCampus = campuses.some((campus) => campus.id === campusFilter) ? campusFilter : "all";
   const branchIds = campuses.map((campus) => campus.id);
-  const [canCreate, canEdit, canApproveAction] = await Promise.all([
+  const [canCreate, canEdit, canApproveAction, canExport] = await Promise.all([
     canTabPermission("education_transfers", "transfers", "requests", "create"),
     canTabPermission("education_transfers", "transfers", "requests", "edit"),
     canTabPermission("education_transfers", "transfers", "requests", "approve"),
+    canTabPermission("education_transfers", "transfers", "requests", "export"),
   ]);
   const canApprove = canEdit && canApproveAction;
   const supabase = await createClient();
@@ -175,7 +176,7 @@ export default async function EducationTransfersPage({
             <Link href={getProductAppPath("think-education", "/transfers")} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
           </div>
         </form>
-        {visibleTransfers.length > 0 && <a href={csvHref} download="student-transfers.csv" className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && visibleTransfers.length > 0 && <a href={csvHref} download="student-transfers.csv" className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </div>
       {visibleTransfers.length > exportLimit && <p className="mt-3 text-xs text-amber-700">Showing the first {exportLimit.toLocaleString()} matching transfers in the CSV export. Narrow the filters to include the full set.</p>}
     </section>

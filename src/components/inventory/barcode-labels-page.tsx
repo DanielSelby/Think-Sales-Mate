@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { BarcodeGraphic } from "@/components/inventory/barcode-graphic";
 import { assignBarcodeToProduct } from "@/app/(dashboard)/inventory/actions";
 import { formatMoney } from "@/lib/currency";
+import { findExactProductMatch } from "@/lib/inventory/barcode-search";
 
 export interface BarcodeLabelProduct {
   id: string;
@@ -113,6 +114,7 @@ export function BarcodeLabelsPage({
   canGenerateBarcodes: boolean;
 }) {
   const router = useRouter();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [brand, setBrand] = useState("all");
@@ -151,6 +153,12 @@ export function BarcodeLabelsPage({
     showPrice: true,
     showBarcodeValue: true,
   });
+
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, []);
 
   const categories = useMemo(() => [...new Set(products.map((product) => product.category).filter((value): value is string => Boolean(value)))].sort(), [products]);
   const brands = useMemo(() => [...new Set(products.map((product) => product.brand).filter((value): value is string => Boolean(value)))].sort(), [products]);
@@ -212,13 +220,10 @@ export function BarcodeLabelsPage({
     setPage(1);
 
     if (!normalized) return;
-    const exactMatches = products.filter((product) => {
-      const searchKeys = [product.barcode, product.sku, product.name].map((value) => value?.trim().toLowerCase()).filter(Boolean) as string[];
-      return searchKeys.some((value) => value === normalized.toLowerCase() || value.replace(/\s+/g, "") === normalized.toLowerCase().replace(/\s+/g, ""));
-    });
-    if (exactMatches.length === 1) {
-      setSelected(new Set([exactMatches[0].id]));
-      setPreviewId(exactMatches[0].id);
+    const exactMatch = findExactProductMatch(products, normalized);
+    if (exactMatch) {
+      setSelected(new Set([exactMatch.id]));
+      setPreviewId(exactMatch.id);
     }
   }
 
@@ -347,7 +352,7 @@ export function BarcodeLabelsPage({
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1.6fr)_repeat(5,minmax(110px,1fr))_auto_auto]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input value={search} onChange={(event) => {
+            <input ref={searchInputRef} value={search} onChange={(event) => {
               const nextSearch = event.target.value;
               setSearch(nextSearch);
               applyFiltersFromInputs(nextSearch, category, brand, location, stockStatusFilter, barcodeStatus, productStatus);

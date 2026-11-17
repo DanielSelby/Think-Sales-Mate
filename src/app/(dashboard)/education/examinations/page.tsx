@@ -41,10 +41,11 @@ export default async function EducationExaminationsPage({
   const params = await searchParams;
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const branchIds = campuses.map((campus) => campus.id);
-  const [canCreate, canEdit, canPublish] = await Promise.all([
+  const [canCreate, canEdit, canPublish, canExport] = await Promise.all([
     canTabPermission("education_examinations", "examinations", "schedule", "create"),
     canTabPermission("education_examinations", "examinations", "schedule", "edit"),
     canTabPermission("education_examinations", "examinations", "schedule", "publish"),
+    canTabPermission("education_examinations", "examinations", "schedule", "export"),
   ]);
   const supabase = await createClient();
   const [{ data: years, error: yearsError }, { data: terms, error: termsError }, examinationsResult] = await Promise.all([
@@ -176,7 +177,7 @@ export default async function EducationExaminationsPage({
       </label>
       <div className="flex items-end gap-2">
         <button type="submit" className="w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Apply filters</button>
-        {filteredExaminations.length > 0 && <a href={csvHref} download={`education-examinations-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && filteredExaminations.length > 0 && <a href={csvHref} download={`education-examinations-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
         <Link href={getProductAppPath("think-education", "/examinations")} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
       </div>
     </form>

@@ -57,9 +57,10 @@ export default async function EducationStaffLeavePage({
   const status = (STATUSES.includes(requestedStatus as LeaveStatus) ? requestedStatus : "") as LeaveStatus | "";
   const parsedPage = Number.parseInt(getParam(params, "page"), 10);
   const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? Math.min(parsedPage, 2001) : 1;
-  const [canCreate, canApprove] = await Promise.all([
+  const [canCreate, canApprove, canExport] = await Promise.all([
     canTabPermission("education_staff", "staff", "leave", "create"),
     canTabPermission("education_staff", "staff", "leave", "approve"),
+    canTabPermission("education_staff", "staff", "leave", "export"),
   ]);
   const supabase = await createClient();
   const branchIds = branchId ? [branchId] : campusIds;
@@ -180,7 +181,7 @@ export default async function EducationStaffLeavePage({
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-950"><CalendarDays className="h-6 w-6 text-blue-700" /> Staff Leave Management</h1>
         <p className="mt-1 text-sm text-slate-600">Submit, review, and audit leave requests for your assigned campuses.</p>
       </div>
-      {requests.length > 0 && <a href={csvHref} download={`education-staff-leave-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      {canExport && requests.length > 0 && <a href={csvHref} download={`education-staff-leave-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </header>
 
     {getParam(params, "created") === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Leave request submitted.</p>}

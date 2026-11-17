@@ -24,6 +24,7 @@ export function StudentProfileForm({ student, canEdit }: Props) {
         <div><dt className="text-sm text-slate-500">Phone</dt><dd className="mt-1 font-medium text-slate-900">{student.phone || "—"}</dd></div>
         <div><dt className="text-sm text-slate-500">Date of birth</dt><dd className="mt-1 font-medium text-slate-900">{student.date_of_birth || "—"}</dd></div>
         <div><dt className="text-sm text-slate-500">Gender</dt><dd className="mt-1 font-medium text-slate-900">{student.gender || "—"}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-sm text-slate-500">Home address</dt><dd className="mt-1 font-medium text-slate-900">{student.home_address || "—"}</dd></div>
       </dl>
     );
   }
@@ -79,6 +80,10 @@ export function StudentProfileForm({ student, canEdit }: Props) {
         <label className="text-sm font-medium text-slate-700">
           Gender
           <input name="gender" maxLength={50} defaultValue={student.gender ?? ""} className={inputClassName} />
+        </label>
+        <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+          Home address
+          <textarea name="home_address" maxLength={500} rows={3} defaultValue={student.home_address ?? ""} className={inputClassName} />
         </label>
       </div>
       {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
