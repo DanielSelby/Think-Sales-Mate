@@ -85,6 +85,14 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/app/unknown/inventory")).toEqual([]);
   });
 
+  it("retains product ownership for namespaced support routes", () => {
+    expect(getRequiredProductSlugs("/app/thinksales/support")).toEqual(["thinksales-erp"]);
+    expect(getRequiredProductSlugs("/app/restaurant/support")).toEqual(["restaurant"]);
+    expect(getRequiredProductSlugs("/app/think-service/support")).toEqual(["think-service-repairs"]);
+    expect(getRequiredProductSlugs("/app/think-education/support")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/support")).toBeNull();
+  });
+
   it("canonicalizes unambiguous legacy product routes without losing their path", () => {
     expect(getLegacyProductAppPath("/inventory/barcode-labels"))
       .toBe("/app/thinksales/inventory/barcode-labels");

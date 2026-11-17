@@ -226,7 +226,7 @@ export async function middleware(request: NextRequest) {
 
   const routePath = appRoute?.appPath ?? pathname;
   const tabAccess = resolveTabRouteAccess(routePath, request.nextUrl.searchParams);
-  const pageProducts = getRequiredProductSlugs(routePath);
+  const pageProducts = getRequiredProductSlugs(pathname);
   if (appRoute && !pageProducts?.includes(appRoute.productSlug)) {
     return new NextResponse("Product application route not found.", { status: 404 });
   }
