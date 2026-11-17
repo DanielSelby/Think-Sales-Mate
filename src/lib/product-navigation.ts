@@ -29,7 +29,14 @@ export function getProductScopedHref(pathname: string, href: string): string | n
   if (!href.startsWith("/") || href.startsWith("//")) return href;
   const url = new URL(href, "http://localhost");
   const currentRoute = resolveProductAppRoute(pathname);
-  if (!currentRoute || currentRoute.kind !== "valid") return href;
+  if (!currentRoute || currentRoute.kind !== "valid") {
+    const isSupportRoute = url.pathname === "/support" || url.pathname.startsWith("/support/");
+    const legacyProducts = isSupportRoute ? getRequiredProductSlugs(pathname) : null;
+    if (legacyProducts?.length === 1) {
+      return `${getProductAppPath(legacyProducts[0], url.pathname)}${url.search}${url.hash}`;
+    }
+    return href;
+  }
 
   const targetRoute = resolveProductAppRoute(url.pathname);
   if (targetRoute?.kind === "invalid") return null;

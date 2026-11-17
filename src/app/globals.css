@@ -9,6 +9,13 @@
   min-width: 0;
 }
 
+html.dark .education-page-content {
+  --theme-surface: #0f1d2d;
+  --theme-text: #f1f5f9;
+  --theme-text-muted: #b6c4d6;
+  --theme-header-border-light: #334960;
+}
+
 .education-page-content main > header h1 {
   font-size: clamp(1.5rem, 2vw, 1.875rem);
   letter-spacing: -0.025em;
@@ -22,7 +29,7 @@
   border-color: var(--theme-header-border-light, #dbeafe);
   border-radius: 1rem;
   background:
-    radial-gradient(ellipse at top right, color-mix(in srgb, var(--theme-primary, #2563eb) 7%, white), transparent 68%),
+    radial-gradient(ellipse at top right, color-mix(in srgb, var(--theme-primary, #2563eb) 7%, var(--theme-surface, #fff)), transparent 68%),
     var(--theme-surface, #fff);
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 20px rgb(15 23 42 / 0.035);
   transition: box-shadow 160ms ease, transform 160ms ease;
@@ -83,6 +90,54 @@
 
 .education-page-content [class~="bg-blue-50"] {
   background-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 8%, white) !important;
+}
+
+html.dark .education-page-content :is([class~="bg-white"], [class~="bg-slate-50"], [class~="bg-slate-50/50"], [class~="bg-slate-100"]) {
+  background-color: var(--theme-surface, #0f1d2d) !important;
+}
+
+html.dark .education-page-content :is([class~="bg-blue-50"], [class~="bg-violet-50"], [class~="bg-emerald-50"], [class~="bg-amber-50"], [class~="bg-rose-50"]) {
+  background-color: color-mix(in srgb, var(--theme-primary, #2563eb) 14%, var(--theme-surface, #0f1d2d)) !important;
+}
+
+html.dark .education-page-content :is([class~="text-slate-950"], [class~="text-slate-900"], [class~="text-slate-800"], [class~="text-slate-700"]) {
+  color: #f1f5f9 !important;
+}
+
+html.dark .education-page-content :is([class~="text-slate-600"], [class~="text-slate-500"], [class~="text-slate-400"]) {
+  color: #b6c4d6 !important;
+}
+
+html.dark .education-page-content :is([class~="text-blue-700"], [class~="text-blue-800"]) {
+  color: #93c5fd !important;
+}
+
+html.dark .education-page-content [class~="text-amber-950"],
+html.dark .education-page-content [class~="text-amber-900"],
+html.dark .education-page-content [class~="text-amber-800"] {
+  color: #fcd34d !important;
+}
+
+html.dark .education-page-content [class~="text-rose-950"],
+html.dark .education-page-content [class~="text-rose-900"],
+html.dark .education-page-content [class~="text-rose-800"] {
+  color: #fda4af !important;
+}
+
+html.dark .education-page-content [class~="text-violet-950"],
+html.dark .education-page-content [class~="text-violet-900"],
+html.dark .education-page-content [class~="text-violet-800"] {
+  color: #c4b5fd !important;
+}
+
+html.dark .education-page-content [class~="text-emerald-950"],
+html.dark .education-page-content [class~="text-emerald-900"],
+html.dark .education-page-content [class~="text-emerald-800"] {
+  color: #6ee7b7 !important;
+}
+
+html.dark .education-page-content :is([class~="border-slate-100"], [class~="border-slate-200"], [class~="border-blue-100"], [class~="border-emerald-100"]) {
+  border-color: #334960 !important;
 }
 
 .education-page-content button[class~="text-blue-700"],

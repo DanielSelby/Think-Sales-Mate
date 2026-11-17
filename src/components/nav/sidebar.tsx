@@ -564,7 +564,7 @@ export function Sidebar({
         {(!collapsed || mobileOpen) && (
           <>
           <div className="px-1 sm:px-3">
-            <Link href="/support" onClick={onNavigate} className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2 sm:p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10">
+            <Link href={getProductScopedHref(pathname, "/support") ?? "/support"} onClick={onNavigate} className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2 sm:p-2.5 text-xs text-white/80 transition-colors hover:bg-white/10">
               <Headphones className="h-4 w-4 shrink-0 text-blue-400" />
               <div>
                 <p className="font-semibold" style={{ color: sidebar.text }}>Need Help?</p>

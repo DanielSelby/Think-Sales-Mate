@@ -22,6 +22,7 @@ describe("product navigation", () => {
     expect(getProductNavigationScope("/app/restaurant/menu")).toBe("restaurant");
     expect(getProductNavigationScope("/service-center/jobs")).toBe("think-service-repairs");
     expect(getProductNavigationScope("/education/students")).toBe("think-education");
+    expect(getProductNavigationScope("/app/think-education/support")).toBe("think-education");
     expect(getProductNavigationScope("/restaurant/pos")).toBe("restaurant");
     expect(getProductNavigationScope("/inventory")).toBe("thinksales-erp");
   });
@@ -37,12 +38,35 @@ describe("product navigation", () => {
       .toBe("/app/think-service/jobs");
     expect(getProductScopedHref("/app/think-education/dashboard", "/education/students"))
       .toBe("/app/think-education/students");
+    expect(getProductScopedHref("/app/think-education/dashboard", "/support"))
+      .toBe("/app/think-education/support");
+    expect(getProductScopedHref("/education/dashboard", "/support"))
+      .toBe("/app/think-education/support");
     expect(getProductScopedHref("/app/restaurant", "/inventory")).toBeNull();
     expect(getProductScopedHref("/app/restaurant", "/app/thinksales/inventory")).toBeNull();
     expect(getProductScopedHref("/app/restaurant", "/app/unknown/page")).toBeNull();
     expect(getProductScopedHref("/app/restaurant", "/settings/organization"))
       .toBe("/app/restaurant/settings/organization");
     expect(getProductScopedHref("/app/restaurant", "https://example.com")).toBe("https://example.com");
+  });
+
+  it("preserves each active product when opening support", () => {
+    const productRoutes = [
+      { pathname: "/app/thinksales/dashboard", scope: "thinksales-erp", expected: "/app/thinksales/support" },
+      { pathname: "/app/restaurant/menu", scope: "restaurant", expected: "/app/restaurant/support" },
+      { pathname: "/app/think-service/jobs", scope: "think-service-repairs", expected: "/app/think-service/support" },
+      { pathname: "/app/think-education/dashboard", scope: "think-education", expected: "/app/think-education/support" },
+    ] as const;
+
+    for (const { pathname, scope, expected } of productRoutes) {
+      expect(getProductScopedHref(pathname, "/support")).toBe(expected);
+      expect(getProductNavigationScope(expected)).toBe(scope);
+    }
+
+    expect(getProductScopedHref("/dashboard", "/support")).toBe("/app/thinksales/support");
+    expect(getProductScopedHref("/restaurant/menu", "/support")).toBe("/app/restaurant/support");
+    expect(getProductScopedHref("/service-center/jobs", "/support")).toBe("/app/think-service/support");
+    expect(getProductScopedHref("/education/dashboard", "/support")).toBe("/app/think-education/support");
   });
 
   it("shows only the active product group while retaining ThinkSales modules in its scope", () => {

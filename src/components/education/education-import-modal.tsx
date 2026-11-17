@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { CheckCircle2, Download, FileSpreadsheet, Upload, X } from "lucide-react";
 import { importEducationRecords, type EducationImportEntity } from "@/app/(dashboard)/education/actions";
 import * as XLSX from "xlsx";
-import { readEducationImportRows } from "@/lib/education/import-file";
+import { formatEducationImportDate, readEducationImportRows } from "@/lib/education/import-file";
 
 export interface EducationImportColumn {
   key: string;
@@ -146,7 +146,7 @@ export function EducationImportModal({ entity, label, columns }: EducationImport
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><FileSpreadsheet className="h-5 w-5" /></span>
             <div>
               <h2 id="education-import-title" className="font-semibold text-slate-950">Import {label}</h2>
-              <p className="mt-0.5 text-xs text-slate-500">Upload CSV or Excel, review the rows, then import up to 500 records.</p>
+              <p className="mt-0.5 text-xs text-slate-500">Upload CSV or Excel, review the rows, then import up to 500 records.{entity === "students" ? " Use DD-MM-YYYY for dates of birth." : ""}</p>
             </div>
           </div>
           <button type="button" onClick={reset} aria-label="Close import dialog" className="rounded-lg p-2 text-slate-500 hover:bg-slate-200"><X className="h-4 w-4" /></button>
@@ -177,7 +177,9 @@ export function EducationImportModal({ entity, label, columns }: EducationImport
             <table className="w-full min-w-[560px] text-left text-xs">
               <thead className="bg-white text-slate-500"><tr>{columns.map((column) => <th key={column.key} className="px-3 py-2 font-semibold">{column.label}</th>)}</tr></thead>
               <tbody className="divide-y divide-slate-100">{rows.slice(0, 5).map((row, index) => <tr key={index}>
-                {columns.map((column) => <td key={column.key} className="max-w-56 truncate px-3 py-2 text-slate-700">{row[column.key] || "—"}</td>)}
+                {columns.map((column) => <td key={column.key} className="max-w-56 truncate px-3 py-2 text-slate-700">
+                  {row[column.key] ? column.key === "date_of_birth" ? formatEducationImportDate(row[column.key]) : row[column.key] : "—"}
+                </td>)}
               </tr>)}</tbody>
             </table>
             {rows.length > 5 && <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">Showing the first five rows.</p>}

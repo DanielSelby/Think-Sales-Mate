@@ -83,13 +83,13 @@ export default function SupportPageClient({
       )}
       {heroArtworkError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{heroArtworkError}</p>}
       <section className="workspace-hub-support-hero relative isolate min-h-[300px] overflow-hidden rounded-3xl border border-emerald-100 shadow-xl sm:min-h-[330px]">
-        <Image src={heroImageUrl} alt="" aria-hidden="true" fill priority unoptimized sizes="100vw" className="z-0 object-fill" />
-        <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-r from-[#052b21]/95 via-[#075b40]/75 to-[#052b21]/10" />
+        <Image src={heroImageUrl} alt="" aria-hidden="true" fill priority unoptimized sizes="100vw" className="z-0 object-cover" />
+        <div aria-hidden="true" className="absolute inset-0 z-[1] bg-gradient-to-r from-[#031b16]/95 via-[#064a35]/85 to-[#052b21]/35" />
         <div className="relative z-10 flex min-h-[300px] items-center px-6 py-8 sm:min-h-[330px] sm:px-10 sm:py-10">
           <div className="max-w-2xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/95 px-3 py-1.5 text-xs font-semibold text-emerald-900"><ShieldCheck className="h-3.5 w-3.5" /> Official support center</div>
-            <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">We are here to keep your business moving.</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-white/90">Contact the support team for product guidance, technical support, account questions, and implementation help.</p>
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/30 bg-slate-950/45 px-3 py-1.5 text-xs font-semibold text-white"><ShieldCheck className="h-3.5 w-3.5" /> Official support center</div>
+            <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)] sm:text-4xl">We are here to keep your business moving.</h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-white drop-shadow-[0_1px_5px_rgba(0,0,0,0.75)]">Contact the support team for product guidance, technical support, account questions, and implementation help.</p>
             <button type="button" onClick={() => setShowForm(true)} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-800"><Plus className="h-4 w-4" /> Submit Complaint</button>
           </div>
         </div>

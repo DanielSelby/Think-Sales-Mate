@@ -56,6 +56,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
   const isProductHubSupportPage = pathname === "/support/product-hub";
+  const isStandaloneSupportPage = pathname === "/support" || isProductHubSupportPage;
   const isWorkspaceHubPage = pathname === "/subscription-status"
     || pathname.startsWith("/settings")
     || pathname === "/support"
@@ -127,8 +128,8 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   return (
     <SessionTimeout>
       <NavigationLoading />
-      {!isProductHubSupportPage && <GlobalCallNotifications userId={userId} orgId={orgId} />}
-      {!isProductHubSupportPage && <OrganizationExpiryWarning expiryDate={organizationAccessExpiresAt ?? null} />}
+      {!isStandaloneSupportPage && <GlobalCallNotifications userId={userId} orgId={orgId} />}
+      {!isStandaloneSupportPage && <OrganizationExpiryWarning expiryDate={organizationAccessExpiresAt ?? null} />}
       <div
         className={`flex h-screen overflow-hidden ${isWorkspaceHubPage && workspaceHubDarkThemeEnabled ? "dark" : ""}`}
         data-workspace-hub-shell={isWorkspaceHubPage && workspaceHubDarkThemeEnabled !== undefined ? "true" : undefined}
@@ -150,7 +151,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
           "--theme-header-border-dark": `color-mix(in srgb, ${theme.colors.primary} 36%, #334155)`,
         } as React.CSSProperties}
       >
-        {!isProductHubSupportPage && (
+        {!isStandaloneSupportPage && (
           <Sidebar
             collapsed={mobileSidebarOpen ? false : sidebarCollapsed}
             enabledModules={enabledModules}
@@ -162,7 +163,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             onNavigate={() => setMobileSidebarOpen(false)}
           />
         )}
-        {!isProductHubSupportPage && mobileSidebarOpen && (
+        {!isStandaloneSupportPage && mobileSidebarOpen && (
           <button
             type="button"
             aria-label="Close navigation menu"
@@ -171,7 +172,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
           />
         )}
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          {!isProductHubSupportPage && <TopNav
+          {!isStandaloneSupportPage && <TopNav
             userId={userId}
             orgId={orgId}
             currency={currency}
@@ -191,7 +192,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           />}
           <main
-            className={`page-canvas flex-1 overflow-y-auto ${isProductHubSupportPage ? "p-4 sm:p-6" : "p-4 pb-20 sm:p-5 md:pb-5"}`}
+            className={`page-canvas flex-1 overflow-y-auto ${isStandaloneSupportPage ? "p-4 sm:p-6" : "p-4 pb-20 sm:p-5 md:pb-5"}`}
             data-light-surfaces={useStandardLightSurfaces ? "standard" : undefined}
             data-platform-watermark={watermark?.enabled && watermark.imageUrl ? "enabled" : undefined}
             data-watermark-style={watermark?.displayStyle}
@@ -217,7 +218,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             )}
             {children}
           </main>
-          {!isProductHubSupportPage && <nav
+          {!isStandaloneSupportPage && <nav
             className="fixed inset-x-0 bottom-0 z-40 grid border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden dark:border-slate-700 dark:bg-ink-950/95"
             style={{ gridTemplateColumns: `repeat(${Math.max(mobileNav.length, 1)}, minmax(0, 1fr))` }}
           >

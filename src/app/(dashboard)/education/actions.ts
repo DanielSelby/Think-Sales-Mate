@@ -1190,7 +1190,7 @@ export async function importEducationRecords(
           return { row: rowNumber, error: "Check the student number, name, and contact fields." };
         }
         if (dateOfBirth && !isValidEducationStaffDate(dateOfBirth)) {
-          return { row: rowNumber, error: "Date of birth must use YYYY-MM-DD and cannot be in the future." };
+          return { row: rowNumber, error: "Date of birth must use DD-MM-YYYY (or YYYY-MM-DD) and cannot be in the future." };
         }
         return runRowAction(rowNumber, () => createEducationStudent(formData));
       }
