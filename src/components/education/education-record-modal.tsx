@@ -15,10 +15,11 @@ export interface EducationRecordActionResult {
 export interface EducationRecordField {
   name: string;
   label: string;
-  type?: "text" | "email" | "tel" | "date" | "select";
+  type?: "text" | "email" | "tel" | "date" | "select" | "file";
   required?: boolean;
   maxLength?: number;
   pattern?: string;
+  accept?: string;
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
 }
@@ -59,6 +60,7 @@ export function EducationRecordModal({
   const [createAccount, setCreateAccount] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
@@ -67,6 +69,7 @@ export function EducationRecordModal({
     setIsOpen(false);
     setCreateAccount(false);
     setError(null);
+    setWarning(null);
     setSuccess(false);
     setCredentials(null);
     setCopyStatus(null);
@@ -76,6 +79,7 @@ export function EducationRecordModal({
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setWarning(null);
     setSuccess(false);
     setCredentials(null);
     const formData = new FormData(event.currentTarget);
@@ -98,6 +102,7 @@ export function EducationRecordModal({
         return;
       }
       setSuccess(true);
+      setWarning(result.warning ?? null);
       if (result.username && result.temporaryPassword) {
         setCredentials({ username: result.username, password: result.temporaryPassword });
       } else {
@@ -138,6 +143,7 @@ export function EducationRecordModal({
           {error && <p role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>}
           {success && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
             <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="h-4 w-4" /> {title} saved.</p>
+            {warning && <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">{warning}</p>}
             {credentials && <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
               <p className="font-semibold">Temporary login credentials</p>
               <p className="mt-1 break-all">Username: {credentials.username}</p>
@@ -164,8 +170,9 @@ export function EducationRecordModal({
                   type={field.type ?? "text"}
                   maxLength={field.maxLength}
                   pattern={field.pattern}
+                  accept={field.accept}
                   placeholder={field.placeholder}
-                  className="h-10 rounded-lg border border-slate-300 px-3 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className={`h-10 rounded-lg border border-slate-300 px-3 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${field.type === "file" ? "py-2" : ""}`}
                 />}
               </label>)}
             </div>

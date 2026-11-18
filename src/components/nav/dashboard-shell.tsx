@@ -10,6 +10,7 @@ import { NAV_ITEMS } from "./sidebar";
 import { TopNav } from "./top-nav";
 import { SessionTimeout } from "./session-timeout";
 import { NavigationLoading } from "./navigation-loading";
+import { AutoSubmitGetFilters } from "./auto-submit-get-filters";
 import type { ThemeKey } from "@/store/useAppStore";
 import { GlobalCallNotifications } from "@/components/communication/global-call-notifications";
 import type { PlatformWatermarkConfiguration } from "@/lib/platform-watermark";
@@ -128,6 +129,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   return (
     <SessionTimeout>
       <NavigationLoading />
+      <AutoSubmitGetFilters />
       {!isStandaloneSupportPage && <GlobalCallNotifications userId={userId} orgId={orgId} />}
       {!isStandaloneSupportPage && <OrganizationExpiryWarning expiryDate={organizationAccessExpiresAt ?? null} />}
       <div

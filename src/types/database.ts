@@ -189,6 +189,7 @@ type EducationStudent = {
   other_names: string | null;
   email: string | null;
   phone: string | null;
+  photo_path: string | null;
   date_of_birth: string | null;
   gender: string | null;
   home_address: string | null;

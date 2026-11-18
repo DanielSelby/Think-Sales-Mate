@@ -46,7 +46,7 @@ export function AutoSubmitFilterForm({
   }
 
   return (
-    <form action={action} method="get" className={className} onChange={submitOnChange} onSubmit={submitImmediately}>
+    <form action={action} method="get" className={className} onChange={submitOnChange} onSubmit={submitImmediately} data-auto-filter="false">
       {children}
     </form>
   );

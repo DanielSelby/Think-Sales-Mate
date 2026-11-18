@@ -7,11 +7,13 @@ import type { EducationStudentProfile } from "@/lib/education/student-profile";
 type Props = {
   student: EducationStudentProfile;
   canEdit: boolean;
+  studentPhotoUrl: string | null;
 };
 
-export function StudentProfileForm({ student, canEdit }: Props) {
+export function StudentProfileForm({ student, canEdit, studentPhotoUrl }: Props) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [warning, setWarning] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   if (!canEdit) {
@@ -34,14 +36,18 @@ export function StudentProfileForm({ student, canEdit }: Props) {
     const formData = new FormData(event.currentTarget);
     setError("");
     setNotice("");
+    setWarning("");
     setIsSaving(true);
     try {
       const result = await updateEducationStudent(formData);
       if ("error" in result) {
         setError(result.error ?? "The student profile could not be saved.");
       } else {
-        setNotice("Student profile saved.");
+        if (result.warning) setWarning(result.warning);
+        else setNotice("Student profile saved.");
       }
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "The student profile could not be saved.");
     } finally {
       setIsSaving(false);
     }
@@ -52,6 +58,13 @@ export function StudentProfileForm({ student, canEdit }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6">
       <input type="hidden" name="student_id" value={student.id} />
+      <label className="grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-[auto_1fr] sm:items-center">
+        <span>
+          Student photo
+          <input name="student_photo" type="file" accept="image/jpeg,image/png,image/webp" className={inputClassName} />
+          <span className="mt-1 block text-xs font-normal text-slate-500">JPEG, PNG, or WebP; maximum 5 MB.</span>
+        </span>
+      </label>
       <div className="grid gap-5 sm:grid-cols-2">
         <label className="text-sm font-medium text-slate-700">
           First name
@@ -87,6 +100,7 @@ export function StudentProfileForm({ student, canEdit }: Props) {
         </label>
       </div>
       {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
+      {warning && <p role="status" className="text-sm font-medium text-amber-800">{warning}</p>}
       {notice && <p role="status" className="text-sm font-medium text-emerald-700">{notice}</p>}
       <button type="submit" disabled={isSaving} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
         {isSaving ? "Saving..." : "Save changes"}

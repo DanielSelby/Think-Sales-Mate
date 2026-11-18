@@ -21,7 +21,6 @@ import {
   Receipt,
   PiggyBank,
   Activity,
-  Filter,
   Download,
   FileText,
   Scale,
@@ -163,6 +162,7 @@ export function ReportsDashboard({
       setNotice("Choose a valid date range before applying filters.");
       return;
     }
+    setNotice(null);
     const params = new URLSearchParams({
       from: nextDateFrom,
       to: nextDateTo,
@@ -345,14 +345,24 @@ export function ReportsDashboard({
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => {
+              const nextDateFrom = e.target.value;
+              setDateFrom(nextDateFrom);
+              setPeriod("custom");
+              applyFilters({ dateFrom: nextDateFrom, period: "custom" });
+            }}
             className="h-9 rounded-md border border-ledger-200 bg-transparent px-2 text-sm dark:border-ledger-700 dark:text-white"
           />
           <span className="text-ledger-400">–</span>
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => {
+              const nextDateTo = e.target.value;
+              setDateTo(nextDateTo);
+              setPeriod("custom");
+              applyFilters({ dateTo: nextDateTo, period: "custom" });
+            }}
             className="h-9 rounded-md border border-ledger-200 bg-transparent px-2 text-sm dark:border-ledger-700 dark:text-white"
           />
         </div>
@@ -373,6 +383,7 @@ export function ReportsDashboard({
             const nextLocationId = e.target.value;
             setLocationId(nextLocationId);
             setBranch(locations.find((location) => location.id === nextLocationId)?.name ?? "all");
+            applyFilters({ locationId: nextLocationId });
           }}
           className="h-9 rounded-md border border-ledger-200 bg-transparent px-2 text-sm dark:border-ledger-700 dark:text-white"
         >
@@ -383,10 +394,6 @@ export function ReportsDashboard({
             </option>
           ))}
         </select>
-        <Button variant="outline" size="sm" onClick={() => applyFilters()}>
-          <Filter className="h-3.5 w-3.5" />
-          Apply Filters
-        </Button>
         <Button variant="ghost" size="sm" onClick={clearFilters}>Clear Filters</Button>
         <Button variant="ghost" size="sm" onClick={() => window.print()}>Print</Button>
         <Button variant="ghost" size="sm" onClick={saveReportView}>Save Report View</Button>

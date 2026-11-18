@@ -6,7 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { createEducationStudentTransfer, transitionEducationStudentTransfer } from "../actions";
+import { transitionEducationStudentTransfer } from "../actions";
 
 type TransferRow = {
   id: string;
@@ -100,15 +100,16 @@ export default async function EducationTransfersPage({
   ];
   const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const today = new Date().toISOString().slice(0, 10);
-  const errorMessage = params.error === "student"
-    ? "No active student with that number was found at the source campus."
-    : params.error === "source"
-      ? "The student is no longer at the selected source campus."
-      : params.error === "transition"
-        ? "That transfer is no longer in a state that allows this action, or its effective date has not arrived."
-        : params.error === "invalid"
-          ? "Check the student number, campuses, effective date, and transfer reason."
-          : params.error === "save" ? "The transfer could not be saved. Please try again." : null;
+  const errorMessage = params.error === "transition"
+    ? "That transfer is no longer in a state that allows this action, or its effective date has not arrived."
+    : params.error === "save" ? "The transfer could not be saved. Please try again." : null;
+  const transitionMessage = params.status === "approved"
+    ? "Transfer approved. The student’s campus will change when the transfer is completed on or after its effective date."
+    : params.status === "rejected"
+      ? "Transfer request rejected."
+      : params.status === "completed"
+        ? "Transfer completed. The student is now assigned to the destination campus."
+        : "Transfer status updated.";
 
   return <main className="mx-auto max-w-[1500px] space-y-6 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-4">
@@ -116,16 +117,15 @@ export default async function EducationTransfersPage({
         <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Student Transfers</h1>
-        <p className="mt-1 text-sm text-slate-600">Request and process student moves between campuses you are authorized to access.</p>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Student Transfer Register</h1>
+        <p className="mt-1 text-sm text-slate-600">Review and process transfer requests between campuses you are authorized to access.</p>
       </div>
-      {canCreate && campuses.length > 1 && <a href="#new-transfer" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
+      {canCreate && campuses.length > 1 && <Link href={getProductAppPath("think-education", "/transfers/request")} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
         <Plus className="h-4 w-4" /> Request transfer
-      </a>}
+      </Link>}
     </header>
 
-    {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Transfer request created and awaiting review.</p>}
-    {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Transfer processed. Completion is audited and updates the student’s campus enrollment.</p>}
+    {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{transitionMessage}</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
     <section data-education-metrics className="grid gap-3 sm:grid-cols-4">
@@ -143,7 +143,7 @@ export default async function EducationTransfersPage({
     <section aria-label="Transfer workflow" className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 md:flex md:items-center md:justify-between md:gap-6">
       <div>
         <h2 className="text-sm font-semibold text-slate-900">Transfer workflow</h2>
-        <p className="mt-1 text-sm text-slate-600">Requests are reviewed before completion. Completing an approved transfer updates the student’s campus enrollment on its effective date.</p>
+        <p className="mt-1 text-sm text-slate-600">Approval does not move the student yet. Use Complete transfer on or after the effective date to update the student’s campus.</p>
       </div>
       <p className="mt-3 shrink-0 text-sm font-medium text-blue-900 md:mt-0">
         {visibleTransfers.filter((transfer) => transfer.status === "rejected").length.toLocaleString()} rejected
@@ -222,27 +222,5 @@ export default async function EducationTransfersPage({
       </div>}
     </section>
 
-    {canCreate && campuses.length > 1 && <section id="new-transfer" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Request student transfer</h2>
-      <p className="mt-1 text-sm text-slate-500">Both campuses must be assigned to your account. The student’s current enrollment changes only after approval and audited completion.</p>
-      <form action={createEducationStudentTransfer} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <label className="text-sm font-medium text-slate-700">Student number
-          <input required name="student_number" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Source campus
-          <select required name="source_branch_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Destination campus
-          <select required name="destination_branch_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Effective date
-          <input required type="date" name="effective_on" min={today} defaultValue={today} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Reason
-          <input required name="reason" maxLength={500} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <div className="sm:col-span-2 lg:col-span-5"><button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Create transfer request</button></div>
-      </form>
-    </section>}
   </main>;
 }

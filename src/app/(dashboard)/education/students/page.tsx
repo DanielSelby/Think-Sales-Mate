@@ -151,6 +151,7 @@ export default async function EducationStudentsPage({
             { name: "date_of_birth", label: "Date of birth", type: "date" },
             { name: "gender", label: "Gender", maxLength: 50 },
             { name: "home_address", label: "Home address", maxLength: 500 },
+            { name: "student_photo", label: "Student photo", type: "file", accept: "image/jpeg,image/png,image/webp" },
           ]}
         />}
       </div>
@@ -171,11 +172,11 @@ export default async function EducationStudentsPage({
     </section>
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/students")} className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto_auto] md:p-5">
+      <form method="get" action={getProductAppPath("think-education", "/students")} className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto] md:p-5">
         <label className="relative block">
           <span className="sr-only">Search by student name or number</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input name="search" defaultValue={search} placeholder="Search name or student number" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <input type="search" name="search" defaultValue={search} placeholder="Search name or student number" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </label>
         <select name="branch" defaultValue={selectedBranch} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
           <option value="">All assigned campuses</option>
@@ -184,8 +185,8 @@ export default async function EducationStudentsPage({
         <select name="status" defaultValue={status} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
           {STUDENT_STATUSES.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}
         </select>
-        <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
         {canExport && students.length > 0 && <a href={csvHref} download={`education-students-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        <p className="text-xs text-slate-500 md:col-span-full">Results update automatically as you type or change a filter.</p>
       </form>
 
       {campuses.length === 0 ? <div className="p-8 text-center">

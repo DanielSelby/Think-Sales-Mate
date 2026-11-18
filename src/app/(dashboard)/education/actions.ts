@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -40,10 +41,59 @@ import {
   educationStudentTransferInputSchema,
 } from "@/lib/education/student-progression";
 import { dispatchEducationAnnouncementDeliveries } from "@/lib/education/announcement-delivery";
+import { findDuplicateEducationStudentNumberRows } from "@/lib/education/student-import";
 
 export type EducationImportEntity = "students" | "staff" | "campuses";
 
 const EDUCATION_COMMUNICATION_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EDUCATION_STUDENT_IMAGE_BUCKET = "education-student-images";
+const EDUCATION_STUDENT_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+const EDUCATION_STUDENT_IMAGE_TYPES = {
+  "image/jpeg": { extension: "jpg", signature: (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },
+  "image/png": { extension: "png", signature: (bytes: Uint8Array) => bytes.length >= 8
+    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a },
+  "image/webp": { extension: "webp", signature: (bytes: Uint8Array) => bytes.length >= 12
+    && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF"
+    && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP" },
+} as const;
+
+async function getEducationStudentPhoto(formData: FormData): Promise<{ file: File | null; error?: string }> {
+  const value = formData.get("student_photo");
+  if (value === null || typeof value === "string" || value.size === 0) return { file: null };
+  if (!(value instanceof File)) return { file: null, error: "Choose a valid student photo." };
+  if (value.size > EDUCATION_STUDENT_IMAGE_MAX_SIZE) {
+    return { file: null, error: "Student photos must be 5 MB or smaller." };
+  }
+  if (!(value.type in EDUCATION_STUDENT_IMAGE_TYPES)) {
+    return { file: null, error: "Student photos must be JPEG, PNG, or WebP images." };
+  }
+  const imageType = EDUCATION_STUDENT_IMAGE_TYPES[value.type as keyof typeof EDUCATION_STUDENT_IMAGE_TYPES];
+  const header = new Uint8Array(await value.slice(0, 12).arrayBuffer());
+  if (!imageType.signature(header)) return { file: null, error: "The selected file is not a valid image." };
+  return { file: value };
+}
+
+async function uploadEducationStudentPhoto(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  studentId: string,
+  file: File,
+): Promise<{ path: string } | { error: string }> {
+  const imageType = EDUCATION_STUDENT_IMAGE_TYPES[file.type as keyof typeof EDUCATION_STUDENT_IMAGE_TYPES];
+  if (!imageType) return { error: "Student photos must be JPEG, PNG, or WebP images." };
+  const path = `${orgId}/${studentId}/${randomUUID()}.${imageType.extension}`;
+  const { error } = await supabase.storage.from(EDUCATION_STUDENT_IMAGE_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) {
+    console.error("Could not upload Think Education student photo:", error.message);
+    return { error: "The student record was saved, but the photo could not be uploaded." };
+  }
+  return { path };
+}
 
 function educationExpenseReturnPath(pettyCash: boolean, query?: string) {
   const path = getProductAppPath("think-education", pettyCash ? "/accounting/petty-cash" : "/expenses");
@@ -802,6 +852,8 @@ export async function createEducationStudent(formData: FormData) {
   const gender = String(formData.get("gender") ?? "").trim();
   const homeAddress = String(formData.get("home_address") ?? "").trim();
   const createAccount = formData.get("create_account") === "true";
+  const photoResult = await getEducationStudentPhoto(formData);
+  if (photoResult.error) return { error: photoResult.error };
   if (!branchId || !/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber) || !firstName || !lastName) {
     return { error: "Check the student number, name, and campus fields." };
   }
@@ -818,6 +870,20 @@ export async function createEducationStudent(formData: FormData) {
   if (!campuses.some((campus) => campus.id === branchId)) {
     return { error: "You cannot create a student record outside your assigned Think Education campuses." };
   }
+
+  const supabase = await createClient();
+  const { data: existingStudent, error: duplicateCheckError } = await supabase.from("education_students")
+    .select("id")
+    .eq("org_id", context.orgId)
+    .in("branch_id", campuses.map((campus) => campus.id))
+    .eq("student_number", studentNumber)
+    .limit(1)
+    .maybeSingle();
+  if (duplicateCheckError) {
+    console.error("Could not check for duplicate Think Education student numbers:", duplicateCheckError.message);
+    return { error: "Could not check whether that student number is already in use. Please try again." };
+  }
+  if (existingStudent) return { error: "A student with this number already exists in this organization." };
 
   let account: CreatedEducationAccount | undefined;
   if (createAccount) {
@@ -842,8 +908,7 @@ export async function createEducationStudent(formData: FormData) {
     account = accountResult.account;
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("education_students").insert({
+  const { data: student, error } = await supabase.from("education_students").insert({
     org_id: context.orgId,
     branch_id: branchId,
     user_id: account?.userId ?? null,
@@ -857,12 +922,31 @@ export async function createEducationStudent(formData: FormData) {
     gender: gender || null,
     home_address: homeAddress || null,
     created_by: context.userId,
-  });
+  }).select("id").single();
   if (error) {
     const cleanupMessage = account ? await removeCreatedEducationAccount(context.orgId, account) : "";
-    if (error.code === "23505") return { error: `That student number or linked account is already in use.${cleanupMessage}` };
+    if (error.code === "23505") return { error: `A student with this number already exists in this organization.${cleanupMessage}` };
     console.error("Could not create Think Education student:", error.message);
     return { error: `The student record could not be saved: ${error.message}.${cleanupMessage}` };
+  }
+
+  let warning: string | undefined;
+  if (photoResult.file) {
+    const uploadResult = await uploadEducationStudentPhoto(supabase, context.orgId, student.id, photoResult.file);
+    if ("error" in uploadResult) {
+      warning = uploadResult.error;
+    } else {
+      const { error: photoPathError } = await supabase.from("education_students")
+        .update({ photo_path: uploadResult.path, updated_at: new Date().toISOString() })
+        .eq("org_id", context.orgId)
+        .eq("id", student.id);
+      if (photoPathError) {
+        console.error("Could not save Think Education student photo path:", photoPathError.message);
+        const { error: cleanupError } = await supabase.storage.from(EDUCATION_STUDENT_IMAGE_BUCKET).remove([uploadResult.path]);
+        if (cleanupError) console.error("Could not remove unlinked Think Education student photo:", cleanupError.message);
+        warning = "The student record was saved, but the photo could not be attached. Edit the student profile to try again.";
+      }
+    }
   }
 
   revalidatePath("/education/students");
@@ -871,6 +955,7 @@ export async function createEducationStudent(formData: FormData) {
     success: true,
     username: account?.username,
     temporaryPassword: account?.temporaryPassword,
+    warning,
   };
 }
 
@@ -895,6 +980,8 @@ export async function updateEducationStudent(formData: FormData) {
   if (!parsed.success) {
     return { error: "Check the student name, email, phone, and date of birth." };
   }
+  const photoResult = await getEducationStudentPhoto(formData);
+  if (photoResult.error) return { error: photoResult.error };
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const branchIds = campuses.map((campus) => campus.id);
@@ -929,9 +1016,46 @@ export async function updateEducationStudent(formData: FormData) {
     return { error: "The student could not be found in your assigned Think Education campuses." };
   }
 
+  let warning: string | undefined;
+  if (photoResult.file) {
+    const { data: currentStudent, error: currentStudentError } = await supabase.from("education_students")
+      .select("photo_path")
+      .eq("org_id", context.orgId)
+      .eq("id", parsed.data.studentId)
+      .in("branch_id", branchIds)
+      .maybeSingle();
+    if (currentStudentError || !currentStudent) {
+      console.error("Could not load current Think Education student photo:", currentStudentError?.message ?? "Student not found.");
+      warning = "The profile was saved, but the current photo could not be replaced.";
+    } else {
+      const uploadResult = await uploadEducationStudentPhoto(supabase, context.orgId, parsed.data.studentId, photoResult.file);
+      if ("error" in uploadResult) {
+        warning = uploadResult.error;
+      } else {
+        const { error: photoPathError } = await supabase.from("education_students")
+          .update({ photo_path: uploadResult.path, updated_at: new Date().toISOString() })
+          .eq("org_id", context.orgId)
+          .eq("id", parsed.data.studentId)
+          .in("branch_id", branchIds);
+        if (photoPathError) {
+          console.error("Could not save Think Education student photo path:", photoPathError.message);
+          const { error: cleanupError } = await supabase.storage.from(EDUCATION_STUDENT_IMAGE_BUCKET).remove([uploadResult.path]);
+          if (cleanupError) console.error("Could not remove unlinked Think Education student photo:", cleanupError.message);
+          warning = "The profile was saved, but the new photo could not be attached.";
+        } else if (currentStudent.photo_path) {
+          const { error: removeError } = await supabase.storage.from(EDUCATION_STUDENT_IMAGE_BUCKET).remove([currentStudent.photo_path]);
+          if (removeError) {
+            console.error("Could not remove the previous Think Education student photo:", removeError.message);
+            warning = "The new photo was saved, but the previous photo could not be removed.";
+          }
+        }
+      }
+    }
+  }
+
   revalidatePath("/education/students");
   revalidatePath(`/education/students/${parsed.data.studentId}`);
-  return { success: true };
+  return { success: true, warning };
 }
 
 export async function recordEducationStudentConsent(formData: FormData) {
@@ -1136,6 +1260,7 @@ export async function importEducationRecords(
   }
 
   const skipped: Array<{ row: number; reason: string }> = [];
+  const duplicateStudentRows = entity === "students" ? findDuplicateEducationStudentNumberRows(rows) : new Set<number>();
   let created = 0;
   const getValue = (row: Record<string, string>, key: string) =>
     typeof row?.[key] === "string" ? row[key].trim() : "";
@@ -1180,6 +1305,9 @@ export async function importEducationRecords(
       formData.set("branch_id", branchId);
 
       if (entity === "students") {
+        if (duplicateStudentRows.has(start + batchIndex)) {
+          return { row: rowNumber, error: "Student number duplicates another row in this import file." };
+        }
         const studentNumber = getValue(values, "student_number");
         const firstName = getValue(values, "first_name");
         const lastName = getValue(values, "last_name");
@@ -2807,7 +2935,7 @@ export async function createEducationStudentTransfer(formData: FormData) {
     reason: String(formData.get("reason") ?? ""),
   });
   if (!parsed.success) {
-    redirect(`${getProductAppPath("think-education", "/transfers")}?error=invalid`);
+    redirect(`${getProductAppPath("think-education", "/transfers/request")}?error=invalid`);
   }
   const { studentNumber, sourceBranchId, destinationBranchId, effectiveOn, reason } = parsed.data;
 
@@ -2823,7 +2951,7 @@ export async function createEducationStudentTransfer(formData: FormData) {
     .eq("student_number", studentNumber).eq("status", "active")
     .maybeSingle();
   if (studentError) throw new Error(`Could not verify the student for transfer: ${studentError.message}`);
-  if (!student) redirect(`${getProductAppPath("think-education", "/transfers")}?error=student`);
+  if (!student) redirect(`${getProductAppPath("think-education", "/transfers/request")}?error=student`);
 
   const { error } = await supabase.from("education_student_transfers").insert({
     org_id: context.orgId,
@@ -2835,12 +2963,13 @@ export async function createEducationStudentTransfer(formData: FormData) {
     requested_by: context.userId,
   });
   if (error) {
-    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/transfers")}?error=source`);
+    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/transfers/request")}?error=source`);
     console.error("Could not create Think Education student transfer:", error.message);
-    redirect(`${getProductAppPath("think-education", "/transfers")}?error=save`);
+    redirect(`${getProductAppPath("think-education", "/transfers/request")}?error=save`);
   }
   revalidatePath("/education/transfers");
-  redirect(`${getProductAppPath("think-education", "/transfers")}?created=1`);
+  revalidatePath("/education/transfers/request");
+  redirect(`${getProductAppPath("think-education", "/transfers/request")}?created=1`);
 }
 
 export async function transitionEducationStudentTransfer(formData: FormData) {
@@ -2885,10 +3014,11 @@ export async function transitionEducationStudentTransfer(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/transfers")}?error=save`);
   }
   revalidatePath("/education/transfers");
+  revalidatePath("/education/transfers/request");
   revalidatePath("/education/students");
   revalidatePath("/education/attendance");
   revalidatePath("/education/academics");
-  redirect(`${getProductAppPath("think-education", "/transfers")}?updated=1`);
+  redirect(`${getProductAppPath("think-education", "/transfers")}?updated=1&status=${nextStatus}`);
 }
 
 export async function createEducationExpense(formData: FormData) {
