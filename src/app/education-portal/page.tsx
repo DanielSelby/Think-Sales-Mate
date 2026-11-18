@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { BookOpen, CalendarDays, GraduationCap, Wallet } from "lucide-react";
+import { z } from "zod";
 import { educationPortalCommunicationsSchema, type EducationPortalCommunication } from "@/lib/education/communications";
 import { markEducationNotificationRead } from "@/app/education-notifications/actions";
 import { educationGuardianPortalSchema, type EducationGuardianPortal } from "@/lib/education/guardian-portal";
 import { educationNotificationsSchema } from "@/lib/education/notifications";
-import { setEducationNotificationPreference } from "@/app/education-notifications/actions";
+import {
+  setEducationAnnouncementDeliveryPreference,
+  setEducationNotificationPreference,
+} from "@/app/education-notifications/actions";
 import { createClient } from "@/lib/supabase/server";
 import {
   claimEducationGuardianPortalAccount,
@@ -14,6 +18,17 @@ import {
 export const dynamic = "force-dynamic";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const guardianFeePaymentDataSchema = z.array(z.object({
+  organizationId: z.string().uuid(),
+  studentId: z.string().uuid(),
+  chargeId: z.string().uuid(),
+  description: z.string(),
+  dueOn: z.string().nullable(),
+  amount: z.number().nonnegative(),
+  paid: z.number().nonnegative(),
+  balance: z.number().nonnegative(),
+  paymentStatus: z.enum(["pending", "paid", "failed", "expired"]).nullable(),
+}));
 
 function messageFor(params: Record<string, string | string[] | undefined>) {
   if (params.emailSent === "1") return "If this email can sign in, a secure link has been sent. Check your inbox and spam folder.";
@@ -25,6 +40,15 @@ function messageFor(params: Record<string, string | string[] | undefined>) {
   if (params.claim === "already-linked") return "A guardian profile is already linked to this account for one of the schools.";
   if (params.claim === "not-found") return "No unlinked guardian profile with a verified student relationship matches this verified account email.";
   if (params.claim === "error") return "The guardian profile could not be linked. Please try again or contact the school.";
+  return null;
+}
+
+function paymentMessageFor(params: Record<string, string | string[] | undefined>) {
+  if (params.payment === "success") return "Payment received and recorded.";
+  if (params.payment === "failed") return "Paystack reports that the payment failed. The outstanding balance is unchanged.";
+  if (params.payment === "pending") return "Payment is still being verified. Refresh the portal shortly to see its status.";
+  if (params.payment === "review") return "Paystack returned a payment that does not match the reserved fee. It has not been recorded; please contact the school.";
+  if (params.payment === "invalid") return "The payment reference could not be verified.";
   return null;
 }
 
@@ -41,6 +65,13 @@ export default async function EducationGuardianPortalPage({
   let announcements: EducationPortalCommunication[] = [];
   let notifications: Awaited<ReturnType<typeof educationNotificationsSchema.parse>> = [];
   let notificationPreferences: Array<{ org_id: string; notification_type: string; in_app_enabled: boolean }> = [];
+  let outboundNotificationPreferences: Array<{
+    org_id: string;
+    organization_name: string;
+    email_enabled: boolean;
+    sms_enabled: boolean;
+  }> = [];
+  let guardianFeePaymentData: z.infer<typeof guardianFeePaymentDataSchema> = [];
   if (user) {
     const { data, error } = await supabase.rpc("education_get_guardian_portal");
     if (error) throw new Error(`Could not load the guardian portal: ${error.message}`);
@@ -50,6 +81,15 @@ export default async function EducationGuardianPortalPage({
       throw new Error("The guardian portal data could not be safely displayed.");
     }
     portal = parsedPortal.data;
+
+    const { data: feePaymentRows, error: feePaymentError } = await supabase.rpc("education_guardian_paystack_portal_fees");
+    if (feePaymentError) throw new Error(`Could not load guardian fee payment status: ${feePaymentError.message}`);
+    const parsedFeePaymentRows = guardianFeePaymentDataSchema.safeParse(feePaymentRows);
+    if (!parsedFeePaymentRows.success) {
+      console.error("Think Education guardian fee payment status returned unexpected data:", parsedFeePaymentRows.error.flatten());
+      throw new Error("Guardian fee payment status could not be safely displayed.");
+    }
+    guardianFeePaymentData = parsedFeePaymentRows.data;
 
     const { data: communications, error: communicationsError } = await supabase.rpc("education_get_guardian_communications");
     if (communicationsError) throw new Error(`Could not load guardian announcements: ${communicationsError.message}`);
@@ -82,9 +122,17 @@ export default async function EducationGuardianPortalPage({
       if (preferencesError) throw new Error(`Could not load guardian notification preferences: ${preferencesError.message}`);
       notificationPreferences = preferences ?? [];
     }
+
+    const { data: outboundPreferences, error: outboundPreferencesError } = await supabase
+      .rpc("education_announcement_get_delivery_preferences");
+    if (outboundPreferencesError) {
+      throw new Error(`Could not load announcement delivery preferences: ${outboundPreferencesError.message}`);
+    }
+    outboundNotificationPreferences = outboundPreferences ?? [];
   }
   const params = await searchParams;
   const message = messageFor(params);
+  const paymentMessage = paymentMessageFor(params);
 
   return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-6xl space-y-6">
@@ -98,8 +146,11 @@ export default async function EducationGuardianPortalPage({
       </header>
 
       {message && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
+      {paymentMessage && <p role={params.payment === "review" || params.payment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{paymentMessage}</p>}
       {params.preference === "saved" && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Notification preference saved.</p>}
       {params.preference === "denied" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">This preference could not be changed for the selected school.</p>}
+      {params.preference === "error" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">The preference could not be saved. Please try again.</p>}
+      {params.preference === "invalid" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">The preference selection was invalid.</p>}
 
       {notifications.length > 0 && <section className="space-y-3">
         <h2 className="text-xl font-semibold">Notifications</h2>
@@ -138,6 +189,31 @@ export default async function EducationGuardianPortalPage({
               </form>
             </li>;
           })}
+        </ul>
+      </section>}
+
+      {user && outboundNotificationPreferences.length > 0 && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-semibold">Announcement email and SMS preferences</h2>
+        <p className="mt-1 text-sm text-slate-500">Each channel is optional and starts off. These settings are independent of your in-app notification inbox.</p>
+        <ul className="mt-3 divide-y divide-slate-100">
+          {outboundNotificationPreferences.map((preference) => <li key={preference.org_id} className="py-3">
+            <p className="text-sm font-medium">{preference.organization_name}</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {([
+                ["email", "Email", preference.email_enabled],
+                ["sms", "SMS", preference.sms_enabled],
+              ] as const).map(([channel, label, enabled]) => <form key={channel} action={setEducationAnnouncementDeliveryPreference} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3">
+                <span className="text-sm text-slate-700">{label}: {enabled ? "Opted in" : "Off"}</span>
+                <input type="hidden" name="org_id" value={preference.org_id} />
+                <input type="hidden" name="channel" value={channel} />
+                <input type="hidden" name="enabled" value={String(!enabled)} />
+                <input type="hidden" name="return_to" value="/education-portal" />
+                <button type="submit" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  {enabled ? `Turn off ${label}` : `Opt in to ${label}`}
+                </button>
+              </form>)}
+            </div>
+          </li>)}
         </ul>
       </section>}
 
@@ -261,10 +337,17 @@ export default async function EducationGuardianPortalPage({
 
                 <section>
                   <h4 className="flex items-center gap-2 text-sm font-semibold"><Wallet className="h-4 w-4 text-blue-700" /> Fee charges</h4>
-                  {student.fees.length ? <ul className="mt-2 divide-y divide-slate-100">
-                    {student.fees.map((fee, index) => <li key={`${fee.description}-${fee.dueOn ?? "no-date"}-${index}`} className="flex justify-between gap-3 py-2 text-sm">
-                      <span><span className="font-medium">{fee.description}</span><span className="block text-xs text-slate-500">{fee.dueOn ? `Due ${fee.dueOn}` : "No due date"}</span></span>
-                      <span className="shrink-0 text-right">{organization.currencyCode} {fee.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<span className="block text-xs text-slate-500">of {organization.currencyCode} {fee.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                  {guardianFeePaymentData.some((fee) => fee.organizationId === organization.organizationId && fee.studentId === student.id) ? <ul className="mt-2 divide-y divide-slate-100">
+                    {guardianFeePaymentData.filter((fee) => fee.organizationId === organization.organizationId && fee.studentId === student.id).map((fee) => <li key={fee.chargeId} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                      <span><span className="font-medium">{fee.description}</span><span className="block text-xs text-slate-500">{fee.dueOn ? `Due ${fee.dueOn}` : "No due date"}</span>
+                        {fee.paymentStatus && <span className="mt-1 block text-xs font-medium capitalize text-slate-600">Payment {fee.paymentStatus}</span>}
+                      </span>
+                      <span className="shrink-0 text-right">{organization.currencyCode} {fee.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<span className="block text-xs text-slate-500">of {organization.currencyCode} {fee.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        {fee.balance > 0 && user.email_confirmed_at && <form action="/api/education/guardian-fees/checkout" method="post" className="mt-2">
+                          <input type="hidden" name="charge_id" value={fee.chargeId} />
+                          <button type="submit" className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">Pay securely</button>
+                        </form>}
+                      </span>
                     </li>)}
                   </ul> : <p className="mt-2 text-sm text-slate-500">No open fee charges.</p>}
                 </section>

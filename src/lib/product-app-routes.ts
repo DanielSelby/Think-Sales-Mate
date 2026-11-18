@@ -48,7 +48,7 @@ export function resolveProductAppRoute(pathname: string): ResolvedProductAppRout
     suffix === path || suffix.startsWith(`${path}/`)
   );
   const isEducationSettingsPath = productRoute.productSlug === "think-education"
-    && ["/settings", "/settings/users", "/settings/roles"].includes(suffix);
+    && (suffix === "/settings" || suffix.startsWith("/settings/"));
   const isContextualOrganizationPath = !isEducationSettingsPath && isOrganizationWideRoute(suffix);
   return {
     kind: "valid",

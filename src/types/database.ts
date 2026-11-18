@@ -80,6 +80,40 @@ type EducationCampus = {
   created_at: string;
   updated_at: string;
 };
+type EducationGoogleClassroomConnection = {
+  org_id: string;
+  refresh_token_ciphertext: string;
+  granted_scopes: string[];
+  connected_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationGoogleClassroomOAuthState = {
+  state_hash: string;
+  org_id: string;
+  user_id: string;
+  expires_at: string;
+  created_at: string;
+};
+type EducationGoogleClassroomMapping = {
+  id: string;
+  org_id: string;
+  google_course_id: string;
+  class_id: string;
+  branch_id: string;
+  academic_year_id: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationGoogleClassroomAuditEvent = {
+  id: string;
+  org_id: string;
+  actor_id: string | null;
+  action: "oauth_started" | "connected" | "disconnected" | "courses_listed" | "course_mapped" | "roster_previewed" | "roster_imported";
+  metadata: Json;
+  created_at: string;
+};
 type EducationAcademicYear = {
   id: string;
   org_id: string;
@@ -417,6 +451,24 @@ type EducationNotificationPreference = {
   user_id: string;
   notification_type: "announcement" | "attendance" | "results" | "fees" | "admissions" | "transport";
   in_app_enabled: boolean;
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  updated_at: string;
+};
+type EducationAnnouncementDelivery = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  announcement_id: string;
+  recipient_user_id: string;
+  channel: "email" | "sms";
+  status: "pending" | "sending" | "sent" | "failed" | "unconfigured" | "skipped";
+  provider: string | null;
+  attempts: number;
+  last_error: string | null;
+  claimed_by: string | null;
+  sent_at: string | null;
+  created_at: string;
   updated_at: string;
 };
 type EducationStaff = {
@@ -549,10 +601,29 @@ type EducationFeePayment = {
   org_id: string;
   charge_id: string;
   amount: number;
-  payment_method: "cash" | "mobile_money" | "bank_transfer" | "card" | "cheque" | "other";
+  payment_method: "cash" | "mobile_money" | "bank_transfer" | "card" | "cheque" | "other" | "paystack";
   reference: string | null;
   recorded_by: string | null;
   created_at: string;
+};
+type EducationGuardianFeePaymentAttempt = {
+  id: string;
+  reference: string;
+  org_id: string;
+  charge_id: string;
+  student_id: string;
+  guardian_id: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  payer_email: string;
+  status: "pending" | "paid" | "failed" | "expired";
+  expires_at: string;
+  initialization_started_at: string | null;
+  authorization_url: string | null;
+  payment_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 type EducationAccountingAccount = {
   id: string;
@@ -2188,6 +2259,22 @@ export interface Database {
         "org_id" | "institution_name" | "institution_code" | "institution_type"
       >;
       education_campuses: EducationDatabaseTable<EducationCampus, "org_id" | "branch_id">;
+      education_google_classroom_connections: EducationDatabaseTable<
+        EducationGoogleClassroomConnection,
+        "org_id" | "refresh_token_ciphertext" | "granted_scopes"
+      >;
+      education_google_classroom_oauth_states: EducationDatabaseTable<
+        EducationGoogleClassroomOAuthState,
+        "state_hash" | "org_id" | "user_id" | "expires_at"
+      >;
+      education_google_classroom_mappings: EducationDatabaseTable<
+        EducationGoogleClassroomMapping,
+        "org_id" | "google_course_id" | "class_id" | "branch_id" | "academic_year_id"
+      >;
+      education_google_classroom_audit_events: EducationDatabaseTable<
+        EducationGoogleClassroomAuditEvent,
+        "org_id" | "action"
+      >;
       education_academic_years: EducationDatabaseTable<
         EducationAcademicYear,
         "org_id" | "name" | "starts_on" | "ends_on"
@@ -2282,6 +2369,10 @@ export interface Database {
         EducationNotificationPreference,
         "org_id" | "user_id" | "notification_type"
       >;
+      education_announcement_deliveries: EducationDatabaseTable<
+        EducationAnnouncementDelivery,
+        "org_id" | "branch_id" | "announcement_id" | "recipient_user_id" | "channel"
+      >;
       education_staff: EducationDatabaseTable<
         EducationStaff,
         "org_id" | "branch_id" | "staff_number" | "first_name" | "last_name" | "staff_category"
@@ -2317,6 +2408,10 @@ export interface Database {
       education_fee_payments: EducationDatabaseTable<
         EducationFeePayment,
         "org_id" | "charge_id" | "amount" | "payment_method"
+      >;
+      education_guardian_fee_payment_attempts: EducationDatabaseTable<
+        EducationGuardianFeePaymentAttempt,
+        "reference" | "org_id" | "charge_id" | "student_id" | "guardian_id" | "user_id" | "amount" | "currency" | "payer_email"
       >;
       education_accounting_accounts: EducationDatabaseTable<
         EducationAccountingAccount,
@@ -7755,6 +7850,60 @@ export interface Database {
         Args: { p_org_id: string; p_communication_id: string };
         Returns: boolean;
       };
+      education_notification_set_delivery_preference: {
+        Args: {
+          p_org_id: string;
+          p_channel: string;
+          p_enabled: boolean;
+        };
+        Returns: boolean;
+      };
+      education_announcement_get_delivery_preferences: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          org_id: string;
+          organization_name: string;
+          email_enabled: boolean;
+          sms_enabled: boolean;
+        }[];
+      };
+      education_announcement_delivery_summary: {
+        Args: {
+          p_org_id: string;
+          p_announcement_ids: string[];
+        };
+        Returns: {
+          announcement_id: string;
+          channel: string;
+          status: string;
+          delivery_count: number;
+        }[];
+      };
+      education_announcement_claim_delivery_jobs: {
+        Args: {
+          p_actor_id: string;
+          p_announcement_id: string;
+          p_retry_failed?: boolean;
+        };
+        Returns: {
+          delivery_id: string;
+          channel: string;
+          recipient: string;
+          subject: string;
+          campus_name: string;
+          content: string;
+        }[];
+      };
+      education_announcement_complete_delivery_job: {
+        Args: {
+          p_actor_id: string;
+          p_delivery_id: string;
+          p_status: string;
+          p_provider: string;
+          p_error?: string | null;
+        };
+        Returns: boolean;
+      };
       education_communication_archive: {
         Args: { p_org_id: string; p_communication_id: string };
         Returns: boolean;
@@ -7912,6 +8061,72 @@ export interface Database {
           total_count: number;
         }>;
       };
+      education_google_classroom_create_oauth_state: {
+        Args: {
+          p_org_id: string;
+          p_actor_id: string;
+          p_state_hash: string;
+          p_expires_at: string;
+        };
+        Returns: boolean;
+      };
+      education_google_classroom_audit: {
+        Args: {
+          p_org_id: string;
+          p_actor_id: string;
+          p_action: string;
+          p_metadata?: Json;
+        };
+        Returns: undefined;
+      };
+      education_google_classroom_consume_oauth_state: {
+        Args: { p_org_id: string; p_actor_id: string; p_state_hash: string };
+        Returns: boolean;
+      };
+      education_google_classroom_store_connection: {
+        Args: {
+          p_org_id: string;
+          p_actor_id: string;
+          p_refresh_token_ciphertext: string;
+          p_granted_scopes: string[];
+        };
+        Returns: boolean;
+      };
+      education_google_classroom_get_connection: {
+        Args: { p_org_id: string; p_actor_id: string };
+        Returns: Array<{ refresh_token_ciphertext: string; granted_scopes: string[] }>;
+      };
+      education_google_classroom_disconnect: {
+        Args: { p_org_id: string; p_actor_id: string };
+        Returns: boolean;
+      };
+      education_google_classroom_map_course: {
+        Args: {
+          p_org_id: string;
+          p_actor_id: string;
+          p_google_course_id: string;
+          p_class_id: string;
+        };
+        Returns: Json;
+      };
+      education_google_classroom_import_roster: {
+        Args: {
+          p_org_id: string;
+          p_actor_id: string;
+          p_google_course_id: string;
+          p_student_emails: string[];
+        };
+        Returns: Json;
+      };
+      education_google_classroom_audit_preview: {
+        Args: {
+          p_org_id: string;
+          p_actor_id: string;
+          p_google_course_id: string;
+          p_roster_size: number;
+        };
+        Returns: undefined;
+      };
       education_user_can_view_audit: {
         Args: { target_org_id: string };
         Returns: boolean;
@@ -7921,6 +8136,38 @@ export interface Database {
         Returns: number;
       };
       education_get_guardian_portal: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      education_guardian_paystack_create_attempt: {
+        Args: { p_user_id: string; p_charge_id: string };
+        Returns: Json;
+      };
+      education_guardian_paystack_claim_initialization: {
+        Args: { p_reference: string };
+        Returns: Json;
+      };
+      education_guardian_paystack_release_initialization: {
+        Args: { p_reference: string };
+        Returns: boolean;
+      };
+      education_guardian_paystack_save_checkout: {
+        Args: { p_reference: string; p_authorization_url: string };
+        Returns: boolean;
+      };
+      education_guardian_paystack_get_attempt: {
+        Args: { p_reference: string };
+        Returns: Json;
+      };
+      education_guardian_paystack_mark_failed: {
+        Args: { p_reference: string };
+        Returns: boolean;
+      };
+      education_guardian_paystack_record_payment: {
+        Args: { p_reference: string; p_amount_minor: number; p_currency: string };
+        Returns: string;
+      };
+      education_guardian_paystack_portal_fees: {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };

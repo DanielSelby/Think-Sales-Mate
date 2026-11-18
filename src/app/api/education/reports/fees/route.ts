@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const EXPORT_LIMIT = 5000;
 const MAX_PAYMENT_SCAN = 50_000;
-const PAYMENT_METHODS = ["cash", "mobile_money", "bank_transfer", "card", "cheque", "other"] as const;
+const PAYMENT_METHODS = ["cash", "mobile_money", "bank_transfer", "card", "paystack", "cheque", "other"] as const;
 const PAYMENT_PAGE_SIZE = 500;
 
 function isValidDate(value: string) {

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const PAGE_SIZE = 500;
 const MAX_EXPORT_PAYMENTS = 50_000;
-const PAYMENT_METHODS = ["cash", "mobile_money", "bank_transfer", "card", "cheque", "other"] as const;
+const PAYMENT_METHODS = ["cash", "mobile_money", "bank_transfer", "card", "paystack", "cheque", "other"] as const;
 type PaymentMethod = typeof PAYMENT_METHODS[number];
 
 type PaymentRecord = {

@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Bell, Check, Clock3 } from "lucide-react";
-import { markEducationNotificationRead, setEducationNotificationPreference } from "@/app/education-notifications/actions";
+import {
+  markEducationNotificationRead,
+  setEducationAnnouncementDeliveryPreference,
+  setEducationNotificationPreference,
+} from "@/app/education-notifications/actions";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { EDUCATION_NOTIFICATION_TYPES, educationNotificationsSchema } from "@/lib/education/notifications";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -36,7 +40,7 @@ export default async function EducationNotificationsPage({
   const selectedStatus = ["delivered", "read"].includes(requestedStatus) ? requestedStatus : "";
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
   const supabase = await createClient();
-  const [notificationsResult, preferencesResult] = await Promise.all([
+  const [notificationsResult, preferencesResult, outboundPreferencesResult] = await Promise.all([
     branchIds.length
       ? supabase.from("education_notifications")
         .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, delivery_status, read_at, created_at")
@@ -50,9 +54,11 @@ export default async function EducationNotificationsPage({
       .select("notification_type, in_app_enabled")
       .eq("org_id", context.orgId)
       .eq("user_id", context.userId),
+    supabase.rpc("education_announcement_get_delivery_preferences"),
   ]);
   if (notificationsResult.error) throw new Error(`Could not load Think Education notifications: ${notificationsResult.error.message}`);
   if (preferencesResult.error) throw new Error(`Could not load notification preferences: ${preferencesResult.error.message}`);
+  if (outboundPreferencesResult.error) throw new Error(`Could not load announcement delivery preferences: ${outboundPreferencesResult.error.message}`);
   const parsedNotifications = educationNotificationsSchema.safeParse(notificationsResult.data ?? []);
   if (!parsedNotifications.success) {
     console.error("Think Education notifications returned unexpected data:", parsedNotifications.error.flatten());
@@ -63,6 +69,7 @@ export default async function EducationNotificationsPage({
     preference.notification_type,
     preference.in_app_enabled,
   ]));
+  const outboundPreferences = outboundPreferencesResult.data?.find((preference) => preference.org_id === context.orgId);
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const filteredNotifications = notifications.filter((notification) => {
     if (selectedBranch && notification.branch_id !== selectedBranch) return false;
@@ -198,6 +205,30 @@ export default async function EducationNotificationsPage({
             </form>
           </li>;
         })}
+      </ul>
+    </section>}
+
+    {outboundPreferences && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="font-semibold text-slate-950">Announcement email and SMS preferences</h2>
+      <p className="mt-1 text-sm text-slate-500">Each channel is optional and starts off. These settings are independent of your in-app notification inbox.</p>
+      <ul className="mt-3 divide-y divide-slate-100">
+        {([
+          ["email", "Email", outboundPreferences.email_enabled],
+          ["sms", "SMS", outboundPreferences.sms_enabled],
+        ] as const).map(([channel, label, enabled]) => <li key={channel} className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <div>
+            <p className="text-sm font-medium text-slate-800">{label} delivery</p>
+            <p className="text-xs text-slate-500">{enabled ? "Opted in" : "Off"}</p>
+          </div>
+          <form action={setEducationAnnouncementDeliveryPreference}>
+            <input type="hidden" name="org_id" value={context.orgId} />
+            <input type="hidden" name="channel" value={channel} />
+            <input type="hidden" name="enabled" value={String(!enabled)} />
+            <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              {enabled ? `Turn off ${label}` : `Opt in to ${label}`}
+            </button>
+          </form>
+        </li>)}
       </ul>
     </section>}
   </main>;

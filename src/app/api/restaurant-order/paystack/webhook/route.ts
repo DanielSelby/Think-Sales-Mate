@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPaystackTransaction } from "@/lib/restaurant/paystack";
+import { settleGuardianPaystackReference } from "@/app/api/education/guardian-fees/paystack/settlement";
 
 export async function POST(request: NextRequest) {
   const secretKey = process.env.PAYSTACK_SECRET_KEY;
@@ -40,6 +41,19 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  if (/^EDU-[A-F0-9]{32}$/.test(reference)) {
+    try {
+      const result = await settleGuardianPaystackReference(admin, reference);
+      if (result === "review") {
+        console.error("Verified Paystack transaction does not match guardian fee reservation:", reference);
+      }
+    } catch (error) {
+      console.error("Could not verify guardian Paystack webhook:", error instanceof Error ? error.message : "unknown verification error");
+      return new NextResponse("Could not verify guardian fee payment.", { status: 502 });
+    }
+    return NextResponse.json({ received: true });
+  }
+
   const { data: attempt, error: attemptError } = await admin.from("restaurant_online_payment_attempts")
     .select("reference").eq("reference", reference).maybeSingle();
   if (attemptError) {

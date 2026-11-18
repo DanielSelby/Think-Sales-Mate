@@ -3,6 +3,7 @@ export type EducationFeePaymentMethod =
   | "mobile_money"
   | "bank_transfer"
   | "card"
+  | "paystack"
   | "cheque"
   | "other";
 

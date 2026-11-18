@@ -59,6 +59,7 @@ export default async function EducationSettingsPage({
   const canEdit = await canTabPermission("education_settings", "settings", "institution", "edit");
   const canCreate = await canTabPermission("education_settings", "settings", "institution", "create");
   const canSave = canEdit && (Boolean(institution) || canCreate);
+  const canManageIntegrations = hasOrganizationScope && canEdit;
   const terminology = institution?.terminology;
   const getTerm = (key: string) => terminology && typeof terminology === "object" && !Array.isArray(terminology)
     && typeof terminology[key] === "string" ? terminology[key] : "";
@@ -123,9 +124,13 @@ export default async function EducationSettingsPage({
         <p><span className="font-medium" style={{ color: "var(--theme-text-muted, #4b5563)" }}>Type:</span> {INSTITUTION_TYPES.find(([value]) => value === institution?.institution_type)?.[1] ?? "—"}</p>
       </div>}
 
-      {(canViewRoles || canViewUsers || canViewActivity) && <div className="mt-6 border-t border-slate-200 pt-5">
+      {(canViewRoles || canViewUsers || canViewActivity || canManageIntegrations) && <div className="mt-6 border-t border-slate-200 pt-5">
         <h2 className="text-lg font-semibold text-slate-950">Management shortcuts</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {canManageIntegrations && <Link href={getProductAppPath("think-education", "/settings/integrations/google-classroom")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50">
+            <p className="text-sm font-semibold text-slate-900">Google Classroom</p>
+            <p className="mt-1 text-sm text-slate-600">Connect Classroom and import course rosters into existing classes.</p>
+          </Link>}
           {canViewRoles && <Link href={getProductAppPath("think-education", "/settings/roles")} className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50">
             <p className="text-sm font-semibold text-slate-900">Roles &amp; permissions</p>
             <p className="mt-1 text-sm text-slate-600">Manage product-specific permission templates and member access.</p>

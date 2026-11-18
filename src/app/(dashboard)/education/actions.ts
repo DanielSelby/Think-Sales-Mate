@@ -39,8 +39,11 @@ import {
   educationStudentPromotionInputSchema,
   educationStudentTransferInputSchema,
 } from "@/lib/education/student-progression";
+import { dispatchEducationAnnouncementDeliveries } from "@/lib/education/announcement-delivery";
 
 export type EducationImportEntity = "students" | "staff" | "campuses";
+
+const EDUCATION_COMMUNICATION_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function educationExpenseReturnPath(pettyCash: boolean, query?: string) {
   const path = getProductAppPath("think-education", pettyCash ? "/accounting/petty-cash" : "/expenses");
@@ -161,6 +164,7 @@ export async function grantEducationMemberBranchScope(formData: FormData) {
     .select("user_id")
     .eq("org_id", context.orgId)
     .eq("user_id", userId)
+    .eq("status", "active")
     .maybeSingle();
   if (memberError) throw new Error(`Could not verify the Think Education member: ${memberError.message}`);
   if (!member) redirect(`${getProductAppPath("think-education", "/settings/users")}?error=invalid`);
@@ -3690,23 +3694,82 @@ export async function publishEducationCommunication(formData: FormData) {
     throw new Error("You do not have permission to publish Think Education announcements.");
   }
   const communicationId = String(formData.get("communication_id") ?? "");
-  if (!communicationId) redirect(`${getProductAppPath("think-education", "/communication")}?error=invalid`);
+  if (!EDUCATION_COMMUNICATION_UUID_PATTERN.test(communicationId)) {
+    redirect(`${getProductAppPath("think-education", "/communication")}?error=invalid`);
+  }
   const supabase = await createClient();
   const { error } = await supabase.rpc("education_communication_publish", {
     p_org_id: context.orgId,
     p_communication_id: communicationId,
   });
+  let alreadyPublished = false;
   if (error) {
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/communication")}?error=transition`);
-    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/communication")}?error=not-found`);
-    if (error.code === "42501") throw new Error("You are not authorized to publish this announcement.");
-    console.error("Could not publish Think Education announcement:", error.message);
-    redirect(`${getProductAppPath("think-education", "/communication")}?error=save`);
+    if (error.code === "22023") {
+      const { data: announcement, error: lookupError } = await supabase.from("education_communications")
+        .select("id, status")
+        .eq("org_id", context.orgId)
+        .eq("id", communicationId)
+        .maybeSingle();
+      if (lookupError) throw new Error(`Could not verify Think Education announcement status: ${lookupError.message}`);
+      if (announcement?.status !== "published") {
+        redirect(`${getProductAppPath("think-education", "/communication")}?error=transition`);
+      }
+      alreadyPublished = true;
+    } else {
+      if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/communication")}?error=not-found`);
+      if (error.code === "42501") throw new Error("You are not authorized to publish this announcement.");
+      console.error("Could not publish Think Education announcement:", error.message);
+      redirect(`${getProductAppPath("think-education", "/communication")}?error=save`);
+    }
   }
+  const delivery = await dispatchEducationAnnouncementDeliveries(context.userId, communicationId);
   revalidatePath("/education/communication");
   revalidatePath("/education-portal");
   revalidatePath("/student-education-portal");
-  redirect(`${getProductAppPath("think-education", "/communication")}?published=1`);
+  const deliveryState = delivery.unconfigured
+    ? "unconfigured"
+    : delivery.failed
+      ? "failed"
+      : "processed";
+  redirect(`${getProductAppPath("think-education", "/communication")}?published=1&delivery=${deliveryState}${alreadyPublished ? "&retry=1" : ""}`);
+}
+
+export async function retryEducationCommunicationDelivery(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_communication", "communication", "announcements", "publish")) {
+    throw new Error("You do not have permission to retry Think Education announcement delivery.");
+  }
+  const communicationId = String(formData.get("communication_id") ?? "");
+  if (!EDUCATION_COMMUNICATION_UUID_PATTERN.test(communicationId)) {
+    redirect(`${getProductAppPath("think-education", "/communication")}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: announcement, error } = await supabase.from("education_communications")
+    .select("id, branch_id, status")
+    .eq("org_id", context.orgId)
+    .eq("id", communicationId)
+    .maybeSingle();
+  if (error) throw new Error(`Could not verify Think Education announcement status: ${error.message}`);
+  if (!announcement) redirect(`${getProductAppPath("think-education", "/communication")}?error=not-found`);
+  if (announcement.status !== "published") {
+    redirect(`${getProductAppPath("think-education", "/communication")}?error=transition`);
+  }
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === announcement.branch_id)) {
+    throw new Error("You are not authorized to deliver announcements at this campus.");
+  }
+
+  const delivery = await dispatchEducationAnnouncementDeliveries(context.userId, communicationId, true);
+  revalidatePath("/education/communication");
+  const deliveryState = delivery.unconfigured
+    ? "unconfigured"
+    : delivery.failed
+      ? "failed"
+      : "processed";
+  redirect(`${getProductAppPath("think-education", "/communication")}?delivery=${deliveryState}`);
 }
 
 export async function archiveEducationCommunication(formData: FormData) {

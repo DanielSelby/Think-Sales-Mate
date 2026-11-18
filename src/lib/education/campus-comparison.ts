@@ -7,6 +7,7 @@ export interface EducationCampusComparisonInput {
   enrollments: readonly { branch_id: string }[] | null;
   outcomes: readonly { branch_id: string; score: number; maximum_score: number }[] | null;
   expenses: readonly { branch_id: string; amount: number }[] | null;
+  feeCollections: readonly { branch_id: string; amount: number }[] | null;
 }
 
 export interface EducationCampusComparisonRow {
@@ -17,6 +18,8 @@ export interface EducationCampusComparisonRow {
   active_enrollment_count: number | null;
   average_outcome_percentage: number | null;
   approved_expense_total: number | null;
+  fee_payment_count: number | null;
+  fee_collection_total: number | null;
 }
 
 export function summarizeEducationCampusComparison(
@@ -32,6 +35,7 @@ export function summarizeEducationCampusComparison(
       row.branch_id === campus.id && row.maximum_score > 0
     );
     const campusExpenses = input.expenses?.filter((row) => row.branch_id === campus.id);
+    const campusFeeCollections = input.feeCollections?.filter((row) => row.branch_id === campus.id);
 
     return {
       branch_id: campus.id,
@@ -50,6 +54,13 @@ export function summarizeEducationCampusComparison(
       approved_expense_total: campusExpenses === undefined
         ? null
         : campusExpenses.reduce((totalCents, expense) => totalCents + Math.round(expense.amount * 100), 0) / 100,
+      fee_payment_count: campusFeeCollections === undefined ? null : campusFeeCollections.length,
+      fee_collection_total: campusFeeCollections === undefined
+        ? null
+        : campusFeeCollections.reduce(
+          (totalCents, payment) => totalCents + Math.round(payment.amount * 100),
+          0,
+        ) / 100,
     };
   });
 

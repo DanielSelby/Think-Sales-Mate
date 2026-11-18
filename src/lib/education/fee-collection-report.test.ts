@@ -8,8 +8,10 @@ describe("summarizeEducationFeeCollections", () => {
       { branch_id: "campus-a", payment_method: "mobile_money", amount: 12.35 },
       { branch_id: "campus-b", payment_method: "cash", amount: 0.2 },
       { branch_id: "campus-b", payment_method: "card", amount: 4 },
+      { branch_id: "campus-a", payment_method: "paystack", amount: 20.5 },
     ])).toEqual([
       { branch_id: "campus-a", payment_method: "mobile_money", payment_count: 1, total_collected: 12.35 },
+      { branch_id: "campus-a", payment_method: "paystack", payment_count: 1, total_collected: 20.5 },
       { branch_id: "campus-b", payment_method: "card", payment_count: 1, total_collected: 4 },
       { branch_id: "campus-b", payment_method: "cash", payment_count: 2, total_collected: 0.3 },
     ]);

@@ -68,6 +68,10 @@ export default async function EducationCampusComparisonPage({
     canExportExpenseReport,
     canViewExpenses,
     canExportExpenses,
+    canViewFeeCollectionReport,
+    canExportFeeCollectionReport,
+    canViewFeePayments,
+    canExportFeePayments,
   ] = await Promise.all([
     canTabPermission("education_admissions", "admissions", "applications", "view"),
     canTabPermission("education_admissions", "admissions", "applications", "export"),
@@ -88,6 +92,10 @@ export default async function EducationCampusComparisonPage({
     canTabPermission("education_reports", "reports", "expenses", "export"),
     canTabPermission("education_expenses", "expenses", "records", "view"),
     canTabPermission("education_expenses", "expenses", "records", "export"),
+    canTabPermission("education_reports", "reports", "fees", "view"),
+    canTabPermission("education_reports", "reports", "fees", "export"),
+    canTabPermission("education_finance", "finance", "payments", "view"),
+    canTabPermission("education_finance", "finance", "payments", "export"),
   ]);
   const canViewAttendance = canViewAttendanceReport && canViewAttendanceRecords;
   const canExportAttendance = canViewAttendance && canExportAttendanceReport && canExportAttendanceRecords;
@@ -97,7 +105,11 @@ export default async function EducationCampusComparisonPage({
   const canExportOutcomes = canViewOutcomes && canExportOutcomesReport && canExportResults;
   const canViewExpenseSummary = canViewExpenseReport && canViewExpenses;
   const canExportExpenseSummary = canViewExpenseSummary && canExportExpenseReport && canExportExpenses;
-  if (!canViewApplications && !canViewAttendance && !canViewEnrollment && !canViewOutcomes && !canViewExpenseSummary) {
+  const canViewFeeCollectionSummary = canViewFeeCollectionReport && canViewFeePayments;
+  const canExportFeeCollectionSummary = canViewFeeCollectionSummary
+    && canExportFeeCollectionReport && canExportFeePayments;
+  if (!canViewApplications && !canViewAttendance && !canViewEnrollment && !canViewOutcomes
+    && !canViewExpenseSummary && !canViewFeeCollectionSummary) {
     redirect("/dashboard?accessDenied=think-education.reports");
   }
 
@@ -130,6 +142,7 @@ export default async function EducationCampusComparisonPage({
     enrollmentData,
     outcomeData,
     expenseData,
+    feeCollectionData,
     organizationResult,
   ] = await Promise.all([
     (async () => {
@@ -206,7 +219,44 @@ export default async function EducationCampusComparisonPage({
         amount: Number(expense.amount),
       }));
     })(),
-    canViewExpenseSummary
+    (async () => {
+      if (!canViewFeeCollectionSummary || !campusIds.length) return null;
+      const { count, error: countError } = await supabase.from("education_fee_payments")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", context.orgId)
+        .gte("created_at", fromTimestamp)
+        .lt("created_at", toExclusiveTimestamp);
+      if (countError) throw new Error(`Could not count campus fee collections: ${countError.message}`);
+      assertWithinReportLimit(count, "fee collection");
+
+      const records: Array<{ branch_id: string; amount: number }> = [];
+      const paymentCount = count ?? 0;
+      for (let offset = 0; offset < paymentCount; offset += 500) {
+        const { data: payments, error: paymentsError } = await supabase.from("education_fee_payments")
+          .select("charge_id, amount")
+          .eq("org_id", context.orgId)
+          .gte("created_at", fromTimestamp)
+          .lt("created_at", toExclusiveTimestamp)
+          .order("created_at").order("id")
+          .range(offset, Math.min(offset + 499, paymentCount - 1));
+        if (paymentsError) throw new Error(`Could not load campus fee collections: ${paymentsError.message}`);
+        const chargeIds = Array.from(new Set((payments ?? []).map((payment) => payment.charge_id)));
+        if (!chargeIds.length) continue;
+        const { data: charges, error: chargesError } = await supabase.from("education_fee_charges")
+          .select("id, branch_id")
+          .eq("org_id", context.orgId)
+          .in("branch_id", campusIds)
+          .in("id", chargeIds);
+        if (chargesError) throw new Error(`Could not scope campus fee collections: ${chargesError.message}`);
+        const branchByChargeId = new Map((charges ?? []).map((charge) => [charge.id, charge.branch_id]));
+        for (const payment of payments ?? []) {
+          const branch_id = branchByChargeId.get(payment.charge_id);
+          if (branch_id) records.push({ branch_id, amount: Number(payment.amount) });
+        }
+      }
+      return records;
+    })(),
+    canViewExpenseSummary || canViewFeeCollectionSummary
       ? supabase.from("organizations").select("currency").eq("id", context.orgId).single()
       : Promise.resolve({ data: null, error: null }),
   ]);
@@ -218,10 +268,11 @@ export default async function EducationCampusComparisonPage({
     enrollments: enrollmentData,
     outcomes: outcomeData,
     expenses: expenseData,
+    feeCollections: feeCollectionData,
   });
   const currency = organizationResult.data?.currency ?? "";
   const csvRows = [
-    ["Campus", "Applications", "Student attendance rate (%)", "Active enrollments", "Published exam average (%)", `Approved expenses${currency ? ` (${currency})` : ""}`],
+    ["Campus", "Applications", "Student attendance rate (%)", "Active enrollments", "Published exam average (%)", `Approved expenses${currency ? ` (${currency})` : ""}`, "Fee payment count", `Fees collected${currency ? ` (${currency})` : ""}`],
     ...rows.map((row) => [
       row.campus,
       row.application_count,
@@ -229,15 +280,18 @@ export default async function EducationCampusComparisonPage({
       row.active_enrollment_count,
       row.average_outcome_percentage,
       row.approved_expense_total,
+      row.fee_payment_count,
+      row.fee_collection_total,
     ]),
   ];
   const csv = csvRows.map((row) => row.map(csvCell).join(",")).join("\r\n");
-  const canExport = (canViewApplications || canViewAttendance || canViewEnrollment || canViewOutcomes || canViewExpenseSummary)
+  const canExport = (canViewApplications || canViewAttendance || canViewEnrollment || canViewOutcomes || canViewExpenseSummary || canViewFeeCollectionSummary)
     && (!canViewApplications || canExportApplications)
     && (!canViewAttendance || canExportAttendance)
     && (!canViewEnrollment || canExportEnrollment)
     && (!canViewOutcomes || canExportOutcomes)
-    && (!canViewExpenseSummary || canExportExpenseSummary);
+    && (!canViewExpenseSummary || canExportExpenseSummary)
+    && (!canViewFeeCollectionSummary || canExportFeeCollectionSummary);
   const formatMoney = (amount: number) => `${new Intl.NumberFormat(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -251,7 +305,7 @@ export default async function EducationCampusComparisonPage({
       <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-950">Campus Comparison</h1>
-          <p className="mt-1 text-sm text-slate-600">Compare permitted admissions, student attendance, active enrollment, published outcomes, and approved expenses across your assigned campuses.</p>
+          <p className="mt-1 text-sm text-slate-600">Compare permitted admissions, student attendance, active enrollment, published outcomes, approved expenses, and fee collections across your assigned campuses.</p>
         </div>
         {canExport && <a
           href={`data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`}
@@ -289,6 +343,8 @@ export default async function EducationCampusComparisonPage({
               <th scope="col" className="px-4 py-3">Active enrollment</th>
               <th scope="col" className="px-4 py-3">Published exam average</th>
               <th scope="col" className="px-4 py-3">Approved expenses</th>
+              <th scope="col" className="px-4 py-3">Fee payments</th>
+              <th scope="col" className="px-4 py-3">Fees collected</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -299,12 +355,14 @@ export default async function EducationCampusComparisonPage({
               <td className="px-4 py-3">{row.active_enrollment_count === null ? "No access" : row.active_enrollment_count}</td>
               <td className="px-4 py-3">{row.average_outcome_percentage === null ? "—" : `${row.average_outcome_percentage}%`}</td>
               <td className="px-4 py-3">{row.approved_expense_total === null ? "No access" : formatMoney(row.approved_expense_total)}</td>
+              <td className="px-4 py-3">{row.fee_payment_count === null ? "No access" : row.fee_payment_count.toLocaleString()}</td>
+              <td className="px-4 py-3">{row.fee_collection_total === null ? "No access" : formatMoney(row.fee_collection_total)}</td>
             </tr>)}
           </tbody>
         </table>
       </div>}
     <p className="text-xs text-slate-500">
-        Admissions, attendance, outcomes, and expenses use the selected date range. Active enrollment is current. Attendance rate counts present and late records and excludes excused records; outcome averages use each published result’s score percentage. Metrics without permission are not queried.
+        Admissions, attendance, outcomes, expenses, and fees use the selected date range. Fee collections are grouped by the campus on each charge and use payment dates. Active enrollment is current. Attendance rate counts present and late records and excludes excused records; outcome averages use each published result’s score percentage. Metrics without permission are not queried.
     </p>
   </main>;
 }

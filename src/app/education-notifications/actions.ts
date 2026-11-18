@@ -64,3 +64,32 @@ export async function setEducationNotificationPreference(formData: FormData) {
   revalidatePath(returnPath);
   redirect(`${returnPath}?preference=saved`);
 }
+
+export async function setEducationAnnouncementDeliveryPreference(formData: FormData) {
+  const requestedReturn = String(formData.get("return_to") ?? "");
+  const returnPath = RETURN_PATHS.has(requestedReturn) ? requestedReturn : "/education/notifications";
+  const orgId = String(formData.get("org_id") ?? "");
+  const channel = String(formData.get("channel") ?? "");
+  const enabledValue = String(formData.get("enabled") ?? "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orgId)
+    || !["email", "sms"].includes(channel)
+    || !["true", "false"].includes(enabledValue)) {
+    redirect(`${returnPath}?preference=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_notification_set_delivery_preference", {
+    p_org_id: orgId,
+    p_channel: channel,
+    p_enabled: enabledValue === "true",
+  });
+  if (error) {
+    if (error.code === "42501") redirect(`${returnPath}?preference=denied`);
+    if (error.code === "22023") redirect(`${returnPath}?preference=invalid`);
+    console.error("Could not save Think Education announcement delivery preference:", error.message);
+    redirect(`${returnPath}?preference=error`);
+  }
+
+  revalidatePath(returnPath);
+  redirect(`${returnPath}?preference=saved`);
+}

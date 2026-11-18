@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { BookOpen, CalendarDays, GraduationCap } from "lucide-react";
 import { educationPortalCommunicationsSchema, type EducationPortalCommunication } from "@/lib/education/communications";
-import { markEducationNotificationRead } from "@/app/education-notifications/actions";
+import {
+  markEducationNotificationRead,
+  setEducationAnnouncementDeliveryPreference,
+} from "@/app/education-notifications/actions";
 import { educationStudentPortalSchema, type EducationStudentPortal } from "@/lib/education/student-portal";
 import { educationNotificationsSchema } from "@/lib/education/notifications";
 import { setEducationNotificationPreference } from "@/app/education-notifications/actions";
@@ -38,6 +41,12 @@ export default async function EducationStudentPortalPage({
   let announcements: EducationPortalCommunication[] = [];
   let notifications: Awaited<ReturnType<typeof educationNotificationsSchema.parse>> = [];
   let notificationPreferences: Array<{ org_id: string; notification_type: string; in_app_enabled: boolean }> = [];
+  let outboundNotificationPreferences: Array<{
+    org_id: string;
+    organization_name: string;
+    email_enabled: boolean;
+    sms_enabled: boolean;
+  }> = [];
   if (user) {
     const { data, error } = await supabase.rpc("education_get_student_portal");
     if (error) throw new Error(`Could not load the student portal: ${error.message}`);
@@ -79,6 +88,13 @@ export default async function EducationStudentPortalPage({
       if (preferencesError) throw new Error(`Could not load student notification preferences: ${preferencesError.message}`);
       notificationPreferences = preferences ?? [];
     }
+
+    const { data: outboundPreferences, error: outboundPreferencesError } = await supabase
+      .rpc("education_announcement_get_delivery_preferences");
+    if (outboundPreferencesError) {
+      throw new Error(`Could not load student announcement delivery preferences: ${outboundPreferencesError.message}`);
+    }
+    outboundNotificationPreferences = outboundPreferences ?? [];
   }
   const params = await searchParams;
   const message = messageFor(params);
@@ -97,6 +113,8 @@ export default async function EducationStudentPortalPage({
       {message && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
       {params.preference === "saved" && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Notification preference saved.</p>}
       {params.preference === "denied" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">This preference could not be changed for the selected school.</p>}
+      {params.preference === "error" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">The preference could not be saved. Please try again.</p>}
+      {params.preference === "invalid" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">The preference selection was invalid.</p>}
 
       {notifications.length > 0 && <section className="space-y-3">
         <h2 className="text-xl font-semibold">Notifications</h2>
@@ -135,6 +153,31 @@ export default async function EducationStudentPortalPage({
               </form>
             </li>;
           })}
+        </ul>
+      </section>}
+
+      {user && outboundNotificationPreferences.length > 0 && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-semibold">Announcement email and SMS preferences</h2>
+        <p className="mt-1 text-sm text-slate-500">Each channel is optional and starts off. These settings are independent of your in-app notification inbox.</p>
+        <ul className="mt-3 divide-y divide-slate-100">
+          {outboundNotificationPreferences.map((preference) => <li key={preference.org_id} className="py-3">
+            <p className="text-sm font-medium">{preference.organization_name}</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {([
+                ["email", "Email", preference.email_enabled],
+                ["sms", "SMS", preference.sms_enabled],
+              ] as const).map(([channel, label, enabled]) => <form key={channel} action={setEducationAnnouncementDeliveryPreference} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3">
+                <span className="text-sm text-slate-700">{label}: {enabled ? "Opted in" : "Off"}</span>
+                <input type="hidden" name="org_id" value={preference.org_id} />
+                <input type="hidden" name="channel" value={channel} />
+                <input type="hidden" name="enabled" value={String(!enabled)} />
+                <input type="hidden" name="return_to" value="/student-education-portal" />
+                <button type="submit" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  {enabled ? `Turn off ${label}` : `Opt in to ${label}`}
+                </button>
+              </form>)}
+            </div>
+          </li>)}
         </ul>
       </section>}
 

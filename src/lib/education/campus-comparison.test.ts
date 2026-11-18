@@ -25,6 +25,11 @@ describe("summarizeEducationCampusComparison", () => {
         { branch_id: "campus-a", amount: 12.34 },
         { branch_id: "campus-a", amount: 0.01 },
       ],
+      feeCollections: [
+        { branch_id: "campus-a", amount: 25.25 },
+        { branch_id: "campus-a", amount: 50 },
+        { branch_id: "unassigned-campus", amount: 100 },
+      ],
     });
 
     expect(rows).toEqual([
@@ -36,6 +41,8 @@ describe("summarizeEducationCampusComparison", () => {
         active_enrollment_count: 1,
         average_outcome_percentage: 85,
         approved_expense_total: 12.35,
+        fee_payment_count: 2,
+        fee_collection_total: 75.25,
       },
       {
         branch_id: "campus-b",
@@ -45,6 +52,8 @@ describe("summarizeEducationCampusComparison", () => {
         active_enrollment_count: 0,
         average_outcome_percentage: null,
         approved_expense_total: 0,
+        fee_payment_count: 0,
+        fee_collection_total: 0,
       },
     ]);
   });
@@ -57,6 +66,7 @@ describe("summarizeEducationCampusComparison", () => {
       enrollments: null,
       outcomes: null,
       expenses: null,
+      feeCollections: null,
     });
 
     expect(rows[0]).toEqual({
@@ -67,6 +77,8 @@ describe("summarizeEducationCampusComparison", () => {
       active_enrollment_count: null,
       average_outcome_percentage: null,
       approved_expense_total: null,
+      fee_payment_count: null,
+      fee_collection_total: null,
     });
   });
 });

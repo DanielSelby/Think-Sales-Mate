@@ -15,6 +15,7 @@ const PAYMENT_METHODS = [
   ["mobile_money", "Mobile money"],
   ["bank_transfer", "Bank transfer"],
   ["card", "Card"],
+  ["paystack", "Paystack"],
   ["cheque", "Cheque"],
   ["other", "Other"],
 ] as const;

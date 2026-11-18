@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, ArrowRightLeft, BookOpen, Building2, CalendarCheck, ClipboardCheck, FileText, GraduationCap, TrendingUp, Users } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, BookOpen, Building2, CalendarCheck, ClipboardCheck, FileText, GraduationCap, TrendingUp, Users, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
@@ -38,6 +38,7 @@ export default async function ThinkEducationDashboardPage() {
     canViewTransfers,
     canEditTransfers,
     canApproveTransfers,
+    canReadFeePayments,
   ] = await Promise.all([
     canPermission("education_students", "view"),
     canPermission("education_staff", "view"),
@@ -56,6 +57,7 @@ export default async function ThinkEducationDashboardPage() {
     canTabPermission("education_transfers", "transfers", "requests", "view"),
     canTabPermission("education_transfers", "transfers", "requests", "edit"),
     canTabPermission("education_transfers", "transfers", "requests", "approve"),
+    canTabPermission("education_finance", "finance", "payments", "view"),
   ]);
   const canReviewExpenses = canViewExpenseRecords && canApproveExpenses;
   const canReviewLeave = canViewLeaveRequests && canApproveLeaveRequests;
@@ -72,6 +74,7 @@ export default async function ThinkEducationDashboardPage() {
     { count: overdueLibraryCount, error: overdueLibraryError },
     { count: pendingLeaveCount, error: pendingLeaveError },
     { count: pendingTransferCount, error: pendingTransferError },
+    { count: feePaymentCount, error: feePaymentsError },
   ] = await Promise.all([
     canReadStudents && branchIds.length
       ? supabase.from("education_students").select("id", { count: "exact", head: true })
@@ -112,9 +115,20 @@ export default async function ThinkEducationDashboardPage() {
         .in("destination_branch_id", branchIds)
         .eq("status", "pending")
       : zeroCount,
+    canReadFeePayments && branchIds.length
+      ? (() => {
+        const monthStart = new Date(`${today.slice(0, 7)}-01T00:00:00.000Z`);
+        const nextMonthStart = new Date(monthStart);
+        nextMonthStart.setUTCMonth(nextMonthStart.getUTCMonth() + 1);
+        return supabase.from("education_fee_payments").select("id", { count: "exact", head: true })
+          .eq("org_id", context.orgId)
+          .gte("created_at", monthStart.toISOString())
+          .lt("created_at", nextMonthStart.toISOString());
+      })()
+      : zeroCount,
   ]);
   const queryError = studentsError ?? staffError ?? admissionsError ?? presentError ?? attendanceError
-    ?? pendingExpensesError ?? overdueLibraryError ?? pendingLeaveError ?? pendingTransferError;
+    ?? pendingExpensesError ?? overdueLibraryError ?? pendingLeaveError ?? pendingTransferError ?? feePaymentsError;
   if (queryError) throw new Error(`Could not load Think Education dashboard: ${queryError.message}`);
 
   const attendanceTrendDates = Array.from({ length: 7 }, (_, index) => {
@@ -154,6 +168,7 @@ export default async function ThinkEducationDashboardPage() {
     { label: "Active staff", value: canReadStaff ? staffCount ?? 0 : "Restricted", icon: Users, tint: "bg-violet-50 text-violet-700" },
     { label: "Campuses in your access", value: campuses.length, icon: Building2, tint: "bg-emerald-50 text-emerald-700" },
     { label: "Attendance today", value: !canReadAttendance ? "Restricted" : attendanceRate, icon: CalendarCheck, tint: "bg-amber-50 text-amber-700" },
+    { label: "Fee payments this month", value: !canReadFeePayments ? "Restricted" : feePaymentCount ?? 0, icon: Wallet, tint: "bg-emerald-50 text-emerald-700" },
   ];
 
   return <main className="mx-auto max-w-[1500px] space-y-4 p-3 md:p-5">
@@ -180,7 +195,7 @@ export default async function ThinkEducationDashboardPage() {
       </form>}
     </section>}
 
-    <section aria-label="Education overview metrics" data-education-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Education overview metrics" data-education-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {metrics.map(({ label, value, icon: Icon, tint }) => <article key={label} className="rounded-xl border p-4 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
         <div className="flex items-center justify-between gap-3">
           <div>

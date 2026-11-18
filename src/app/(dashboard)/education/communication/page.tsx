@@ -15,6 +15,7 @@ import {
   archiveEducationCommunication,
   createEducationCommunicationDraft,
   publishEducationCommunication,
+  retryEducationCommunicationDelivery,
   updateEducationCommunicationDraft,
 } from "../actions";
 
@@ -26,6 +27,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 const ANNOUNCEMENTS_PAGE_SIZE = 100;
 type EducationCommunicationAudience = (typeof EDUCATION_COMMUNICATION_AUDIENCES)[number][0];
+type AnnouncementDeliveryChannel = "email" | "sms";
+type AnnouncementDeliveryStatus = "pending" | "sending" | "sent" | "failed" | "unconfigured" | "skipped";
 
 export default async function EducationCommunicationPage({
   searchParams,
@@ -100,6 +103,27 @@ export default async function EducationCommunicationPage({
   const firstAnnouncement = totalAnnouncements ? pageOffset + 1 : 0;
   const lastAnnouncement = Math.min(pageOffset + ANNOUNCEMENTS_PAGE_SIZE, totalAnnouncements);
   const visibleAnnouncements = announcements ?? [];
+  const visibleAnnouncementIds = visibleAnnouncements.map((announcement) => announcement.id);
+  const { data: deliveryStatuses, error: deliveryStatusError } = visibleAnnouncementIds.length
+    ? await supabase.rpc("education_announcement_delivery_summary", {
+      p_org_id: context.orgId,
+      p_announcement_ids: visibleAnnouncementIds,
+    })
+    : { data: [], error: null };
+  if (deliveryStatusError) {
+    throw new Error(`Could not load announcement delivery statuses: ${deliveryStatusError.message}`);
+  }
+  const deliverySummary = new Map<string, Record<AnnouncementDeliveryChannel, Partial<Record<AnnouncementDeliveryStatus, number>>>>();
+  for (const delivery of deliveryStatuses ?? []) {
+    let summary = deliverySummary.get(delivery.announcement_id);
+    if (!summary) {
+      summary = { email: {}, sms: {} };
+      deliverySummary.set(delivery.announcement_id, summary);
+    }
+    const channel = delivery.channel as AnnouncementDeliveryChannel;
+    const status = delivery.status as AnnouncementDeliveryStatus;
+    summary[channel][status] = (summary[channel][status] ?? 0) + delivery.delivery_count;
+  }
 
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const csvRows = [
@@ -124,6 +148,15 @@ export default async function EducationCommunicationPage({
         : params.error === "save"
           ? "The announcement could not be saved. Please try again."
           : null;
+  const deliveryMessage = params.delivery === "failed"
+    ? "Some outbound deliveries failed. Review the per-channel status and retry failed or pending messages."
+    : params.delivery === "unconfigured"
+        ? "An email or SMS provider is unavailable or unconfigured. Delivery status is saved and can be retried after setup."
+        : params.delivery === "processed"
+          ? params.retry === "1"
+            ? "This announcement was already published. Only pending deliveries were processed; successful messages were not repeated."
+            : "The outbound delivery batch was processed. Review the per-channel status below."
+          : null;
 
   return <main className="mx-auto max-w-[1400px] space-y-5 p-4 md:p-6">
     <header>
@@ -139,6 +172,7 @@ export default async function EducationCommunicationPage({
     {params.published === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Announcement published to the selected audience.</p>}
     {params.archived === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Announcement archived.</p>}
     {params.error && errorMessage && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errorMessage}</p>}
+    {deliveryMessage && <p role={params.delivery === "failed" || params.delivery === "unconfigured" ? "alert" : "status"} className={`rounded-lg border px-4 py-3 text-sm ${params.delivery === "failed" || params.delivery === "unconfigured" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>{deliveryMessage}</p>}
 
     {canCreate && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="font-semibold text-slate-950">Create announcement draft</h2>
@@ -234,6 +268,25 @@ export default async function EducationCommunicationPage({
               </form>}
             </div>
           </div>
+          {announcement.status === "published" && <section className="rounded-lg bg-slate-50 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Outbound delivery status</p>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+              {(["email", "sms"] as const).map((channel) => {
+                const counts = deliverySummary.get(announcement.id)?.[channel];
+                const details = counts
+                  ? Object.entries(counts).map(([status, count]) => `${count} ${status}`).join(" · ")
+                  : "no opted-in recipients";
+                return <span key={channel}><strong className="font-semibold uppercase text-slate-700">{channel}</strong>: {details}</span>;
+              })}
+            </div>
+            {canPublish && (["pending", "failed", "unconfigured"] as const).some((status) =>
+              (deliverySummary.get(announcement.id)?.email[status] ?? 0)
+              + (deliverySummary.get(announcement.id)?.sms[status] ?? 0) > 0
+            ) && <form action={retryEducationCommunicationDelivery} className="mt-2">
+              <input type="hidden" name="communication_id" value={announcement.id} />
+              <button type="submit" className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-50">Continue or retry unsuccessful delivery</button>
+            </form>}
+          </section>}
           <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{announcement.body}</p>
         </li>)}
       </ul>}

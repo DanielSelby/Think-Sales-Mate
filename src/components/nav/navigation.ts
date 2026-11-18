@@ -7,7 +7,7 @@ import {
   PlusCircle, List, ShoppingBag, LayoutGrid, CalendarClock, Layers, Upload, Clock3,
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
   Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff, Route, Barcode,
-  Utensils, Bell,
+  Utensils, Bell, Link2,
   Wrench,
 } from "lucide-react";
 
@@ -63,6 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Reports", href: "/education/reports", icon: BarChart3, section: "Communication & Records" },
       { label: "User Management", href: "/education/settings/users", icon: Users2, section: "Administration" },
       { label: "Roles & Permissions", href: "/education/settings/roles", icon: ShieldCheck, section: "Administration" },
+      { label: "Google Classroom", href: "/education/settings/integrations/google-classroom", icon: Link2, section: "Administration" },
       { label: "Settings", href: "/education/settings", icon: Settings, section: "Administration" },
     ],
   },
