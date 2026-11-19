@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { deactivateEducationAccountingAccount, saveEducationAccountingAccount } from "../actions";
 import { DeleteAccountButton } from "./delete-account-button";
+import { EditAccountDialog } from "./edit-account-dialog";
 
 const accountTypes = [
   { value: "asset", label: "Asset", normalBalance: "Debit" },
@@ -57,6 +58,8 @@ export default async function EducationChartOfAccountsPage({
         ? "This account is used by a journal, mapping, reconciliation, or child account. Deactivate it instead."
         : params.error === "account-delete"
           ? "The account could not be deleted. Refresh the page and try again."
+          : params.error === "account-logo-cleanup"
+            ? "The account was deleted, but its bank logo could not be removed from storage."
           : null;
 
   return (
@@ -190,47 +193,27 @@ export default async function EducationChartOfAccountsPage({
                       {editAllowed && (
                         <td className="px-4 py-3">
                           <div className="flex flex-col items-start gap-2">
-                            <details>
-                              <summary className="cursor-pointer text-xs font-semibold text-blue-700 hover:underline">Edit</summary>
-                              <form action={saveEducationAccountingAccount} className="mt-2 min-w-64 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                <input type="hidden" name="accountId" value={account.id} />
-                                <label className="block text-xs font-medium text-slate-700">Account code
-                                  <input required name="code" defaultValue={account.code} maxLength={20} pattern="[A-Za-z0-9][A-Za-z0-9._/-]{1,19}" className="mt-1 w-full rounded border border-slate-300 px-2 py-1 font-mono" />
-                                </label>
-                                <label className="block text-xs font-medium text-slate-700">Account name
-                                  <input required name="name" defaultValue={account.name} maxLength={120} className="mt-1 w-full rounded border border-slate-300 px-2 py-1" />
-                                </label>
-                                <label className="block text-xs font-medium text-slate-700">Description
-                                  <input name="description" defaultValue={account.description ?? ""} maxLength={500} className="mt-1 w-full rounded border border-slate-300 px-2 py-1" />
-                                </label>
-                                <label className="block text-xs font-medium text-slate-700">Parent account
-                                  <select name="parentAccountId" defaultValue={account.parent_account_id ?? ""} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1">
-                                    <option value="">No parent</option>
-                                    {accounts.filter((candidate) =>
-                                      candidate.is_active
-                                      && candidate.id !== account.id
-                                      && candidate.account_type === account.account_type
-                                      && (candidate.branch_id === null || candidate.branch_id === account.branch_id)
-                                    ).map((candidate) => (
-                                      <option key={candidate.id} value={candidate.id}>{candidate.code} · {candidate.name}</option>
-                                    ))}
-                                  </select>
-                                </label>
-                                <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
-                                  <input type="checkbox" name="isCashAccount" defaultChecked={account.is_cash_account} className="h-4 w-4 rounded border-slate-300" />
-                                  Cash/bank
-                                </label>
-                                <label className="block text-xs font-medium text-slate-700">Cash flow activity
-                                  <select name="cashFlowActivity" defaultValue={account.cash_flow_activity ?? ""} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1">
-                                    <option value="">Unclassified cash flow</option>
-                                    <option value="operating">Operating</option>
-                                    <option value="investing">Investing</option>
-                                    <option value="financing">Financing</option>
-                                  </select>
-                                </label>
-                                <button type="submit" className="rounded bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">Save changes</button>
-                              </form>
-                            </details>
+                            <EditAccountDialog
+                              account={{
+                                id: account.id,
+                                code: account.code,
+                                name: account.name,
+                                description: account.description,
+                                parentAccountId: account.parent_account_id,
+                                isCashAccount: account.is_cash_account,
+                                cashFlowActivity: account.cash_flow_activity,
+                              }}
+                              parents={accounts.filter((candidate) =>
+                                candidate.is_active
+                                && candidate.id !== account.id
+                                && candidate.account_type === account.account_type
+                                && (candidate.branch_id === null || candidate.branch_id === account.branch_id)
+                              ).map((candidate) => ({
+                                id: candidate.id,
+                                code: candidate.code,
+                                name: candidate.name,
+                              }))}
+                            />
                             {account.is_active && (
                               <form action={deactivateEducationAccountingAccount}>
                                 <input type="hidden" name="accountId" value={account.id} />

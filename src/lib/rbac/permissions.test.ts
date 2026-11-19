@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { canProductTabPermission } from "./permissions";
+import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { createClient } from "@/lib/supabase/server";
 import {
   defaultPermissionMatrixForRole,
   normalizePermissionMatrix,
@@ -13,6 +16,76 @@ import {
   PERMISSION_PAGE_CONFIGS,
 } from "@/components/dashboard/user-management/constants";
 import { filterPermissionMatrixForProduct } from "@/lib/product-entitlement-routes";
+
+vi.mock("@/lib/organizations/current", () => ({
+  getCurrentOrgContext: vi.fn(),
+}));
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(),
+}));
+
+const ownerContext = {
+  userId: "user-id",
+  userEmail: "owner@example.com",
+  orgId: "org-id",
+  orgName: "Organization",
+  currency: "GHS",
+  role: "owner" as const,
+  branchScope: "all" as const,
+  locationId: null,
+  secondaryLocationIds: [],
+  canViewOtherTransactions: false,
+  canCheckCrossBranchStock: false,
+  accessPermissions: {},
+  priceGroups: [],
+  useSystemPrices: false,
+  isBranchScoped: false,
+  allowedLocationIds: [],
+  masterLocationId: null,
+  organizationAccessExpiresAt: null,
+  memberships: [{ orgId: "org-id", orgName: "Organization", role: "owner" as const }],
+};
+
+describe("explicit product tab permission checks", () => {
+  const rpc = vi.fn();
+
+  beforeEach(() => {
+    vi.stubEnv("PRODUCT_ENTITLEMENTS_ENFORCED", "true");
+    vi.mocked(getCurrentOrgContext).mockResolvedValue(ownerContext);
+    rpc.mockReset().mockResolvedValue({ data: true, error: null });
+    vi.mocked(createClient).mockResolvedValue({ rpc } as never);
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("checks a cross-product permission against the requested product", async () => {
+    await expect(canProductTabPermission(
+      "think-education",
+      "education_staff",
+      "staff",
+      "directory",
+      "view",
+    )).resolves.toBe(true);
+
+    expect(rpc).toHaveBeenCalledWith("has_product_access", {
+      p_organization_id: "org-id",
+      p_product_slug: "think-education",
+      p_require_write: false,
+    });
+  });
+
+  it("rejects a product that does not own the requested permission module", async () => {
+    await expect(canProductTabPermission(
+      "thinksales-erp",
+      "education_staff",
+      "staff",
+      "directory",
+      "view",
+    )).resolves.toBe(false);
+
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
 
 describe("role permission inheritance", () => {
   it("uses the saved role template instead of an old unmarked member snapshot", () => {
@@ -220,6 +293,14 @@ describe("role permission inheritance", () => {
       ?.tabs.find((tab) => tab.key === "calendar");
 
     expect(calendar?.supportedActions).toEqual(expect.arrayContaining(["view", "create", "edit", "approve"]));
+  });
+
+  it("defines department permissions within academic management", () => {
+    const departments = PERMISSION_PAGE_CONFIGS.education_academics
+      .find((page) => page.key === "academics")
+      ?.tabs.find((tab) => tab.key === "departments");
+
+    expect(departments?.supportedActions).toEqual(expect.arrayContaining(["view", "create", "edit"]));
   });
 
   it("defines review and approval permissions for admissions lifecycle actions", () => {

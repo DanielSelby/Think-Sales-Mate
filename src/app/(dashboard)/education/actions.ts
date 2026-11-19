@@ -459,13 +459,14 @@ export async function recordEducationFeePayment(formData: FormData) {
 
   const chargeId = String(formData.get("charge_id") ?? "");
   const requestedStudentId = String(formData.get("student_id") ?? "");
+  const returnToFinance = formData.get("return_to") === "finance";
   const amountText = String(formData.get("amount") ?? "").trim();
   const paymentMethod = String(formData.get("payment_method") ?? "");
   const reference = String(formData.get("reference") ?? "").trim();
   const amount = Number(amountText);
   const supabase = await createClient();
   let returnStudentId = "";
-  if (EDUCATION_COMMUNICATION_UUID_PATTERN.test(requestedStudentId) && chargeId) {
+  if (!returnToFinance && EDUCATION_COMMUNICATION_UUID_PATTERN.test(requestedStudentId) && chargeId) {
     const { data: charge, error: chargeError } = await supabase.from("education_fee_charges")
       .select("student_id, branch_id")
       .eq("org_id", context.orgId)
@@ -553,7 +554,7 @@ export async function createEducationGuardianLink(formData: FormData) {
   if (studentError) throw new Error(`Could not verify the selected student: ${studentError.message}`);
   if (!student) redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
 
-  const { error } = await supabase.rpc("education_create_guardian_link", {
+  const { data: relationshipId, error } = await supabase.rpc("education_create_guardian_link", {
     p_org_id: context.orgId,
     p_branch_id: student.branch_id,
     p_student_id: studentId,
@@ -572,7 +573,7 @@ export async function createEducationGuardianLink(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/guardians")}?error=save`);
   }
   revalidatePath("/education/guardians");
-  redirect(`${getProductAppPath("think-education", "/guardians")}?created=1`);
+  redirect(`${getProductAppPath("think-education", "/guardians")}?created=1&relationship_id=${encodeURIComponent(String(relationshipId))}`);
 }
 
 export async function linkEducationGuardianToStudent(formData: FormData) {
@@ -604,7 +605,7 @@ export async function linkEducationGuardianToStudent(formData: FormData) {
   if (studentError) throw new Error(`Could not verify the selected student: ${studentError.message}`);
   if (!student) redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
 
-  const { error } = await supabase.rpc("education_link_existing_guardian", {
+  const { data: relationshipId, error } = await supabase.rpc("education_link_existing_guardian", {
     p_org_id: context.orgId,
     p_branch_id: student.branch_id,
     p_student_id: studentId,
@@ -620,7 +621,7 @@ export async function linkEducationGuardianToStudent(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/guardians")}?error=save`);
   }
   revalidatePath("/education/guardians");
-  redirect(`${getProductAppPath("think-education", "/guardians")}?linked=1`);
+  redirect(`${getProductAppPath("think-education", "/guardians")}?linked=1&relationship_id=${encodeURIComponent(String(relationshipId))}`);
 }
 
 export async function verifyEducationGuardianLink(formData: FormData) {
@@ -1203,6 +1204,256 @@ export async function createEducationCampus(formData: FormData) {
   return { success: true };
 }
 
+export async function updateEducationCampus(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_organization", "organization", "campuses", "edit")) {
+    throw new Error("You do not have permission to edit Think Education campuses.");
+  }
+
+  const branchId = String(formData.get("branch_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim();
+  const address = String(formData.get("address") ?? "").trim();
+  const city = String(formData.get("city") ?? "").trim();
+  const region = String(formData.get("region") ?? "").trim();
+  const country = String(formData.get("country") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const administratorUserId = String(formData.get("administrator_user_id") ?? "") || null;
+  const status = String(formData.get("status") ?? "");
+  const organizationPath = getProductAppPath("think-education", "/organization");
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(branchId) || !name || name.length > 120 || !/^[A-Za-z0-9-]{1,32}$/.test(code)
+    || address.length > 200 || city.length > 100 || region.length > 100 || country.length > 100
+    || phone.length > 32 || email.length > 254
+    || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    || (administratorUserId && !uuidPattern.test(administratorUserId))
+    || !["active", "inactive", "archived"].includes(status)) {
+    redirect(`${organizationPath}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: currentCampus, error: campusError } = await supabase.from("education_campuses")
+    .select("administrator_user_id")
+    .eq("org_id", context.orgId)
+    .eq("branch_id", branchId)
+    .maybeSingle();
+  if (campusError) throw new Error(`Could not verify the Think Education campus: ${campusError.message}`);
+  if (!currentCampus) redirect(`${organizationPath}?error=not-found`);
+  if (administratorUserId !== currentCampus.administrator_user_id
+    && !await canTabPermission("education_user_management", "users", "branch_access", "edit")) {
+    throw new Error("You do not have permission to assign Think Education campus administrators.");
+  }
+
+  const { error } = await supabase.rpc("education_update_campus", {
+    p_org_id: context.orgId,
+    p_branch_id: branchId,
+    p_name: name,
+    p_code: code,
+    p_address: address || null,
+    p_city: city || null,
+    p_region: region || null,
+    p_country: country || null,
+    p_phone: phone || null,
+    p_email: email || null,
+    p_administrator_user_id: administratorUserId,
+    p_status: status,
+  });
+  if (error) {
+    if (error.code === "23505") redirect(`${organizationPath}?error=duplicate`);
+    if (error.code === "22023") redirect(`${organizationPath}?error=invalid`);
+    if (error.code === "P0002") redirect(`${organizationPath}?error=not-found`);
+    if (error.code === "42501") throw new Error(`Campus update was not authorized: ${error.message}`);
+    console.error("Could not update Think Education campus:", error.message);
+    redirect(`${organizationPath}?error=save`);
+  }
+
+  revalidatePath("/education/organization");
+  revalidatePath("/education/staff");
+  revalidatePath("/education/dashboard");
+  revalidatePath("/education/reports/campus-comparison");
+  redirect(`${organizationPath}?updated=1`);
+}
+
+export async function saveEducationDepartment(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+
+  const departmentId = String(formData.get("department_id") ?? "") || null;
+  const branchId = String(formData.get("branch_id") ?? "") || null;
+  const name = String(formData.get("name") ?? "").trim();
+  const departmentType = String(formData.get("department_type") ?? "");
+  const isActive = formData.get("is_active") === "true";
+  const departmentsPath = getProductAppPath("think-education", "/academics/departments");
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if ((departmentId && !uuidPattern.test(departmentId))
+    || (branchId && !uuidPattern.test(branchId))
+    || !name || name.length > 120
+    || !["academic", "administrative", "support"].includes(departmentType)
+    || !["true", "false"].includes(String(formData.get("is_active") ?? ""))) {
+    redirect(`${departmentsPath}?error=invalid`);
+  }
+
+  const { campuses, hasOrganizationScope } = await getAccessibleEducationCampuses(
+    context.orgId,
+    context.userId,
+    { includeInactive: true },
+  );
+  const campus = branchId ? campuses.find((item) => item.id === branchId) : null;
+  if ((branchId && !campus) || (!branchId && !hasOrganizationScope)) {
+    throw new Error("You cannot manage an Education department outside your assigned scope.");
+  }
+
+  const action = departmentId ? "edit" : "create";
+  if (!await canTabPermission("education_academics", "academics", "departments", action)) {
+    throw new Error(`You do not have permission to ${action} Think Education departments.`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_department_save", {
+    p_org_id: context.orgId,
+    p_department_id: departmentId,
+    p_branch_id: branchId,
+    p_name: name,
+    p_department_type: departmentType,
+    p_is_active: isActive,
+  });
+  if (error) {
+    if (error.code === "23505") redirect(`${departmentsPath}?error=duplicate`);
+    if (error.code === "22023") redirect(`${departmentsPath}?error=invalid`);
+    if (error.code === "42501") throw new Error(`Department update was not authorized: ${error.message}`);
+    if (error.code === "P0002") redirect(`${departmentsPath}?error=not-found`);
+    console.error("Could not save Think Education department:", error.message);
+    redirect(`${departmentsPath}?error=save`);
+  }
+
+  revalidatePath("/education/academics/departments");
+  revalidatePath("/education/academics");
+  revalidatePath("/education/staff");
+  redirect(`${departmentsPath}?saved=1`);
+}
+
+export async function saveEducationStaffQualification(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_staff", "staff", "directory", "edit")) {
+    throw new Error("You do not have permission to edit Think Education staff records.");
+  }
+
+  const staffId = String(formData.get("staff_id") ?? "");
+  const qualificationId = String(formData.get("qualification_id") ?? "") || null;
+  const qualification = String(formData.get("qualification") ?? "").trim();
+  const institution = String(formData.get("institution") ?? "").trim();
+  const fieldOfStudy = String(formData.get("field_of_study") ?? "").trim();
+  const awardedOn = String(formData.get("awarded_on") ?? "");
+  const expiresOn = String(formData.get("expires_on") ?? "");
+  const staffPath = getProductAppPath("think-education", `/staff/${staffId}`);
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(staffId) || (qualificationId && !uuidPattern.test(qualificationId))
+    || !qualification || qualification.length > 160 || institution.length > 160 || fieldOfStudy.length > 160
+    || (awardedOn && !isValidEducationISODate(awardedOn))
+    || (expiresOn && !isValidEducationISODate(expiresOn))
+    || (awardedOn && expiresOn && expiresOn < awardedOn)) {
+    redirect(`${staffPath}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: staff, error: staffError } = await supabase.from("education_staff")
+    .select("id, branch_id")
+    .eq("org_id", context.orgId).eq("id", staffId).maybeSingle();
+  if (staffError) throw new Error(`Could not verify the Think Education staff record: ${staffError.message}`);
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!staff || !campuses.some((campus) => campus.id === staff.branch_id)) {
+    redirect(`${staffPath}?error=not-found`);
+  }
+
+  const { error } = await supabase.rpc("education_staff_qualification_save", {
+    p_org_id: context.orgId,
+    p_staff_id: staffId,
+    p_qualification_id: qualificationId,
+    p_qualification: qualification,
+    p_institution: institution || null,
+    p_field_of_study: fieldOfStudy || null,
+    p_awarded_on: awardedOn || null,
+    p_expires_on: expiresOn || null,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${staffPath}?error=invalid`);
+    if (error.code === "P0002") redirect(`${staffPath}?error=not-found`);
+    if (error.code === "42501") throw new Error(`Qualification update was not authorized: ${error.message}`);
+    console.error("Could not save Think Education staff qualification:", error.message);
+    redirect(`${staffPath}?error=save`);
+  }
+
+  revalidatePath(staffPath);
+  redirect(`${staffPath}?qualification=1`);
+}
+
+export async function saveEducationStaffContract(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_staff", "staff", "directory", "edit")) {
+    throw new Error("You do not have permission to edit Think Education staff records.");
+  }
+
+  const staffId = String(formData.get("staff_id") ?? "");
+  const contractId = String(formData.get("contract_id") ?? "") || null;
+  const contractType = String(formData.get("contract_type") ?? "");
+  const referenceNumber = String(formData.get("reference_number") ?? "").trim();
+  const positionTitle = String(formData.get("position_title") ?? "").trim();
+  const startOn = String(formData.get("start_on") ?? "");
+  const endOn = String(formData.get("end_on") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const notes = String(formData.get("notes") ?? "").trim();
+  const staffPath = getProductAppPath("think-education", `/staff/${staffId}`);
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(staffId) || (contractId && !uuidPattern.test(contractId))
+    || !["permanent", "fixed_term", "temporary", "casual", "consultant"].includes(contractType)
+    || referenceNumber.length > 80 || !positionTitle || positionTitle.length > 120
+    || !isValidEducationISODate(startOn)
+    || (endOn && !isValidEducationISODate(endOn))
+    || (endOn && endOn < startOn)
+    || !["draft", "active", "completed", "terminated"].includes(status)
+    || notes.length > 1000) {
+    redirect(`${staffPath}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: staff, error: staffError } = await supabase.from("education_staff")
+    .select("id, branch_id")
+    .eq("org_id", context.orgId).eq("id", staffId).maybeSingle();
+  if (staffError) throw new Error(`Could not verify the Think Education staff record: ${staffError.message}`);
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!staff || !campuses.some((campus) => campus.id === staff.branch_id)) {
+    redirect(`${staffPath}?error=not-found`);
+  }
+
+  const { error } = await supabase.rpc("education_staff_contract_save", {
+    p_org_id: context.orgId,
+    p_staff_id: staffId,
+    p_contract_id: contractId,
+    p_contract_type: contractType,
+    p_reference_number: referenceNumber || null,
+    p_position_title: positionTitle,
+    p_start_on: startOn,
+    p_end_on: endOn || null,
+    p_status: status,
+    p_notes: notes || null,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${staffPath}?error=invalid`);
+    if (error.code === "P0002") redirect(`${staffPath}?error=not-found`);
+    if (error.code === "42501") throw new Error(`Contract update was not authorized: ${error.message}`);
+    console.error("Could not save Think Education staff contract:", error.message);
+    redirect(`${staffPath}?error=save`);
+  }
+
+  revalidatePath(staffPath);
+  redirect(`${staffPath}?contract=1`);
+}
+
 export async function createEducationStaff(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) return { error: "Session expired. Sign in again." };
@@ -1585,6 +1836,7 @@ export async function createEducationAdmission(formData: FormData) {
     guardianFirstName || guardianLastName || guardianEmail || guardianPhone || guardianRelationship,
   );
   const requestedClassId = String(formData.get("requested_class_id") ?? "").trim();
+  const createPath = getProductAppPath("think-education", "/admissions/new");
   if (!branchId || !/^[A-Za-z0-9._/-]{1,32}$/.test(applicationNumber)
     || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
     || otherNames.length > 100
@@ -1601,7 +1853,7 @@ export async function createEducationAdmission(formData: FormData) {
     || guardianEmail.length > 254 || (guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmail))
     || guardianPhone.length > 40
     || (requestedClassId && !/^[0-9a-f-]{36}$/i.test(requestedClassId))) {
-    redirect(`${getProductAppPath("think-education", "/admissions")}?error=invalid`);
+    redirect(`${createPath}?error=invalid`);
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -1619,12 +1871,12 @@ export async function createEducationAdmission(formData: FormData) {
       .eq("org_id", context.orgId).eq("id", requestedClassId)
       .eq("branch_id", branchId).eq("status", "active").maybeSingle();
     if (classError) throw new Error(`Could not verify the requested admission class: ${classError.message}`);
-    if (!requestedClass) redirect(`${getProductAppPath("think-education", "/admissions")}?error=class`);
+    if (!requestedClass) redirect(`${createPath}?error=class`);
     const { data: academicYear, error: yearError } = await supabase.from("education_academic_years")
       .select("id").eq("org_id", context.orgId)
       .eq("id", requestedClass.academic_year_id).eq("status", "active").maybeSingle();
     if (yearError) throw new Error(`Could not verify the requested class academic year: ${yearError.message}`);
-    if (!academicYear) redirect(`${getProductAppPath("think-education", "/admissions")}?error=class`);
+    if (!academicYear) redirect(`${createPath}?error=class`);
   }
   const { error } = await supabase.from("education_admissions").insert({
     org_id: context.orgId,
@@ -1646,9 +1898,9 @@ export async function createEducationAdmission(formData: FormData) {
     requested_class_id: requestedClassId || null,
   });
   if (error) {
-    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/admissions")}?error=duplicate`);
+    if (error.code === "23505") redirect(`${createPath}?error=duplicate`);
     console.error("Could not create Think Education application:", error.message);
-    redirect(`${getProductAppPath("think-education", "/admissions")}?error=save`);
+    redirect(`${createPath}?error=save`);
   }
 
   revalidatePath("/education/admissions");
@@ -2130,13 +2382,16 @@ export async function createEducationClass(formData: FormData) {
 
   const branchId = String(formData.get("branch_id") ?? "");
   const academicYearId = String(formData.get("academic_year_id") ?? "");
+  const classTeacherId = String(formData.get("class_teacher_id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const levelName = String(formData.get("level_name") ?? "").trim();
   const streamName = String(formData.get("stream_name") ?? "").trim();
   const capacityValue = String(formData.get("capacity") ?? "").trim();
   const capacity = capacityValue ? Number(capacityValue) : null;
   if (!branchId || !academicYearId || !name || name.length > 100 || levelName.length > 80
-    || streamName.length > 80 || (capacity !== null && (!Number.isInteger(capacity) || capacity < 1))) {
+    || streamName.length > 80
+    || (classTeacherId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(classTeacherId))
+    || (capacity !== null && (!Number.isInteger(capacity) || capacity < 1))) {
     redirect(`${getProductAppPath("think-education", "/academics")}?error=invalid`);
   }
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -2145,10 +2400,30 @@ export async function createEducationClass(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (classTeacherId) {
+    if (!await canTabPermission("education_staff", "staff", "records", "view")) {
+      throw new Error("Staff view permission is required to assign a class teacher.");
+    }
+    const { data: teacher, error: teacherError } = await supabase.from("education_staff")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("branch_id", branchId)
+      .eq("id", classTeacherId)
+      .eq("staff_category", "teaching")
+      .eq("status", "active")
+      .maybeSingle();
+    if (teacherError) {
+      console.error("Could not validate the class teacher:", teacherError.message);
+      redirect(`${getProductAppPath("think-education", "/academics")}?error=save`);
+    }
+    if (!teacher) redirect(`${getProductAppPath("think-education", "/academics")}?error=teacher`);
+  }
+
   const { error } = await supabase.from("education_classes").insert({
     org_id: context.orgId,
     branch_id: branchId,
     academic_year_id: academicYearId,
+    class_teacher_id: classTeacherId || null,
     name,
     level_name: levelName || null,
     stream_name: streamName || null,
@@ -2161,6 +2436,76 @@ export async function createEducationClass(formData: FormData) {
   }
   revalidatePath("/education/academics");
   redirect(`${getProductAppPath("think-education", "/academics")}?created=1`);
+}
+
+export async function setEducationClassTeacher(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_academics", "academics", "classes", "edit")) {
+    throw new Error("You do not have permission to update Think Education class teachers.");
+  }
+  if (!await canTabPermission("education_staff", "staff", "records", "view")) {
+    throw new Error("Staff view permission is required to manage class teachers.");
+  }
+
+  const classId = String(formData.get("class_id") ?? "").trim();
+  const classTeacherId = String(formData.get("class_teacher_id") ?? "").trim();
+  const classPath = getProductAppPath("think-education", "/academics");
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(classId) || (classTeacherId && !uuidPattern.test(classTeacherId))) {
+    redirect(`${classPath}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: classroom, error: classError } = await supabase.from("education_classes")
+    .select("id, branch_id, class_teacher_id")
+    .eq("org_id", context.orgId)
+    .eq("id", classId)
+    .maybeSingle();
+  if (classError) {
+    console.error("Could not load the Think Education class for teacher assignment:", classError.message);
+    redirect(`${classPath}?error=save`);
+  }
+  if (!classroom) redirect(`${classPath}?error=class`);
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === classroom.branch_id)) {
+    throw new Error("You cannot update a class outside your assigned Think Education campuses.");
+  }
+
+  if (classTeacherId && classTeacherId !== classroom.class_teacher_id) {
+    const { data: teacher, error: teacherError } = await supabase.from("education_staff")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("branch_id", classroom.branch_id)
+      .eq("id", classTeacherId)
+      .eq("staff_category", "teaching")
+      .eq("status", "active")
+      .maybeSingle();
+    if (teacherError) {
+      console.error("Could not validate the class teacher:", teacherError.message);
+      redirect(`${classPath}?error=save`);
+    }
+    if (!teacher) redirect(`${classPath}?error=teacher`);
+  }
+
+  const { data: updatedClass, error: updateError } = await supabase.from("education_classes")
+    .update({ class_teacher_id: classTeacherId || null, updated_at: new Date().toISOString() })
+    .eq("org_id", context.orgId)
+    .eq("id", classId)
+    .eq("branch_id", classroom.branch_id)
+    .select("id")
+    .maybeSingle();
+  if (updateError) {
+    console.error("Could not update the Think Education class teacher:", updateError.message);
+    redirect(`${classPath}?error=save`);
+  }
+  if (!updatedClass) redirect(`${classPath}?error=class`);
+
+  revalidatePath("/education/academics");
+  revalidatePath("/education/academics/curriculum");
+  revalidatePath("/education/students", "layout");
+  redirect(`${classPath}?classTeacherSaved=1`);
 }
 
 export async function saveEducationClassSubject(formData: FormData) {
@@ -2486,9 +2831,10 @@ export async function createEducationStaffTransfer(formData: FormData) {
     : null;
   const validDate = parsedDate !== null && Number.isFinite(parsedDate.getTime())
     && parsedDate.toISOString().slice(0, 10) === effectiveOn;
+  const requestPath = getProductAppPath("think-education", "/staff/transfers/request");
   if (!/^[A-Za-z0-9._/-]{1,32}$/.test(staffNumber) || !sourceBranchId || !destinationBranchId
     || sourceBranchId === destinationBranchId || !validDate || !reason || reason.length > 1000) {
-    redirect(`${getProductAppPath("think-education", "/staff/transfers")}?error=invalid`);
+    redirect(`${requestPath}?error=invalid`);
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -2503,7 +2849,7 @@ export async function createEducationStaffTransfer(formData: FormData) {
     .eq("staff_number", staffNumber).eq("status", "active")
     .maybeSingle();
   if (staffError) throw new Error(`Could not verify staff for transfer: ${staffError.message}`);
-  if (!staff) redirect(`${getProductAppPath("think-education", "/staff/transfers")}?error=staff`);
+  if (!staff) redirect(`${requestPath}?error=staff`);
 
   const { error } = await supabase.rpc("education_staff_transfer_request", {
     p_org_id: context.orgId,
@@ -2514,17 +2860,17 @@ export async function createEducationStaffTransfer(formData: FormData) {
     p_reason: reason,
   });
   if (error) {
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/staff/transfers")}?error=invalid`);
-    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/staff/transfers")}?error=pending`);
-    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/staff/transfers")}?error=conflict`);
+    if (error.code === "22023") redirect(`${requestPath}?error=invalid`);
+    if (error.code === "23505") redirect(`${requestPath}?error=pending`);
+    if (error.code === "23514") redirect(`${requestPath}?error=conflict`);
     if (error.code === "42501") throw new Error("You do not have permission to request that staff transfer.");
-    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/staff/transfers")}?error=staff`);
+    if (error.code === "P0002") redirect(`${requestPath}?error=staff`);
     console.error("Could not create Think Education staff transfer:", error.message);
-    redirect(`${getProductAppPath("think-education", "/staff/transfers")}?error=save`);
+    redirect(`${requestPath}?error=save`);
   }
   revalidatePath("/education/staff/transfers");
   revalidatePath("/education/staff");
-  redirect(`${getProductAppPath("think-education", "/staff/transfers")}?created=1`);
+  redirect(`${requestPath}?created=1`);
 }
 
 export async function transitionEducationStaffTransfer(formData: FormData) {

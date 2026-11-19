@@ -56,7 +56,7 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
     ["admissions", "Admissions", [["applications", "Applications"]]]
   ]),
   education_academics: pages([
-    ["academics", "Academics", [["calendar", "Academic Calendar"], ["classes", "Classes"]]]
+    ["academics", "Academics", [["calendar", "Academic Calendar"], ["classes", "Classes"], ["departments", "Departments"]]]
   ]),
   education_attendance: pages([
     ["attendance", "Attendance", [["register", "Student Register"], ["staff", "Staff Register"]]]

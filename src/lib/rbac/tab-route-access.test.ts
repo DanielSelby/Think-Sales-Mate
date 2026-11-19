@@ -168,6 +168,14 @@ describe("configured tab route access", () => {
     expect(resolveTabRouteAccess("/banking", new URLSearchParams("tab=unknown"))).toBeNull();
   });
 
+  it("maps the Education departments page to its dedicated permission tab", () => {
+    expect(resolveTabRouteAccess("/education/academics/departments", new URLSearchParams())).toEqual({
+      module: "education_academics",
+      page: "academics",
+      tab: "departments"
+    });
+  });
+
   it("does not apply tab routing rules to unrelated pages", () => {
     expect(resolveTabRouteAccess("/dashboard", new URLSearchParams())).toBeNull();
   });

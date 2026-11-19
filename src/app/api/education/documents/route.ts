@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
   const branchId = String(formData.get("branch_id") ?? "");
   const studentId = String(formData.get("student_id") ?? "") || null;
   const admissionId = String(formData.get("admission_id") ?? "").trim() || null;
+  const staffId = String(formData.get("staff_id") ?? "").trim() || null;
   const title = String(formData.get("title") ?? "").trim();
   const category = String(formData.get("category") ?? "");
   const retentionValue = String(formData.get("retention_until") ?? "");
@@ -50,6 +51,8 @@ export async function POST(request: NextRequest) {
     || !title || title.length > 160 || !categoryAllowed
     || (admissionId && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(admissionId)
       || category !== "admission" || studentId))
+    || (staffId && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(staffId)
+      || category !== "staff" || studentId || admissionId))
     || (retentionValue && !isValidDate(retentionValue))
     || !await isAllowedEducationDocumentFile(file)) {
     return redirectWith(request, "error", "invalid", admissionId);
@@ -64,6 +67,9 @@ export async function POST(request: NextRequest) {
   }
   if (admissionId && !await canTabPermission("education_admissions", "admissions", "applications", "edit")) {
     return redirectWith(request, "error", "permission", admissionId);
+  }
+  if (staffId && !await canTabPermission("education_staff", "staff", "directory", "view")) {
+    return redirectWith(request, "error", "permission");
   }
 
   const supabase = await createClient();
@@ -80,6 +86,16 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (studentError) throw new Error(`Could not verify the selected student: ${studentError.message}`);
     if (!student) return redirectWith(request, "error", "student", admissionId);
+  }
+  if (staffId) {
+    const { data: staff, error: staffError } = await supabase.from("education_staff")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("branch_id", branchId)
+      .eq("id", staffId)
+      .maybeSingle();
+    if (staffError) throw new Error(`Could not verify the selected staff member: ${staffError.message}`);
+    if (!staff) return redirectWith(request, "error", "staff");
   }
 
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -108,6 +124,7 @@ export async function POST(request: NextRequest) {
     p_storage_path: storagePath,
     p_retention_until: retentionValue || null,
     p_admission_id: admissionId,
+    p_staff_id: staffId,
   });
   if (registerError) {
     const { error: cleanupError } = await supabase.storage.from("education-documents").remove([storagePath]);

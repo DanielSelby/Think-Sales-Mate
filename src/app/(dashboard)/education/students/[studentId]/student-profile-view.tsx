@@ -411,6 +411,12 @@ export function StudentProfileView(props: Props) {
 
   function renderFees() {
     if (!permissions.canViewFinance) return <PermissionMessage />;
+    const payableCharges = charges.flatMap((charge) => {
+      const chargeBalance = Math.max(0, charge.amount - charge.paid);
+      return charge.status === "open" && chargeBalance > 0
+        ? [{ id: charge.id, description: charge.description, balance: chargeBalance }]
+        : [];
+    });
     return <div className="space-y-5">
       {paymentRecorded && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Fee payment recorded. The balance below has been updated.</p>}
       {paymentError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{paymentError}</p>}
@@ -419,6 +425,21 @@ export function StudentProfileView(props: Props) {
           <p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{formatMoney(Number(amount))}</p>
         </article>)}
       </section>
+      {canRecordFeePayment && payableCharges.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <div>
+            <p className="font-semibold text-blue-950">Record a payment for {fullName}</p>
+            <p className="mt-0.5 text-sm text-blue-800">{payableCharges.length} outstanding charge{payableCharges.length === 1 ? "" : "s"} available.</p>
+          </div>
+          <FeePaymentDialog
+            charges={payableCharges}
+            studentId={student.id}
+            studentName={fullName}
+            currency={currency}
+            buttonLabel="Record fee payment"
+          />
+        </div>
+      )}
       <section className={`${cardClass} overflow-x-auto`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className={headingClass}>Fee charges</h2>

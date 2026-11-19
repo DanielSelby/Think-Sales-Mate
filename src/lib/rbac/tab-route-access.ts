@@ -43,6 +43,10 @@ export function resolveTabRouteAccess(
   pathname: string,
   searchParams: URLSearchParams
 ): TabRouteAccess | null {
+  if (pathname === "/education/academics/departments") {
+    return { module: "education_academics", page: "academics", tab: "departments" };
+  }
+
   if (isPathOrChild(pathname, "/restaurant")) {
     if (isPathOrChild(pathname, "/restaurant/pos")) {
       return { module: "restaurant", page: "operations", tab: "pos" };

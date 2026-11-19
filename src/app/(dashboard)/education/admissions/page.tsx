@@ -6,7 +6,8 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { createEducationAdmission, recordEducationAdmissionOffer, reviewEducationAdmissionDocument, updateEducationAdmissionStatus } from "../actions";
+import { recordEducationAdmissionOffer, reviewEducationAdmissionDocument, updateEducationAdmissionStatus } from "../actions";
+import { EducationSubmitButton } from "../submit-button";
 
 const ADMISSION_STATUSES = ["pending", "under_review", "admitted", "rejected", "enrolled", "withdrawn"] as const;
 
@@ -239,9 +240,9 @@ export default async function EducationAdmissionsPage({
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Admissions</h1>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Track applications and admission decisions across your assigned campuses.</p>
       </div>
-      {canCreate && <a href="#new-application" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
+      {canCreate && <Link href={getProductAppPath("think-education", "/admissions/new")} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
         <Plus className="h-4 w-4" /> New application
-      </a>}
+      </Link>}
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Application created.</p>}
@@ -345,14 +346,14 @@ export default async function EducationAdmissionsPage({
                         <form action={reviewEducationAdmissionDocument}>
                           <input type="hidden" name="document_id" value={document.id} />
                           <input type="hidden" name="verification_status" value="verified" />
-                          <button className="rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">Mark verified</button>
+                          <EducationSubmitButton pendingLabel="Saving..." className="rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">Mark verified</EducationSubmitButton>
                         </form>
                         <form action={reviewEducationAdmissionDocument} className="flex items-end gap-1">
                           <input type="hidden" name="document_id" value={document.id} />
                           <input type="hidden" name="verification_status" value="rejected" />
                           <label className="sr-only" htmlFor={`document-note-${document.id}`}>Reason for requesting a replacement</label>
                           <input id={`document-note-${document.id}`} required name="note" maxLength={1000} placeholder="Reason for replacement" className="w-40 rounded-md border border-slate-300 px-2 py-1 text-xs" />
-                          <button className="rounded-md border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-50">Needs resubmission</button>
+                          <EducationSubmitButton pendingLabel="Saving..." className="rounded-md border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-50">Needs resubmission</EducationSubmitButton>
                         </form>
                       </div>}
                     </div>;
@@ -375,13 +376,13 @@ export default async function EducationAdmissionsPage({
                 {(application.status === "pending" && canEdit || application.status === "under_review" && canApprove) && <div className="mt-2 flex flex-wrap gap-2">
                   {application.status === "pending" && canEdit && <form action={updateEducationAdmissionStatus}>
                     <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="under_review" />
-                    <button className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Start review</button>
+                    <EducationSubmitButton pendingLabel="Starting review..." className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Start review</EducationSubmitButton>
                   </form>}
                   {application.status === "under_review" && canApprove && <>
                     {hasActiveOffer
                       ? <form action={updateEducationAdmissionStatus}>
                         <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="admitted" />
-                        <button className="rounded-md bg-emerald-700 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-800">Accept offer and admit</button>
+                        <EducationSubmitButton pendingLabel="Updating application..." className="rounded-md bg-emerald-700 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-800">Accept offer and admit</EducationSubmitButton>
                       </form>
                       : <form action={recordEducationAdmissionOffer} className="grid w-56 gap-1.5 rounded-md border border-blue-100 bg-blue-50 p-2">
                         <input type="hidden" name="admission_id" value={application.id} />
@@ -391,13 +392,13 @@ export default async function EducationAdmissionsPage({
                         <label className="text-xs font-medium text-slate-700">Offer terms
                           <textarea name="terms" maxLength={2000} rows={2} placeholder="Optional terms" className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs" />
                         </label>
-                        <button className="rounded-md bg-blue-700 px-2 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">{offer ? "Reissue offer" : "Record offer sent"}</button>
+                        <EducationSubmitButton pendingLabel="Recording offer..." className="rounded-md bg-blue-700 px-2 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">{offer ? "Reissue offer" : "Record offer sent"}</EducationSubmitButton>
                         <p className="text-[11px] leading-4 text-slate-600">This records an offer sent outside the system; it does not send an email.</p>
                       </form>}
                     <form action={updateEducationAdmissionStatus} className="flex flex-col gap-1">
                       <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="rejected" />
                       <input required name="decision_note" maxLength={1000} placeholder="Reason required" aria-label="Rejection reason" className="w-40 rounded-md border border-slate-300 px-2 py-1 text-xs" />
-                      <button className="rounded-md border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
+                      <EducationSubmitButton pendingLabel="Saving decision..." className="rounded-md border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</EducationSubmitButton>
                     </form>
                   </>}
                 </div>}
@@ -412,13 +413,19 @@ export default async function EducationAdmissionsPage({
                       {classes.filter((classroom) => classroom.branch_id === application.branch_id).map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}{classroom.level_name ? ` · ${classroom.level_name}` : ""}{classroom.capacity ? ` (${classroom.capacity} capacity)` : ""}</option>)}
                     </select>
                   </label>
-                  <button disabled={!classes.some((classroom) => classroom.branch_id === application.branch_id)} className="rounded-md bg-blue-700 px-2 py-1.5 text-xs font-semibold text-white enabled:hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300">Enroll and create student</button>
+                  <EducationSubmitButton
+                    disabled={!classes.some((classroom) => classroom.branch_id === application.branch_id)}
+                    pendingLabel="Enrolling student..."
+                    className="rounded-md bg-blue-700 px-2 py-1.5 text-xs font-semibold text-white enabled:hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    Enroll and create student
+                  </EducationSubmitButton>
                 </form>}
                 {application.status === "admitted" && canEnroll && application.guardian_first_name && !canCreateGuardian && <p className="mt-2 max-w-xs text-xs text-amber-800">Guardian creation permission is required before enrolling this applicant with guardian details.</p>}
                 {["pending", "under_review", "admitted"].includes(application.status) && canEdit && <form action={updateEducationAdmissionStatus} className="mt-2 flex flex-col gap-1">
                   <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="withdrawn" />
                   <input required name="decision_note" maxLength={1000} placeholder="Withdrawal reason" aria-label="Withdrawal reason" className="w-40 rounded-md border border-slate-300 px-2 py-1 text-xs" />
-                  <button className="self-start rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Withdraw</button>
+                  <EducationSubmitButton pendingLabel="Withdrawing..." className="self-start rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Withdraw</EducationSubmitButton>
                 </form>}
               </td>
             </tr>;
@@ -428,69 +435,5 @@ export default async function EducationAdmissionsPage({
       </div>}
     </section>
 
-    {canCreate && campuses.length > 0 && <section id="new-application" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Create application</h2>
-      <p className="mt-1 text-sm text-slate-500">Record a prospective student application at an assigned campus.</p>
-      <form action={createEducationAdmission} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm font-medium text-slate-700">Campus
-          <select required name="branch_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Application number
-          <input required name="application_number" maxLength={32} pattern="[A-Za-z0-9._/-]+" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Applicant first name
-          <input required name="first_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Applicant last name
-          <input required name="last_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Other names
-          <input name="other_names" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Date of birth
-          <input name="date_of_birth" type="date" max={new Date().toISOString().slice(0, 10)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Gender
-          <input name="gender" maxLength={50} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Home address
-          <textarea name="address" maxLength={500} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Email
-          <input name="email" type="email" maxLength={254} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Phone
-          <input name="phone" type="tel" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <fieldset className="rounded-lg border border-slate-200 p-3 sm:col-span-2 lg:col-span-4">
-          <legend className="px-1 text-sm font-semibold text-slate-800">Guardian details (optional)</legend>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="text-sm font-medium text-slate-700">First name
-              <input name="guardian_first_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-            </label>
-            <label className="text-sm font-medium text-slate-700">Last name
-              <input name="guardian_last_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-            </label>
-            <label className="text-sm font-medium text-slate-700">Email
-              <input name="guardian_email" type="email" maxLength={254} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-            </label>
-            <label className="text-sm font-medium text-slate-700">Phone
-              <input name="guardian_phone" type="tel" maxLength={40} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-            </label>
-            <label className="text-sm font-medium text-slate-700">Relationship
-              <input name="guardian_relationship" maxLength={60} placeholder="Parent, guardian, etc." className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-            </label>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">When supplied, the guardian record and a pending student relationship are created together during enrollment.</p>
-        </fieldset>
-        {canViewClasses && <label className="text-sm font-medium text-slate-700">Requested class (optional)
-          <select name="requested_class_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            <option value="">Not selected</option>
-            {classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classNameById.get(classroom.id)}</option>)}
-          </select>
-        </label>}
-        <div className="sm:col-span-2 lg:col-span-4"><button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Save application</button></div>
-      </form>
-    </section>}
   </main>;
 }

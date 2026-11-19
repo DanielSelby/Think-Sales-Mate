@@ -51,6 +51,7 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/education/attendance/staff")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/education/staff/leave")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/education/staff/transfers")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/education/staff/transfers/request")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/education/staff/123")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/education/reports")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/education/academics")).toEqual(["think-education"]);
@@ -78,6 +79,7 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/app/think-education/attendance/staff")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/app/think-education/staff/leave")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/app/think-education/staff/transfers")).toEqual(["think-education"]);
+    expect(getRequiredProductSlugs("/app/think-education/staff/transfers/request")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/app/think-education/staff/123")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/app/think-education/reports")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/app/think-education/activity")).toEqual(["think-education"]);

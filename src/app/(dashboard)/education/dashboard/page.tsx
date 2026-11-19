@@ -327,21 +327,40 @@ export default async function ThinkEducationDashboardPage({
       </form>}
     </section>}
 
-    <section aria-label="Education overview metrics" data-education-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {metrics.map(({ label, value, icon: Icon, tint }) => <article key={label} className="rounded-xl border p-4 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{label}</p>
-            <p className="mt-2 text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>
-              {value === null ? "—" : label === "Attendance today" && typeof value === "number" ? `${value}%` : typeof value === "number" ? value.toLocaleString() : value}
-            </p>
+    <section aria-label="Education overview metrics" data-education-metrics data-education-dashboard-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {metrics.map(({ label, value, icon: Icon, tint }) => {
+        const iconTone = tint.includes("bg-violet") ? "violet"
+          : tint.includes("bg-emerald") ? "emerald"
+            : tint.includes("bg-amber") ? "amber"
+              : tint.includes("bg-rose") ? "rose"
+                : "blue";
+        const iconBackground = iconTone === "violet" ? "rgba(139,92,246,0.10)"
+          : iconTone === "emerald" ? "rgba(16,185,129,0.10)"
+            : iconTone === "amber" ? "rgba(245,158,11,0.12)"
+              : iconTone === "rose" ? "rgba(244,63,94,0.10)"
+                : "rgba(59,130,246,0.10)";
+        return <article key={label} className="rounded-xl border p-4 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{label}</p>
+              <p className="mt-2 text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>
+                {value === null ? "—" : label === "Attendance today" && typeof value === "number" ? `${value}%` : typeof value === "number" ? value.toLocaleString() : value}
+              </p>
+            </div>
+            <span
+              data-education-metric-icon
+              data-icon-tone={iconTone}
+              className="grid h-11 w-11 place-items-center rounded-xl"
+              style={{ backgroundColor: iconBackground, color: "var(--theme-primary, #2563eb)" }}
+            >
+              <Icon className="h-5 w-5" />
+            </span>
           </div>
-          <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ backgroundColor: tint.includes("bg-blue") ? "rgba(59,130,246,0.10)" : tint.includes("bg-violet") ? "rgba(139,92,246,0.10)" : tint.includes("bg-emerald") ? "rgba(16,185,129,0.10)" : "rgba(245,158,11,0.12)", color: "var(--theme-primary, #2563eb)" }}><Icon className="h-5 w-5" /></span>
-        </div>
-      </article>)}
+        </article>;
+      })}
     </section>
 
-    {canReadFeePayments && canReadFeeCharges && <section className="overflow-hidden rounded-xl border p-5 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
+    {canReadFeePayments && canReadFeeCharges && <section aria-label="Campus-by-campus fee breakdown" data-education-fee-breakdown className="overflow-hidden rounded-xl border p-5 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
       <div>
         <h2 className="text-lg font-bold" style={{ color: "var(--theme-text, #111827)" }}>Campus-by-campus fee breakdown</h2>
         <p className="mt-1 text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>

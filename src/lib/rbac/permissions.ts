@@ -203,6 +203,27 @@ export async function canTabPermission(
   return hasTabPermission(matrix, module, page, tab, action);
 }
 
+export async function canProductTabPermission(
+  productSlug: PlatformProductSlug,
+  module: string,
+  page: string,
+  tab: string,
+  action: PermissionAction,
+  activeOrgId?: string,
+): Promise<boolean> {
+  const context = await getCurrentOrgContext(activeOrgId);
+  if (!context) return false;
+  if (!await hasProductAccessForPermissionModule(
+    context.orgId, module, action, page, tab, productSlug,
+  )) {
+    return false;
+  }
+  if (context.role === "owner") return true;
+  const matrix = await loadProductPermissionMatrix(context.orgId, context.userId, productSlug);
+  if (!matrix) return false;
+  return hasTabPermission(matrix, module, page, tab, action);
+}
+
 /** Fail closed for server actions that require an explicit module capability. */
 export async function requirePermission(
   module: string,

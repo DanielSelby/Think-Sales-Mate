@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
@@ -34,11 +34,6 @@ export function StudentFilters({
   const [branch, setBranch] = useState(initialBranch);
   const [status, setStatus] = useState(initialStatus);
   const [pageSize, setPageSize] = useState(initialPageSize);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-  }, []);
 
   function applyFilters(nextSearch: string, nextBranch: string, nextStatus: string, nextPageSize: string) {
     const params = new URLSearchParams();
@@ -52,27 +47,21 @@ export function StudentFilters({
 
   function updateSearch(value: string) {
     setSearch(value);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => {
-      applyFilters(value, branch, status, pageSize);
-    }, 250);
+    applyFilters(value, branch, status, pageSize);
   }
 
   function updateBranch(value: string) {
     setBranch(value);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
     applyFilters(search, value, status, pageSize);
   }
 
   function updateStatus(value: string) {
     setStatus(value);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
     applyFilters(search, branch, value, pageSize);
   }
 
   function updatePageSize(value: string) {
     setPageSize(value);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
     applyFilters(search, branch, status, value);
   }
 
@@ -82,7 +71,6 @@ export function StudentFilters({
       action={action}
       onSubmit={(event) => {
         event.preventDefault();
-        if (searchTimer.current) clearTimeout(searchTimer.current);
         applyFilters(search, branch, status, pageSize);
       }}
       className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_140px_auto] md:p-5"

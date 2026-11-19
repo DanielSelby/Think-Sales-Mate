@@ -34,11 +34,12 @@ export default async function EducationDocumentsPage({
   const requestedCategory = readParam(params.category);
   const requestedStatus = readParam(params.status);
   const requestedSearch = readParam(params.search).trim().toLowerCase();
-  const [canCreate, canEdit, canDelete, canViewStudents, canExport, { campuses }] = await Promise.all([
+  const [canCreate, canEdit, canDelete, canViewStudents, canViewStaff, canExport, { campuses }] = await Promise.all([
     canTabPermission("education_documents", "documents", "library", "create"),
     canTabPermission("education_documents", "documents", "library", "edit"),
     canTabPermission("education_documents", "documents", "library", "delete"),
     canTabPermission("education_students", "students", "list", "view"),
+    canTabPermission("education_staff", "staff", "directory", "view"),
     canTabPermission("education_documents", "documents", "library", "export"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
@@ -52,10 +53,10 @@ export default async function EducationDocumentsPage({
     ? requestedStatus
     : "") as "active" | "archived" | "";
   const supabase = await createClient();
-  const [documentsResult, studentsResult] = branchIds.length ? await Promise.all([
+  const [documentsResult, studentsResult, staffResult] = branchIds.length ? await Promise.all([
     (async () => {
       let query = supabase.from("education_documents")
-        .select("id, branch_id, student_id, title, category, file_name, content_type, file_size, retention_until, status, created_at", { count: "exact" })
+        .select("id, branch_id, student_id, staff_id, title, category, file_name, content_type, file_size, retention_until, status, created_at", { count: "exact" })
         .eq("org_id", context.orgId)
         .in("branch_id", branchIds)
         .order("created_at", { ascending: false })
@@ -73,8 +74,17 @@ export default async function EducationDocumentsPage({
         .order("last_name")
         .limit(MAX_RECORDS)
       : Promise.resolve({ data: [], error: null }),
+    canViewStaff
+      ? supabase.from("education_staff")
+        .select("id, branch_id, staff_number, first_name, last_name")
+        .eq("org_id", context.orgId)
+        .in("branch_id", campusIds)
+        .order("last_name")
+        .limit(MAX_RECORDS)
+      : Promise.resolve({ data: [], error: null }),
   ]) : [
     { data: [], count: 0, error: null },
+    { data: [], error: null },
     { data: [], error: null },
   ];
   if (documentsResult.error) throw new Error(`Could not load Think Education documents: ${documentsResult.error.message}`);
@@ -82,26 +92,31 @@ export default async function EducationDocumentsPage({
     throw new Error("More than 500 documents match this view. Filter to a campus or category to continue.");
   }
   if (studentsResult.error) throw new Error(`Could not load students for document classification: ${studentsResult.error.message}`);
+  if (staffResult.error) throw new Error(`Could not load staff for document classification: ${staffResult.error.message}`);
 
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const studentById = new Map((studentsResult.data ?? []).map((student) => [student.id, student]));
+  const staffById = new Map((staffResult.data ?? []).map((member) => [member.id, member]));
   const filteredDocuments = (documentsResult.data ?? []).filter((document) => {
     if (!requestedSearch) return true;
     const student = document.student_id ? studentById.get(document.student_id) : null;
-    const documentText = `${document.title} ${document.file_name} ${student ? `${student.first_name} ${student.last_name} ${student.student_number}` : ""} ${CATEGORY_LABELS[document.category as keyof typeof CATEGORY_LABELS] ?? document.category}`.toLowerCase();
+    const staff = document.staff_id ? staffById.get(document.staff_id) : null;
+    const documentText = `${document.title} ${document.file_name} ${student ? `${student.first_name} ${student.last_name} ${student.student_number}` : ""} ${staff ? `${staff.first_name} ${staff.last_name} ${staff.staff_number}` : ""} ${CATEGORY_LABELS[document.category as keyof typeof CATEGORY_LABELS] ?? document.category}`.toLowerCase();
     return documentText.includes(requestedSearch);
   });
   const exportLimit = 5000;
   const exportRows = filteredDocuments.slice(0, exportLimit);
   const csvRows = [
-    ["Title", "Campus", "Category", "Student", "File name", "Status", "Retention until", "Uploaded"],
+    ["Title", "Campus", "Category", "Student", "Staff member", "File name", "Status", "Retention until", "Uploaded"],
     ...exportRows.map((document) => {
       const student = document.student_id ? studentById.get(document.student_id) : null;
+      const staff = document.staff_id ? staffById.get(document.staff_id) : null;
       return [
         document.title,
         campusNameById.get(document.branch_id) ?? document.branch_id,
         CATEGORY_LABELS[document.category as keyof typeof CATEGORY_LABELS] ?? document.category,
         student ? `${student.first_name} ${student.last_name} (${student.student_number})` : "",
+        staff ? `${staff.first_name} ${staff.last_name} (${staff.staff_number})` : "",
         document.file_name,
         document.status === "archived" ? "Archived" : document.retention_until && document.retention_until < new Date().toISOString().slice(0, 10) ? "Retention expired" : "Active",
         document.retention_until ?? "",
@@ -119,6 +134,8 @@ export default async function EducationDocumentsPage({
         ? "Choose one of your assigned campuses."
         : params.error === "student"
           ? "Choose an active student at the selected campus."
+          : params.error === "staff"
+            ? "Choose a staff member at the selected campus."
           : params.error === "invalid"
             ? "Check the document details, file type, file size, and retention date."
             : params.error === "upload"
@@ -143,7 +160,7 @@ export default async function EducationDocumentsPage({
         <ArrowLeft className="h-4 w-4" /> Dashboard
       </Link>
       <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-950"><FileText className="h-6 w-6 text-blue-700" /> Documents &amp; Records</h1>
-      <p className="mt-1 text-sm text-slate-600">Store private campus and student documents with expiring downloads and audited access.</p>
+      <p className="mt-1 text-sm text-slate-600">Store private campus, student, and staff documents with expiring downloads and audited access.</p>
     </header>
 
     {params.uploaded === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Document uploaded securely.</p>}
@@ -176,6 +193,14 @@ export default async function EducationDocumentsPage({
             </option>)}
           </select>
         </label>}
+        {canViewStaff && <label className="text-sm font-medium text-slate-700 md:col-span-2">Staff member (optional; choose only for the staff category)
+          <select name="staff_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="">No linked staff record</option>
+            {(staffResult.data ?? []).map((member) => <option key={member.id} value={member.id}>
+              {member.last_name}, {member.first_name} · {member.staff_number} · {campusNameById.get(member.branch_id) ?? "Campus"}
+            </option>)}
+          </select>
+        </label>}
         <label className="text-sm font-medium text-slate-700">Retention until (optional)
           <input type="date" name="retention_until" min={today} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           <span className="mt-1 block text-xs font-normal text-slate-500">After this date, downloads are blocked. Users with delete permission can permanently purge expired files.</span>
@@ -196,7 +221,7 @@ export default async function EducationDocumentsPage({
           <p className="mt-1 text-sm text-slate-500">Only records for campuses you can access are listed.</p>
         </div>
         <form method="get" className="flex flex-wrap gap-2">
-          <input name="search" defaultValue={requestedSearch} placeholder="Search title or student" aria-label="Search documents" className="min-w-[180px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <input name="search" defaultValue={requestedSearch} placeholder="Search title, student, or staff" aria-label="Search documents" className="min-w-[180px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <select name="branch" defaultValue={selectedBranch} aria-label="Filter by campus" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">All accessible campuses</option>
             {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
@@ -220,6 +245,7 @@ export default async function EducationDocumentsPage({
         {filteredDocuments.map((document) => {
           const expired = !!document.retention_until && document.retention_until < today;
           const student = document.student_id ? studentById.get(document.student_id) : null;
+          const staff = document.staff_id ? staffById.get(document.staff_id) : null;
           const canPurge = canDelete && expired;
           const canDownload = document.status === "active" && !expired;
           return <li key={document.id} className="flex flex-wrap items-start justify-between gap-4 p-4 sm:p-5">
@@ -233,6 +259,7 @@ export default async function EducationDocumentsPage({
               <p className="mt-1 text-sm text-slate-600">
                 {campusNameById.get(document.branch_id) ?? "Campus"} · {CATEGORY_LABELS[document.category as keyof typeof CATEGORY_LABELS] ?? document.category}
                 {student && ` · ${student.first_name} ${student.last_name} (${student.student_number})`}
+                {staff && ` · ${staff.first_name} ${staff.last_name} (${staff.staff_number})`}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 {document.file_name} · {formatFileSize(document.file_size)} · Uploaded {new Date(document.created_at).toLocaleDateString()}

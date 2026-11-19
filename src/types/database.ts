@@ -417,6 +417,7 @@ type EducationDocument = {
   org_id: string;
   branch_id: string;
   student_id: string | null;
+  staff_id: string | null;
   admission_id: string | null;
   title: string;
   category: "student_record" | "admission" | "medical" | "finance" | "staff" | "institutional" | "other";
@@ -488,6 +489,7 @@ type EducationStaff = {
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   photo_path: string | null;
+  hrm_employee_id: string | null;
   staff_category: "teaching" | "non_teaching";
   department_id: string | null;
   job_title: string | null;
@@ -543,6 +545,36 @@ type EducationStaffEmploymentRecord = {
   reason: string;
   created_by: string;
   created_at: string;
+};
+type EducationStaffQualification = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  staff_id: string;
+  qualification: string;
+  institution: string | null;
+  field_of_study: string | null;
+  awarded_on: string | null;
+  expires_on: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type EducationStaffContract = {
+  id: string;
+  org_id: string;
+  branch_id: string;
+  staff_id: string;
+  contract_type: "permanent" | "fixed_term" | "temporary" | "casual" | "consultant";
+  reference_number: string | null;
+  position_title: string;
+  start_on: string;
+  end_on: string | null;
+  status: "draft" | "active" | "completed" | "terminated";
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 };
 type EducationClass = {
   id: string;
@@ -640,6 +672,9 @@ type EducationAccountingAccount = {
   is_active: boolean;
   is_cash_account: boolean;
   cash_flow_activity: "operating" | "investing" | "financing" | null;
+  bank_account_type: "cash" | "checking" | "savings" | "mobile_money" | "card" | "other";
+  bank_account_number: string | null;
+  bank_logo_path: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -2382,6 +2417,14 @@ export interface Database {
       education_staff_employment_records: EducationDatabaseTable<
         EducationStaffEmploymentRecord,
         "org_id" | "branch_id" | "staff_id" | "employment_type" | "job_title" | "effective_on" | "reason" | "created_by"
+      >;
+      education_staff_qualifications: EducationDatabaseTable<
+        EducationStaffQualification,
+        "org_id" | "branch_id" | "staff_id" | "qualification"
+      >;
+      education_staff_contracts: EducationDatabaseTable<
+        EducationStaffContract,
+        "org_id" | "branch_id" | "staff_id" | "contract_type" | "position_title" | "start_on" | "status"
       >;
       education_staff_leave_requests: EducationDatabaseTable<
         EducationStaffLeaveRequest,
@@ -7344,12 +7387,68 @@ export interface Database {
         };
         Returns: string;
       };
+      education_update_campus: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_name: string;
+          p_code: string;
+          p_address: string | null;
+          p_city: string | null;
+          p_region: string | null;
+          p_country: string | null;
+          p_phone: string | null;
+          p_email: string | null;
+          p_administrator_user_id: string | null;
+          p_status: string;
+        };
+        Returns: boolean;
+      };
       education_create_accounting_fiscal_year: {
         Args: {
           p_org_id: string;
           p_name: string;
           p_starts_on: string;
           p_ends_on: string;
+        };
+        Returns: string;
+      };
+      education_department_save: {
+        Args: {
+          p_org_id: string;
+          p_department_id: string | null;
+          p_branch_id: string | null;
+          p_name: string;
+          p_department_type: string;
+          p_is_active: boolean;
+        };
+        Returns: string;
+      };
+      education_staff_qualification_save: {
+        Args: {
+          p_org_id: string;
+          p_staff_id: string;
+          p_qualification_id: string | null;
+          p_qualification: string;
+          p_institution: string | null;
+          p_field_of_study: string | null;
+          p_awarded_on: string | null;
+          p_expires_on: string | null;
+        };
+        Returns: string;
+      };
+      education_staff_contract_save: {
+        Args: {
+          p_org_id: string;
+          p_staff_id: string;
+          p_contract_id: string | null;
+          p_contract_type: string;
+          p_reference_number: string | null;
+          p_position_title: string;
+          p_start_on: string;
+          p_end_on: string | null;
+          p_status: string;
+          p_notes: string | null;
         };
         Returns: string;
       };
@@ -7370,6 +7469,10 @@ export interface Database {
       education_delete_accounting_account: {
         Args: { p_org_id: string; p_account_id: string };
         Returns: boolean;
+      };
+      education_get_cash_account_balances: {
+        Args: { p_org_id: string; p_account_ids: string[] };
+        Returns: Array<{ account_id: string; balance: number }>;
       };
       education_post_accounting_journal: {
         Args: { p_org_id: string; p_journal_id: string };
@@ -7935,6 +8038,7 @@ export interface Database {
           p_storage_path: string;
           p_retention_until: string | null;
           p_admission_id?: string | null;
+          p_staff_id?: string | null;
         };
         Returns: string;
       };
@@ -8031,6 +8135,14 @@ export interface Database {
           p_address: string | null;
           p_emergency_contact_name: string | null;
           p_emergency_contact_phone: string | null;
+        };
+        Returns: boolean;
+      };
+      education_staff_link_hrm_employee: {
+        Args: {
+          p_org_id: string;
+          p_staff_id: string;
+          p_employee_id: string | null;
         };
         Returns: boolean;
       };

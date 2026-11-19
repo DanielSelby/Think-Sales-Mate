@@ -295,6 +295,13 @@ export async function deleteEducationAccountingAccount(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const { data: account, error: accountLoadError } = await supabase.from("education_accounting_accounts")
+    .select("bank_logo_path")
+    .eq("org_id", context.orgId)
+    .eq("id", accountId)
+    .maybeSingle();
+  if (accountLoadError) redirect(`${chartPath}?error=account-delete`);
+
   const { data, error } = await supabase.rpc("education_delete_accounting_account", {
     p_org_id: context.orgId,
     p_account_id: accountId,
@@ -302,6 +309,11 @@ export async function deleteEducationAccountingAccount(formData: FormData) {
   if (error?.code === "23503") redirect(`${chartPath}?error=account-in-use`);
   if (error?.code === "42501") redirect("/dashboard?accessDenied=think-education.accounting");
   if (error || data !== true) redirect(`${chartPath}?error=account-delete`);
+
+  if (account?.bank_logo_path) {
+    const { error: logoError } = await supabase.storage.from("education-bank-account-logos").remove([account.bank_logo_path]);
+    if (logoError) redirect(`${chartPath}?error=account-logo-cleanup`);
+  }
 
   revalidatePath(chartCachePath);
   revalidatePath("/education/accounting/bank-accounts");

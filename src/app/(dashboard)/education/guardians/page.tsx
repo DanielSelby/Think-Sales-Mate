@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizeGuardianSearchValue } from "@/lib/education/guardian-search";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { createEducationGuardianLink, linkEducationGuardianToStudent, verifyEducationGuardianLink } from "../actions";
+import { EducationSubmitButton } from "../submit-button";
 
 const PAGE_SIZE = 50;
 const STUDENT_PICKER_SIZE = 100;
@@ -34,6 +35,7 @@ export default async function EducationGuardiansPage({
   }
 
   const params = await searchParams;
+  const focusedRelationshipId = typeof params.relationship_id === "string" ? params.relationship_id : "";
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
@@ -112,6 +114,8 @@ export default async function EducationGuardiansPage({
   const studentById = new Map((linkedStudents ?? []).map((student) => [student.id, student]));
   const guardianById = new Map((guardians ?? []).map((guardian) => [guardian.id, guardian]));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const focusedRelationship = relationshipRows.find((row) => row.id === focusedRelationshipId);
+  const focusedStudent = focusedRelationship ? studentById.get(focusedRelationship.student_id) : undefined;
 
   let pickerQuery = supabase.from("education_students")
     .select("id, branch_id, student_number, first_name, last_name")
@@ -182,8 +186,14 @@ export default async function EducationGuardiansPage({
       <p className="mt-1 text-sm text-slate-600">Manage guardian profiles and verify their relationships to students within your authorized campuses.</p>
     </header>
 
-    {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Guardian profile created. The student relationship is pending verification.</p>}
-    {params.linked === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Student linked to the guardian profile. The relationship is pending verification.</p>}
+    {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+      Guardian profile created. The student relationship is pending verification.
+      {focusedStudent && <> <Link href={`${getProductAppPath("think-education", `/students/${focusedStudent.id}`)}?tab=guardians`} className="font-semibold underline">View linked student</Link></>}
+    </p>}
+    {params.linked === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+      Student linked to the guardian profile. The relationship is pending verification.
+      {focusedStudent && <> <Link href={`${getProductAppPath("think-education", `/students/${focusedStudent.id}`)}?tab=guardians`} className="font-semibold underline">View linked student</Link></>}
+    </p>}
     {params.verified === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Guardian relationship verified and recorded in the audit log.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
@@ -237,7 +247,13 @@ export default async function EducationGuardiansPage({
             Primary contact for this student
           </label>
           <div className="lg:col-span-4">
-            <button type="submit" disabled={!studentsForPicker?.length} className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">Create pending guardian link</button>
+            <EducationSubmitButton
+              disabled={!studentsForPicker?.length}
+              pendingLabel="Creating guardian link..."
+              className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Create pending guardian link
+            </EducationSubmitButton>
           </div>
         </form>
       </>}
@@ -264,7 +280,11 @@ export default async function EducationGuardiansPage({
         {relationshipRows.map((row) => {
           const student = studentById.get(row.student_id);
           const guardian = guardianById.get(row.guardian_id);
-          return <article key={row.id} className="flex flex-wrap items-center justify-between gap-4 p-4">
+          return <article
+            key={row.id}
+            id={`guardian-relationship-${row.id}`}
+            className={`flex scroll-mt-24 flex-wrap items-center justify-between gap-4 p-4 ${row.id === focusedRelationshipId ? "bg-blue-50/70 ring-2 ring-inset ring-blue-400" : ""}`}
+          >
             <div className="flex min-w-0 items-start gap-3">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Users2 className="h-5 w-5" /></span>
               <div>
@@ -279,7 +299,12 @@ export default async function EducationGuardiansPage({
               }`}>{row.status}</span>
               {row.status === "pending" && canVerifyGuardians && <form action={verifyEducationGuardianLink}>
                 <input type="hidden" name="relationship_id" value={row.id} />
-                <button type="submit" className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"><CheckCircle2 className="h-4 w-4" /> Verify</button>
+                <EducationSubmitButton
+                  pendingLabel="Verifying..."
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-70"
+                >
+                  <><CheckCircle2 className="h-4 w-4" /> Verify</>
+                </EducationSubmitButton>
               </form>}
             </div>
             {canCreateGuardian && guardian?.status === "active" && <form action={linkEducationGuardianToStudent} className="flex w-full flex-wrap items-end gap-3 border-t border-slate-100 pt-3">
@@ -297,7 +322,13 @@ export default async function EducationGuardiansPage({
                   {["Mother", "Father", "Guardian", "Grandparent", "Other"].map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
-              <button type="submit" disabled={!studentsForPicker?.some((option) => option.id !== row.student_id)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50">Link student</button>
+              <EducationSubmitButton
+                disabled={!studentsForPicker?.some((option) => option.id !== row.student_id)}
+                pendingLabel="Linking student..."
+                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Link student
+              </EducationSubmitButton>
             </form>}
           </article>;
         })}

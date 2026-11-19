@@ -245,7 +245,7 @@ function ChildLinks({ items, sidebar, onNavigate, indented = true, collapsed = f
       {groups.map((group, groupIndex) => (
         <div key={`${group.section ?? "navigation"}-${groupIndex}`} className="space-y-0.5">
           {group.section && !collapsed && (
-            <p className="px-2 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: sidebar.textMuted }}>
+            <p className="px-2 pt-3 pb-1 text-xs font-extrabold uppercase tracking-[0.1em]" style={{ color: sidebar.text }}>
               {group.section}
             </p>
           )}
@@ -415,7 +415,7 @@ export function Sidebar({
             : <img src={systemLogoUrl || "/thinksales-logo.jpeg"} alt={productDisplayName} className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-1.5 shadow-sm" />}
         {(!collapsed || mobileOpen) && (
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="truncate text-sm font-bold tracking-tight" style={{ color: sidebar.text }}>
+            <span className="truncate text-base font-extrabold tracking-tight" style={{ color: sidebar.text }}>
               {productDisplayName}
             </span>
             {productScope === "thinksales-erp" && /Pro$/i.test(systemName) && (
@@ -468,7 +468,7 @@ export function Sidebar({
                   onClick={() => toggleGroup(item.href)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-150",
+                    "flex w-full items-center gap-3 rounded-xl py-2.5 text-base font-bold transition-all duration-150",
                     collapsed ? "justify-center px-2" : "px-3"
                   )}
                   style={linkStyle(isGroupActive)}
@@ -506,7 +506,7 @@ export function Sidebar({
               }}
               title={collapsed ? item.label : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-150",
+                "flex items-center gap-3 rounded-xl py-2.5 text-base font-bold transition-all duration-150",
                 collapsed ? "justify-center px-2" : "px-3",
                 isSoon && "opacity-40 cursor-default"
               )}

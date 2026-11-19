@@ -9,10 +9,11 @@ import { getProductAppPath } from "@/lib/product-app-routes";
 import {
   createEducationAcademicTerm,
   createEducationAcademicYear,
-  createEducationClass,
+  setEducationClassTeacher,
   setEducationAcademicTermStatus,
   setEducationAcademicYearStatus,
 } from "../actions";
+import { EducationClassForm } from "./education-class-form";
 
 export default async function EducationAcademicsPage({
   searchParams,
@@ -28,15 +29,18 @@ export default async function EducationAcademicsPage({
   const params = await searchParams;
   const { campuses, hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const branchIds = campuses.map((campus) => campus.id);
-  const [canCreateYear, canCreateClass, canEditYear, canApproveYear, canExportClasses] = await Promise.all([
+  const [canCreateYear, canCreateClass, canEditYear, canApproveYear, canExportClasses, canEditClass, canViewStaff, canViewDepartments] = await Promise.all([
     hasOrganizationScope && await canTabPermission("education_academics", "academics", "calendar", "create"),
     await canTabPermission("education_academics", "academics", "classes", "create"),
     hasOrganizationScope && await canTabPermission("education_academics", "academics", "calendar", "edit"),
     hasOrganizationScope && await canTabPermission("education_academics", "academics", "calendar", "approve"),
     canTabPermission("education_academics", "academics", "classes", "export"),
+    canTabPermission("education_academics", "academics", "classes", "edit"),
+    canTabPermission("education_staff", "staff", "records", "view"),
+    canTabPermission("education_academics", "academics", "departments", "view"),
   ]);
   const supabase = await createClient();
-  const [{ data: years, error: yearsError }, termsResult, classesResult] = await Promise.all([
+  const [{ data: years, error: yearsError }, termsResult, classesResult, staffResult] = await Promise.all([
     supabase.from("education_academic_years")
       .select("id, name, starts_on, ends_on, is_current, status")
       .eq("org_id", context.orgId).order("starts_on", { ascending: false }),
@@ -45,26 +49,36 @@ export default async function EducationAcademicsPage({
       .eq("org_id", context.orgId).order("sequence_number"),
     branchIds.length
       ? supabase.from("education_classes")
-        .select("id, branch_id, academic_year_id, name, level_name, stream_name, capacity, status")
+        .select("id, branch_id, academic_year_id, name, level_name, stream_name, class_teacher_id, capacity, status")
         .eq("org_id", context.orgId).in("branch_id", branchIds).order("name")
+      : Promise.resolve({ data: [], error: null }),
+    canViewStaff && branchIds.length
+      ? supabase.from("education_staff")
+        .select("id, branch_id, first_name, last_name, status")
+        .eq("org_id", context.orgId).in("branch_id", branchIds)
+        .eq("staff_category", "teaching").order("last_name").order("first_name")
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (yearsError) throw new Error(`Could not load Think Education academic years: ${yearsError.message}`);
   if (termsResult.error) throw new Error(`Could not load Think Education academic terms: ${termsResult.error.message}`);
   if (classesResult.error) throw new Error(`Could not load Think Education classes: ${classesResult.error.message}`);
+  if (staffResult.error) throw new Error(`Could not load teaching staff for class assignments: ${staffResult.error.message}`);
   const academicYears = years ?? [];
   const academicTerms = termsResult.data ?? [];
   const classes = classesResult.data ?? [];
+  const staff = staffResult.data ?? [];
   const today = new Date().toISOString().slice(0, 10);
   const yearNameById = new Map(academicYears.map((year) => [year.id, year.name]));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const staffById = new Map(staff.map((member) => [member.id, `${member.first_name} ${member.last_name}`]));
   const csvRows = [
-    ["Class", "Level / stream", "Academic year", "Campus", "Capacity", "Status"],
+    ["Class", "Level / stream", "Academic year", "Campus", ...(canViewStaff ? ["Class teacher"] : []), "Capacity", "Status"],
     ...classes.map((classroom) => [
       classroom.name,
       [classroom.level_name, classroom.stream_name].filter(Boolean).join(" · ") || "—",
       yearNameById.get(classroom.academic_year_id) ?? classroom.academic_year_id,
       campusNameById.get(classroom.branch_id) ?? classroom.branch_id,
+      ...(canViewStaff ? [classroom.class_teacher_id ? staffById.get(classroom.class_teacher_id) ?? "Previously assigned teacher" : ""] : []),
       String(classroom.capacity ?? ""),
       classroom.status,
     ]),
@@ -72,19 +86,23 @@ export default async function EducationAcademicsPage({
   const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   const errorMessage = params.error === "duplicate"
     ? "An academic year or class with those details already exists."
-    : params.error === "invalid"
-      ? "Check the name, dates, campus, and class capacity."
-      : params.error === "transition"
-        ? "That academic year status transition is no longer available."
-        : params.error === "terms-incomplete"
-          ? "Complete every planned or active academic term before completing the academic year."
-      : params.error === "overlap"
-        ? "The term dates overlap another term in that academic year."
-        : params.error === "year"
-          ? "The selected academic year is no longer available."
-          : params.error === "term-transition"
-            ? "The term cannot change status until its academic year and dates allow it."
-            : params.error === "save" ? "Your academic changes could not be saved. Please try again." : null;
+    : params.error === "teacher"
+      ? "Choose an active teaching staff member assigned to the same campus."
+      : params.error === "class"
+        ? "The class could not be found in your assigned campuses."
+        : params.error === "invalid"
+          ? "Check the name, dates, campus, and class capacity."
+          : params.error === "transition"
+            ? "That academic year status transition is no longer available."
+            : params.error === "terms-incomplete"
+              ? "Complete every planned or active academic term before completing the academic year."
+              : params.error === "overlap"
+                ? "The term dates overlap another term in that academic year."
+                : params.error === "year"
+                  ? "The selected academic year is no longer available."
+                  : params.error === "term-transition"
+                    ? "The term cannot change status until its academic year and dates allow it."
+                    : params.error === "save" ? "Your academic changes could not be saved. Please try again." : null;
 
   return <main className="mx-auto w-full max-w-[1680px] space-y-6 p-4 md:p-6 xl:p-8">
     <header className="flex flex-wrap items-start justify-between gap-4">
@@ -98,6 +116,7 @@ export default async function EducationAcademicsPage({
       <div className="flex flex-wrap gap-2">
         <Link href={getProductAppPath("think-education", "/academics/curriculum")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">Class curriculum</Link>
         <Link href={getProductAppPath("think-education", "/subjects")} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Organization subject catalog</Link>
+        {canViewDepartments && <Link href={getProductAppPath("think-education", "/academics/departments")} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Departments</Link>}
       </div>
     </header>
 
@@ -105,6 +124,7 @@ export default async function EducationAcademicsPage({
     {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic year status updated.</p>}
     {params.termCreated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic term created.</p>}
     {params.termUpdated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic term status updated.</p>}
+    {params.classTeacherSaved === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Class teacher assignment updated.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
     <section data-education-metrics className="grid gap-3 sm:grid-cols-4">
@@ -181,13 +201,32 @@ export default async function EducationAcademicsPage({
             {canExportClasses && <a href={csvHref} download={`education-classes-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
           </div>
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Class</th><th className="px-4 py-3">Level / stream</th><th className="px-4 py-3">Academic year</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Capacity</th></tr></thead>
+          <table className="w-full min-w-[820px] text-left text-sm">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Class</th><th className="px-4 py-3">Level / stream</th><th className="px-4 py-3">Academic year</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Class teacher</th><th className="px-4 py-3">Capacity</th></tr></thead>
             <tbody className="divide-y divide-slate-100">{classes.map((classroom) => <tr key={classroom.id} className="transition-colors hover:bg-slate-50/80">
               <td className="px-4 py-3 font-semibold text-slate-900">{classroom.name}</td>
               <td className="px-4 py-3 text-slate-600">{[classroom.level_name, classroom.stream_name].filter(Boolean).join(" · ") || "—"}</td>
               <td className="px-4 py-3 text-slate-600">{yearNameById.get(classroom.academic_year_id) ?? "—"}</td>
               <td className="px-4 py-3 text-slate-600">{campusNameById.get(classroom.branch_id) ?? "Campus"}</td>
+              <td className="px-4 py-3">
+                {canViewStaff && canEditClass
+                  ? <form action={setEducationClassTeacher} className="flex min-w-[240px] items-center gap-2">
+                    <input type="hidden" name="class_id" value={classroom.id} />
+                    <select name="class_teacher_id" defaultValue={classroom.class_teacher_id ?? ""} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+                      <option value="">Unassigned</option>
+                      {classroom.class_teacher_id && !staff.some((member) => member.id === classroom.class_teacher_id) && <option value={classroom.class_teacher_id}>Previously assigned teacher</option>}
+                      {staff.filter((member) => member.branch_id === classroom.branch_id
+                        && (member.status === "active" || member.id === classroom.class_teacher_id))
+                        .map((member) => <option key={member.id} value={member.id}>
+                          {member.first_name} {member.last_name}{member.status === "active" ? "" : " · inactive"}
+                        </option>)}
+                    </select>
+                    <button type="submit" className="rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-50">Save</button>
+                  </form>
+                  : canViewStaff
+                    ? staffById.get(classroom.class_teacher_id ?? "") ?? "Not assigned"
+                    : "Staff access required"}
+              </td>
               <td className="px-4 py-3 text-slate-600">{classroom.capacity ?? "—"}</td>
             </tr>)}</tbody>
           </table>
@@ -217,27 +256,12 @@ export default async function EducationAcademicsPage({
       {canCreateClass && campuses.length > 0 && academicYears.length > 0 && <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-bold text-slate-950">Add class</h2>
         <p className="mt-1 text-sm text-slate-500">Create a class group in a campus and academic year you can access.</p>
-        <form action={createEducationClass} className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm font-medium text-slate-700">Campus
-            <select required name="branch_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select>
-          </label>
-          <label className="text-sm font-medium text-slate-700">Academic year
-            <select required name="academic_year_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">{academicYears.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select>
-          </label>
-          <label className="text-sm font-medium text-slate-700">Class name
-            <input required name="name" maxLength={100} placeholder="Grade 1" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Level
-            <input name="level_name" maxLength={80} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Stream
-            <input name="stream_name" maxLength={80} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Capacity
-            <input name="capacity" type="number" min={1} step={1} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <div className="sm:col-span-2"><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"><Plus className="h-4 w-4" /> Save class</button></div>
-        </form>
+        <EducationClassForm
+          campuses={campuses}
+          academicYears={academicYears}
+          teachers={staff.filter((member) => member.status === "active")}
+          canViewStaff={canViewStaff}
+        />
       </article>}
 
       {canCreateYear && academicYears.some((year) => year.status === "planned" || year.status === "active") && <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

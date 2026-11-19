@@ -6,7 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { createEducationStaffTransfer, transitionEducationStaffTransfer } from "../../actions";
+import { transitionEducationStaffTransfer } from "../../actions";
 
 type StaffTransfer = {
   id: string;
@@ -122,17 +122,13 @@ export default async function EducationStaffTransfersPage({
     return `${getProductAppPath("think-education", "/staff/transfers")}?${query.toString()}`;
   };
   if (page > totalPages) redirect(pageHref(totalPages));
-  const errorMessage = params.error === "staff"
-    ? "No active staff member with that number was found at the source campus."
-    : params.error === "pending"
-      ? "This staff member already has a pending or approved campus transfer."
-      : params.error === "conflict"
-        ? "Resolve assigned assets or approved leave that conflict with this transfer before completion."
-        : params.error === "transition"
-          ? "This transfer is no longer eligible for that action."
-          : params.error === "invalid"
-            ? "Check the staff number, campuses, effective date, and transfer reason."
-            : params.error === "save" ? "The staff transfer could not be saved. Please try again." : null;
+  const errorMessage = params.error === "conflict"
+    ? "Resolve assigned assets or approved leave that conflict with this transfer before completion."
+    : params.error === "transition"
+      ? "This transfer is no longer eligible for that action."
+      : params.error === "invalid"
+        ? "The transfer action is invalid. Refresh the register and try again."
+        : params.error === "save" ? "The staff transfer could not be saved. Please try again." : null;
 
   return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
     <header className="flex flex-wrap items-end justify-between gap-4">
@@ -141,14 +137,13 @@ export default async function EducationStaffTransfersPage({
           <ArrowLeft className="h-4 w-4" /> Staff Management
         </Link>
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-950"><ArrowRightLeft className="h-6 w-6 text-blue-700" /> Staff Campus Transfers</h1>
-        <p className="mt-1 text-sm text-slate-600">Request and process audited staff moves between campuses you can access.</p>
+        <p className="mt-1 text-sm text-slate-600">Review and process audited staff moves between campuses you can access.</p>
       </div>
-      {canCreate && campuses.length > 1 && <a href="#new-transfer" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
+      {canCreate && campuses.length > 1 && <Link href={getProductAppPath("think-education", "/staff/transfers/request")} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
         <Plus className="h-4 w-4" /> Request transfer
-      </a>}
+      </Link>}
     </header>
 
-    {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Staff transfer request created and awaiting review.</p>}
     {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Staff transfer processed. The campus assignment update and its historical schedule handling were audited.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
@@ -236,27 +231,5 @@ export default async function EducationStaffTransfersPage({
       </nav>}
     </section>
 
-    {canCreate && campuses.length > 1 && <section id="new-transfer" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Request staff campus transfer</h2>
-      <p className="mt-1 text-sm text-slate-500">Both campuses must be assigned to your account. The staff campus changes only after approval and audited completion. Active asset assignments and approved leave must be resolved first.</p>
-      <form action={createEducationStaffTransfer} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <label className="text-sm font-medium text-slate-700">Staff number
-          <input required name="staff_number" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Source campus
-          <select required name="source_branch_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Destination campus
-          <select required name="destination_branch_id" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Effective date
-          <input required type="date" name="effective_on" min={today} defaultValue={today} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Reason
-          <input required name="reason" maxLength={1000} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <div className="sm:col-span-2 lg:col-span-5"><button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Create transfer request</button></div>
-      </form>
-    </section>}
   </main>;
 }

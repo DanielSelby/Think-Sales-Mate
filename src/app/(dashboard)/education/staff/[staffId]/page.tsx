@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, BriefcaseBusiness, UserRound } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, FileText, GraduationCap, UserRound } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { recordEducationStaffEmployment, updateEducationStaffProfile } from "../../actions";
+import {
+  recordEducationStaffEmployment,
+  saveEducationStaffContract,
+  saveEducationStaffQualification,
+  updateEducationStaffProfile,
+} from "../../actions";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -53,16 +58,27 @@ export default async function EducationStaffProfilePage({
     staffPhotoUrl = photo.signedUrl;
   }
 
-  const [canEdit, employmentResult] = await Promise.all([
+  const [canEdit, canViewDocuments, employmentResult, qualificationsResult, contractsResult] = await Promise.all([
     canTabPermission("education_staff", "staff", "directory", "edit"),
+    canTabPermission("education_documents", "documents", "library", "view"),
     supabase.from("education_staff_employment_records")
       .select("id, employment_type, job_title, department_name, effective_on, reason, created_at")
       .eq("org_id", context.orgId).eq("staff_id", staff.id)
       .order("effective_on", { ascending: false }).order("created_at", { ascending: false }).limit(50),
+    supabase.from("education_staff_qualifications")
+      .select("id, qualification, institution, field_of_study, awarded_on, expires_on, created_at")
+      .eq("org_id", context.orgId).eq("staff_id", staff.id)
+      .order("awarded_on", { ascending: false }).order("created_at", { ascending: false }).limit(50),
+    supabase.from("education_staff_contracts")
+      .select("id, contract_type, reference_number, position_title, start_on, end_on, status, notes, created_at")
+      .eq("org_id", context.orgId).eq("staff_id", staff.id)
+      .order("start_on", { ascending: false }).order("created_at", { ascending: false }).limit(50),
   ]);
   if (employmentResult.error) {
     throw new Error(`Could not load Think Education employment history: ${employmentResult.error.message}`);
   }
+  if (qualificationsResult.error) throw new Error(`Could not load Think Education qualifications: ${qualificationsResult.error.message}`);
+  if (contractsResult.error) throw new Error(`Could not load Think Education contracts: ${contractsResult.error.message}`);
   const campusName = campuses.find((campus) => campus.id === staff.branch_id)?.name ?? "Campus";
   const { data: departments, error: departmentsError } = canEdit
     ? await supabase.from("education_departments").select("id, name")
@@ -72,13 +88,15 @@ export default async function EducationStaffProfilePage({
   if (departmentsError) throw new Error(`Could not load Think Education departments: ${departmentsError.message}`);
 
   const errorMessage = query.error === "invalid"
-    ? "Check the profile or employment details and try again."
+    ? "Check the profile, employment, qualification, or contract details and try again."
     : query.error === "history"
       ? "The effective date must be later than the latest employment entry."
       : query.error === "department"
         ? "The selected department is not available at this campus."
         : query.error === "save"
           ? "The staff details could not be saved. Please try again."
+          : query.error === "not-found"
+            ? "The staff record or related HR record is no longer available."
           : query.error === "photo-invalid"
             ? "Choose a valid JPEG, PNG, or WebP staff photo no larger than 5 MB."
           : null;
@@ -100,6 +118,7 @@ export default async function EducationStaffProfilePage({
           <div>
             <h1 className="text-2xl font-bold text-slate-950">{staff.first_name} {staff.last_name}</h1>
             <p className="mt-1 text-sm text-slate-600">{staff.staff_number} · {campusName} · {label(staff.status)}</p>
+            {canViewDocuments && <Link href={getProductAppPath("think-education", `/documents?search=${encodeURIComponent(staff.staff_number)}`)} className="mt-2 inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">View staff documents</Link>}
           </div>
         </div>
     </header>
@@ -109,6 +128,8 @@ export default async function EducationStaffProfilePage({
     {query.photo === "save" && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">The staff profile was saved, but the photo could not be attached.</p>}
     {query.photo === "cleanup" && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">The new staff photo was saved, but the previous photo could not be removed.</p>}
     {query.employment === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Employment history recorded.</p>}
+    {query.qualification === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Qualification saved.</p>}
+    {query.contract === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Contract saved.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -206,6 +227,149 @@ export default async function EducationStaffProfilePage({
         <div className="sm:col-span-2">
           <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Record employment details</button>
         </div>
+      </form>}
+    </section>
+
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2">
+        <GraduationCap className="h-5 w-5 text-blue-700" />
+        <h2 className="text-lg font-bold text-slate-950">Qualifications</h2>
+      </div>
+      <p className="mt-1 text-sm text-slate-500">Record credentials and validity dates. Store supporting files in Documents &amp; Records under the staff category.</p>
+      {qualificationsResult.data.length ? <ul className="mt-4 space-y-3">
+        {qualificationsResult.data.map((record) => <li key={record.id} className="rounded-lg border border-slate-200 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-semibold text-slate-900">{record.qualification}</h3>
+            <span className="text-sm text-slate-500">{record.awarded_on ? `Awarded ${record.awarded_on}` : "Award date not recorded"}</span>
+          </div>
+          <p className="mt-1 text-sm text-slate-700">{[record.institution, record.field_of_study].filter(Boolean).join(" · ") || "Institution and field not recorded"}</p>
+          {record.expires_on && <p className="mt-1 text-xs text-slate-500">Expires {record.expires_on}</p>}
+          {canEdit && <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-semibold text-blue-700">Edit qualification</summary>
+            <form action={saveEducationStaffQualification} className="mt-3 grid gap-3 sm:grid-cols-2">
+              <input type="hidden" name="staff_id" value={staff.id} />
+              <input type="hidden" name="qualification_id" value={record.id} />
+              <label className="text-sm font-medium text-slate-700">Qualification
+                <input required name="qualification" maxLength={160} defaultValue={record.qualification} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Institution
+                <input name="institution" maxLength={160} defaultValue={record.institution ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Field of study
+                <input name="field_of_study" maxLength={160} defaultValue={record.field_of_study ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Awarded on
+                <input name="awarded_on" type="date" defaultValue={record.awarded_on ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Expires on
+                <input name="expires_on" type="date" defaultValue={record.expires_on ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <div className="flex items-end"><button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Save qualification</button></div>
+            </form>
+          </details>}
+        </li>)}
+      </ul> : <p className="mt-4 text-sm text-slate-500">No qualifications recorded.</p>}
+      {canEdit && <form action={saveEducationStaffQualification} className="mt-5 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-2">
+        <input type="hidden" name="staff_id" value={staff.id} />
+        <input type="hidden" name="qualification_id" value="" />
+        <label className="text-sm font-medium text-slate-700">Qualification
+          <input required name="qualification" maxLength={160} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Institution
+          <input name="institution" maxLength={160} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Field of study
+          <input name="field_of_study" maxLength={160} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Awarded on
+          <input name="awarded_on" type="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Expires on
+          <input name="expires_on" type="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <div className="flex items-end"><button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Add qualification</button></div>
+      </form>}
+    </section>
+
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2">
+        <FileText className="h-5 w-5 text-blue-700" />
+        <h2 className="text-lg font-bold text-slate-950">Contract records</h2>
+      </div>
+      <p className="mt-1 text-sm text-slate-500">Track contract dates and status without duplicating compensation or payroll managed by HRM.</p>
+      {contractsResult.data.length ? <ul className="mt-4 space-y-3">
+        {contractsResult.data.map((record) => <li key={record.id} className="rounded-lg border border-slate-200 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-semibold text-slate-900">{record.position_title}</h3>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{label(record.status)}</span>
+          </div>
+          <p className="mt-1 text-sm text-slate-700">{label(record.contract_type)}{record.reference_number ? ` · ${record.reference_number}` : ""}</p>
+          <p className="mt-1 text-sm text-slate-500">{record.start_on} to {record.end_on ?? "No end date"}</p>
+          {record.notes && <p className="mt-2 text-sm text-slate-600">{record.notes}</p>}
+          {canEdit && <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-semibold text-blue-700">Edit contract</summary>
+            <form action={saveEducationStaffContract} className="mt-3 grid gap-3 sm:grid-cols-2">
+              <input type="hidden" name="staff_id" value={staff.id} />
+              <input type="hidden" name="contract_id" value={record.id} />
+              <label className="text-sm font-medium text-slate-700">Contract type
+                <select name="contract_type" defaultValue={record.contract_type} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+                  <option value="permanent">Permanent</option><option value="fixed_term">Fixed term</option><option value="temporary">Temporary</option><option value="casual">Casual</option><option value="consultant">Consultant</option>
+                </select>
+              </label>
+              <label className="text-sm font-medium text-slate-700">Status
+                <select name="status" defaultValue={record.status} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+                  <option value="draft">Draft</option><option value="active">Active</option><option value="completed">Completed</option><option value="terminated">Terminated</option>
+                </select>
+              </label>
+              <label className="text-sm font-medium text-slate-700">Position
+                <input required name="position_title" maxLength={120} defaultValue={record.position_title} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Reference number
+                <input name="reference_number" maxLength={80} defaultValue={record.reference_number ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Start date
+                <input required name="start_on" type="date" defaultValue={record.start_on} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">End date
+                <input name="end_on" type="date" defaultValue={record.end_on ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700 sm:col-span-2">Notes
+                <textarea name="notes" maxLength={1000} rows={2} defaultValue={record.notes ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <div className="sm:col-span-2"><button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Save contract</button></div>
+            </form>
+          </details>}
+        </li>)}
+      </ul> : <p className="mt-4 text-sm text-slate-500">No contract records recorded.</p>}
+      {canEdit && <form action={saveEducationStaffContract} className="mt-5 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-2">
+        <input type="hidden" name="staff_id" value={staff.id} />
+        <input type="hidden" name="contract_id" value="" />
+        <label className="text-sm font-medium text-slate-700">Contract type
+          <select name="contract_type" defaultValue="permanent" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="permanent">Permanent</option><option value="fixed_term">Fixed term</option><option value="temporary">Temporary</option><option value="casual">Casual</option><option value="consultant">Consultant</option>
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700">Status
+          <select name="status" defaultValue="draft" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+            <option value="draft">Draft</option><option value="active">Active</option><option value="completed">Completed</option><option value="terminated">Terminated</option>
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700">Position
+          <input required name="position_title" maxLength={120} defaultValue={staff.job_title ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Reference number
+          <input name="reference_number" maxLength={80} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Start date
+          <input required name="start_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">End date
+          <input name="end_on" type="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700 sm:col-span-2">Notes
+          <textarea name="notes" maxLength={1000} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
+        <div className="sm:col-span-2"><button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Add contract</button></div>
       </form>}
     </section>
   </main>;

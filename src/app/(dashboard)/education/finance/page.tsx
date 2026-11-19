@@ -6,13 +6,12 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { EDUCATION_FEE_PAYMENT_METHODS } from "@/lib/education/fee-payment-methods";
+import { FeePaymentDialog } from "../students/[studentId]/fee-payment-dialog";
 import {
   applyEducationFeeSchedule,
   archiveEducationFeeSchedule,
   createEducationFeeCharge,
   createEducationFeeSchedule,
-  recordEducationFeePayment,
   voidEducationFeeCharge,
 } from "../actions";
 
@@ -164,6 +163,18 @@ export default async function EducationFinancePage({
     student.id,
     `${student.first_name} ${student.last_name} · ${student.student_number}`,
   ]));
+  const payableCharges = charges.flatMap((charge) => {
+    const balance = Math.max(0, charge.amount - (paidByCharge.get(charge.id) ?? 0));
+    return charge.status === "open" && balance > 0
+      ? [{
+        id: charge.id,
+        studentId: charge.student_id,
+        studentName: studentById.get(charge.student_id) ?? "Student",
+        description: charge.description,
+        balance,
+      }]
+      : [];
+  });
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const yearNameById = new Map(academicYears.map((year) => [year.id, year.name]));
   const activeCharges = charges.filter((charge) => charge.status === "open");
@@ -218,9 +229,14 @@ export default async function EducationFinancePage({
       <p className="mt-1 text-sm text-slate-600">Create student fee charges, record payments, and track outstanding balances.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {canRecordPayment && <Link href={getProductAppPath("think-education", "/finance#fee-payments")} className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
-          Record fee payment
-        </Link>}
+        {canRecordPayment && payableCharges.length > 0 && <FeePaymentDialog
+          charges={payableCharges}
+          studentId=""
+          studentName=""
+          currency={currency}
+          returnToFinance
+          buttonLabel="Record fee payment"
+        />}
         {canViewCollectionsReport && <Link href={getProductAppPath("think-education", "/finance/collections")} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
           Payment collections
         </Link>}
@@ -305,21 +321,15 @@ export default async function EducationFinancePage({
               </div>
             </div>
 
-            {canRecordPayment && charge.status === "open" && balance > 0 && <form action={recordEducationFeePayment} className="grid gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-              <input type="hidden" name="charge_id" value={charge.id} />
-              <label className="text-xs font-medium text-slate-600">Payment amount
-                <input required name="amount" type="number" min="0.01" max={balance.toFixed(2)} step="0.01" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal" />
-              </label>
-              <label className="text-xs font-medium text-slate-600">Method
-                <select required name="payment_method" defaultValue="cash" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal">
-                  {EDUCATION_FEE_PAYMENT_METHODS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </label>
-              <label className="text-xs font-medium text-slate-600 sm:col-span-2">Reference
-                <input name="reference" maxLength={120} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal" />
-              </label>
-              <div className="flex items-end"><button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"><CreditCard className="h-4 w-4" /> Record payment</button></div>
-            </form>}
+            {canRecordPayment && charge.status === "open" && balance > 0 && <FeePaymentDialog
+              chargeId={charge.id}
+              studentId={charge.student_id}
+              studentName={studentName}
+              chargeDescription={charge.description}
+              balance={balance}
+              currency={currency}
+              returnToFinance
+            />}
 
             {canEditCharges && charge.status === "open" && (paymentsByCharge.get(charge.id) ?? []).length === 0 && <details className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm">
               <summary className="cursor-pointer font-semibold text-rose-800">Void unpaid charge</summary>
