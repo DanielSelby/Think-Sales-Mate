@@ -14,6 +14,7 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { createEducationExpense, markEducationExpensePaid, reviewEducationExpense } from "../actions";
+import { EducationSubmitButton } from "../submit-button";
 
 const PAGE_SIZE = 30;
 
@@ -211,7 +212,12 @@ export default async function EducationExpensesPage({
           <input required name="description" maxLength={500} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <div className="lg:col-span-4">
-          <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Submit for approval</button>
+          <EducationSubmitButton
+            pendingLabel="Submitting expense..."
+            className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-70"
+          >
+            Submit for approval
+          </EducationSubmitButton>
         </div>
       </form>}
     </section>}

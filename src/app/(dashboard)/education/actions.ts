@@ -459,7 +459,8 @@ export async function recordEducationFeePayment(formData: FormData) {
 
   const chargeId = String(formData.get("charge_id") ?? "");
   const requestedStudentId = String(formData.get("student_id") ?? "");
-  const returnToFinance = formData.get("return_to") === "finance";
+  const returnTo = String(formData.get("return_to") ?? "");
+  const returnToFinance = returnTo === "finance" || returnTo === "payments";
   const amountText = String(formData.get("amount") ?? "").trim();
   const paymentMethod = String(formData.get("payment_method") ?? "");
   const reference = String(formData.get("reference") ?? "").trim();
@@ -479,13 +480,15 @@ export async function recordEducationFeePayment(formData: FormData) {
     }
   }
   const financePath = getProductAppPath("think-education", "/finance");
+  const paymentsPath = getProductAppPath("think-education", "/finance/payments");
   const returnPath = (error?: string) => {
     const path = returnStudentId
       ? getProductAppPath("think-education", `/students/${returnStudentId}`)
-      : financePath;
+      : returnTo === "payments" ? paymentsPath : financePath;
     const query = new URLSearchParams(returnStudentId ? { tab: "fees" } : {});
     if (error) query.set("error", error);
-    return `${path}?${query.toString()}`;
+    const queryString = query.toString();
+    return queryString ? `${path}?${queryString}` : path;
   };
   if (!chargeId || !/^\d{1,10}(?:\.\d{1,2})?$/.test(amountText) || !Number.isFinite(amount)
     || amount <= 0 || !isEducationFeePaymentMethod(paymentMethod) || reference.length > 120) {

@@ -229,6 +229,9 @@ export default async function EducationFinancePage({
       <p className="mt-1 text-sm text-slate-600">Create student fee charges, record payments, and track outstanding balances.</p>
       </div>
       <div className="flex flex-wrap gap-2">
+        {canViewPayments && <Link href={getProductAppPath("think-education", "/finance/payments")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">
+          Fee payment list
+        </Link>}
         {canRecordPayment && payableCharges.length > 0 && <FeePaymentDialog
           charges={payableCharges}
           studentId=""

@@ -8,7 +8,7 @@ import {
   Inbox, MessageSquare, DollarSign, GitMerge, ClipboardCheck, ShieldCheck, ShieldAlert,
   Star, Building2, UserPlus, GraduationCap, PackageCheck, Network, WifiOff, Route, Barcode,
   Utensils, Bell, Link2,
-  Wrench,
+  Wrench, CreditCard,
 } from "lucide-react";
 
 export interface NavChild {
@@ -58,6 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Transport", href: "/education/transport", icon: Truck, section: "Campus Operations" },
       { label: "Inventory & Assets", href: "/education/inventory", icon: Package, section: "Campus Operations" },
       { label: "Fees & Finance", href: "/education/finance", icon: Wallet, section: "Finance" },
+      { label: "Fee Payments", href: "/education/finance/payments", icon: CreditCard, section: "Finance" },
       { label: "Accounting", href: "/education/accounting", icon: Landmark, section: "Finance", alwaysVisible: true },
       { label: "Expenses", href: "/education/expenses", icon: Tag, section: "Finance" },
       { label: "Communication", href: "/education/communication", icon: MessageSquare, section: "Communication & Records" },

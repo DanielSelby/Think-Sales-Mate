@@ -4077,3 +4077,12 @@ html.dark[data-dark-style="think-service"] .page-canvas .pos-page .pos-product-g
     transform: none;
   }
 }
+
+html.dark[data-dark-style="think-service"] .page-canvas .education-page-content article[class~="rounded-xl"][class~="bg-white"][class~="border-slate-200"][data-education-student-distribution] {
+  border-color: color-mix(in srgb, var(--theme-primary, #60a5fa) 28%, #334960) !important;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0.008)),
+    color-mix(in srgb, var(--theme-surface, #0f1d2d) 68%, transparent) !important;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18), inset 0 1px rgb(255 255 255 / 0.035) !important;
+  backdrop-filter: blur(12px);
+}

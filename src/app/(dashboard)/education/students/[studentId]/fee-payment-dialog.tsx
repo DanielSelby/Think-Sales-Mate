@@ -1,9 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CreditCard, X } from "lucide-react";
+import { CreditCard, Loader2, X } from "lucide-react";
+import { useFormStatus } from "react-dom";
 import { recordEducationFeePayment } from "../../actions";
 import { EDUCATION_FEE_PAYMENT_METHODS } from "@/lib/education/fee-payment-methods";
+
+function SaveFeePaymentButton() {
+  const { pending } = useFormStatus();
+  return <button type="submit" disabled={pending} aria-busy={pending} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-70">
+    {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+    {pending ? "Saving payment..." : "Save payment"}
+  </button>;
+}
 
 export function FeePaymentDialog({
   chargeId,
@@ -14,6 +23,7 @@ export function FeePaymentDialog({
   balance,
   currency,
   returnToFinance = false,
+  returnToPayments = false,
   buttonLabel = "Record payment",
 }: {
   chargeId?: string;
@@ -24,6 +34,7 @@ export function FeePaymentDialog({
   balance?: number;
   currency: string;
   returnToFinance?: boolean;
+  returnToPayments?: boolean;
   buttonLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -85,7 +96,7 @@ export function FeePaymentDialog({
         <form action={recordEducationFeePayment} className="mt-5 grid gap-3">
           <input type="hidden" name="charge_id" value={activeChargeId} />
           <input type="hidden" name="student_id" value={activeStudentId} />
-          {returnToFinance && <input type="hidden" name="return_to" value="finance" />}
+          {(returnToFinance || returnToPayments) && <input type="hidden" name="return_to" value={returnToPayments ? "payments" : "finance"} />}
           {charges && (
             <label className="text-sm font-medium">Fee charge
               <select required value={selectedChargeId} onChange={(event) => setSelectedChargeId(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">
@@ -106,9 +117,7 @@ export function FeePaymentDialog({
           </label>
           <div className="mt-2 flex justify-end gap-2">
             <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
-            <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
-              <CreditCard className="h-4 w-4" /> Save payment
-            </button>
+            <SaveFeePaymentButton />
           </div>
         </form>
       </section>

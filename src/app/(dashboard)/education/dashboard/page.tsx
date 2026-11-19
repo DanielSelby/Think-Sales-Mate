@@ -415,7 +415,7 @@ export default async function ThinkEducationDashboardPage({
     </section>
 
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
-      <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <article data-education-student-distribution className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-950">Student distribution by campus</h2>

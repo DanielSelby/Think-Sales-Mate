@@ -8297,6 +8297,25 @@ export interface Database {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      education_claim_teacher_account: {
+       Args: Record<PropertyKey, never>;
+       Returns: number;
+      };
+      education_get_teacher_portal: {
+       Args: Record<PropertyKey, never>;
+       Returns: Json;
+      };
+      education_teacher_record_student_attendance: {
+       Args: {
+         p_org_id: string;
+         p_class_id: string;
+         p_student_id: string;
+         p_attendance_date: string;
+         p_status: string;
+         p_note?: string | null;
+       };
+       Returns: string;
+      };
       set_organization_product_assignments: {
         Args: {
           p_org_id: string;
