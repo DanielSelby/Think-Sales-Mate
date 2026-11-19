@@ -47,7 +47,9 @@ export type EducationImportEntity = "students" | "staff" | "campuses";
 
 const EDUCATION_COMMUNICATION_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EDUCATION_STUDENT_IMAGE_BUCKET = "education-student-images";
+const EDUCATION_STAFF_IMAGE_BUCKET = "education-staff-images";
 const EDUCATION_STUDENT_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+const EDUCATION_STAFF_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
 const EDUCATION_STUDENT_IMAGE_TYPES = {
   "image/jpeg": { extension: "jpg", signature: (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },
   "image/png": { extension: "png", signature: (bytes: Uint8Array) => bytes.length >= 8
@@ -91,6 +93,43 @@ async function uploadEducationStudentPhoto(
   if (error) {
     console.error("Could not upload Think Education student photo:", error.message);
     return { error: "The student record was saved, but the photo could not be uploaded." };
+  }
+  return { path };
+}
+
+async function getEducationStaffPhoto(formData: FormData): Promise<{ file: File | null; error?: string }> {
+  const value = formData.get("staff_photo");
+  if (value === null || typeof value === "string" || value.size === 0) return { file: null };
+  if (!(value instanceof File)) return { file: null, error: "Choose a valid staff photo." };
+  if (value.size > EDUCATION_STAFF_IMAGE_MAX_SIZE) {
+    return { file: null, error: "Staff photos must be 5 MB or smaller." };
+  }
+  if (!(value.type in EDUCATION_STUDENT_IMAGE_TYPES)) {
+    return { file: null, error: "Staff photos must be JPEG, PNG, or WebP images." };
+  }
+  const imageType = EDUCATION_STUDENT_IMAGE_TYPES[value.type as keyof typeof EDUCATION_STUDENT_IMAGE_TYPES];
+  const header = new Uint8Array(await value.slice(0, 12).arrayBuffer());
+  if (!imageType.signature(header)) return { file: null, error: "The selected file is not a valid image." };
+  return { file: value };
+}
+
+async function uploadEducationStaffPhoto(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  staffId: string,
+  file: File,
+): Promise<{ path: string } | { error: string }> {
+  const imageType = EDUCATION_STUDENT_IMAGE_TYPES[file.type as keyof typeof EDUCATION_STUDENT_IMAGE_TYPES];
+  if (!imageType) return { error: "Staff photos must be JPEG, PNG, or WebP images." };
+  const path = `${orgId}/${staffId}/${randomUUID()}.${imageType.extension}`;
+  const { error } = await supabase.storage.from(EDUCATION_STAFF_IMAGE_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) {
+    console.error("Could not upload Think Education staff photo:", error.message);
+    return { error: "The staff profile was saved, but the photo could not be uploaded." };
   }
   return { path };
 }
@@ -1373,6 +1412,8 @@ export async function updateEducationStaffProfile(formData: FormData) {
   const address = String(formData.get("address") ?? "").trim();
   const emergencyContactName = String(formData.get("emergency_contact_name") ?? "").trim();
   const emergencyContactPhone = String(formData.get("emergency_contact_phone") ?? "").trim();
+  const photoResult = await getEducationStaffPhoto(formData);
+  if (photoResult.error) redirect(`${getProductAppPath("think-education", `/staff/${staffId}`)}?error=photo-invalid`);
   const validDate = !dateOfBirth || isValidEducationStaffDate(dateOfBirth);
   if (!staffId || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
     || otherNames.length > 100 || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
@@ -1402,9 +1443,49 @@ export async function updateEducationStaffProfile(formData: FormData) {
     console.error("Could not update Think Education staff profile:", error.message);
     redirect(`${getProductAppPath("think-education", `/staff/${staffId}`)}?error=save`);
   }
+
+  let photoStatus: "upload" | "save" | "cleanup" | null = null;
+  if (photoResult.file) {
+    const { data: currentStaff, error: currentStaffError } = await supabase.from("education_staff")
+      .select("branch_id, photo_path")
+      .eq("org_id", context.orgId)
+      .eq("id", staffId)
+      .maybeSingle();
+    if (currentStaffError || !currentStaff) {
+      console.error("Could not load current Think Education staff photo:", currentStaffError?.message ?? "Staff member not found.");
+      photoStatus = "save";
+    } else {
+      const uploadResult = await uploadEducationStaffPhoto(supabase, context.orgId, staffId, photoResult.file);
+      if ("error" in uploadResult) {
+        photoStatus = "upload";
+      } else {
+        const { data: updatedPhoto, error: photoPathError } = await supabase.from("education_staff")
+          .update({ photo_path: uploadResult.path })
+          .eq("org_id", context.orgId)
+          .eq("id", staffId)
+          .eq("branch_id", currentStaff.branch_id)
+          .select("id")
+          .maybeSingle();
+        if (photoPathError || !updatedPhoto) {
+          console.error("Could not save Think Education staff photo path:", photoPathError?.message ?? "Staff member not found.");
+          const { error: cleanupError } = await supabase.storage.from(EDUCATION_STAFF_IMAGE_BUCKET).remove([uploadResult.path]);
+          if (cleanupError) console.error("Could not remove unlinked Think Education staff photo:", cleanupError.message);
+          photoStatus = "save";
+        } else if (currentStaff.photo_path) {
+          const { error: removeError } = await supabase.storage.from(EDUCATION_STAFF_IMAGE_BUCKET).remove([currentStaff.photo_path]);
+          if (removeError) {
+            console.error("Could not remove previous Think Education staff photo:", removeError.message);
+            photoStatus = "cleanup";
+          }
+        }
+      }
+    }
+  }
+
   revalidatePath("/education/staff");
   revalidatePath(`/education/staff/${staffId}`);
-  redirect(`${getProductAppPath("think-education", `/staff/${staffId}`)}?saved=1`);
+  const photoQuery = photoStatus ? `&photo=${photoStatus}` : "";
+  redirect(`${getProductAppPath("think-education", `/staff/${staffId}`)}?saved=1${photoQuery}`);
 }
 
 export async function recordEducationStaffEmployment(formData: FormData) {

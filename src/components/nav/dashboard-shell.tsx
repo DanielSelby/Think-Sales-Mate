@@ -80,7 +80,8 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   const productNavItems = getProductNavigationItems(NAV_ITEMS, productScope);
   const mobileNav = productScope === "thinksales-erp"
     ? productNavItems
-      .filter((item) => ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href))
+      .filter((item) => (!enabledModules || enabledModules.includes(item.label))
+        && ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href))
       .flatMap((item) => {
         const href = getProductScopedHref(pathname, item.href);
         return href ? [{ ...item, href }] : [];
@@ -191,6 +192,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             workspaceHubAppearanceLocked={isWorkspaceHubPage && workspaceHubDarkThemeEnabled !== undefined}
             organizationUsage={organizationUsage}
             organizationAccessExpiresAt={organizationAccessExpiresAt ?? null}
+            enabledModules={enabledModules}
             onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           />}
           <main

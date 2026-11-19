@@ -58,10 +58,11 @@ export default async function EducationStaffPage({
     job_title: string | null;
     email: string | null;
     status: string;
+    photo_path: string | null;
   }> = [];
   if (branchIds.length) {
     let query = supabase.from("education_staff")
-      .select("id, staff_number, first_name, last_name, branch_id, staff_category, job_title, email, status")
+      .select("id, staff_number, first_name, last_name, branch_id, staff_category, job_title, email, status, photo_path")
       .eq("org_id", context.orgId).in("branch_id", branchIds);
     if (selectedCategory) query = query.eq("staff_category", selectedCategory);
     if (search) {
@@ -74,6 +75,26 @@ export default async function EducationStaffPage({
     const { data, error } = await query.order("last_name").order("first_name");
     if (error) throw new Error(`Could not load Think Education staff: ${error.message}`);
     staff = data ?? [];
+  }
+  const staffPhotoUrlById = new Map<string, string>();
+  const staffIdByPhotoPath = new Map(staff.flatMap((member) => member.photo_path ? [[member.photo_path, member.id] as const] : []));
+  const staffPhotoPaths = [...staffIdByPhotoPath.keys()];
+  for (let offset = 0; offset < staffPhotoPaths.length; offset += 100) {
+    const { data: signedPhotos, error: signedPhotosError } = await supabase.storage
+      .from("education-staff-images")
+      .createSignedUrls(staffPhotoPaths.slice(offset, offset + 100), 60 * 60);
+    if (signedPhotosError) {
+      console.error("Could not load Think Education staff directory photos:", signedPhotosError.message);
+      throw new Error("Staff profile photos could not be loaded.");
+    }
+    for (const photo of signedPhotos ?? []) {
+      const staffId = photo.path ? staffIdByPhotoPath.get(photo.path) : undefined;
+      if (photo.error) {
+        console.error("Could not load a Think Education staff directory photo:", photo.error);
+      } else if (staffId && photo.signedUrl) {
+        staffPhotoUrlById.set(staffId, photo.signedUrl);
+      }
+    }
   }
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const csvRows = [
@@ -193,7 +214,17 @@ export default async function EducationStaffPage({
           <tbody className="divide-y divide-slate-100">
             {staff.map((member) => <tr key={member.id} className="transition-colors hover:bg-slate-50/80">
               <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{member.staff_number}</td>
-              <td className="px-4 py-3 font-medium"><Link href={getProductAppPath("think-education", `/staff/${member.id}`)} className="text-blue-800 hover:underline">{member.first_name} {member.last_name}</Link></td>
+              <td className="px-4 py-3 font-medium"><Link href={getProductAppPath("think-education", `/staff/${member.id}`)} className="inline-flex items-center gap-3 text-blue-800 hover:underline">
+                <span
+                  role="img"
+                  aria-label={`${member.first_name} ${member.last_name} photo`}
+                  className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-xs font-semibold text-blue-700"
+                  style={staffPhotoUrlById.get(member.id) ? { backgroundImage: `url(${JSON.stringify(staffPhotoUrlById.get(member.id))})` } : undefined}
+                >
+                  {!staffPhotoUrlById.has(member.id) && `${member.first_name[0] ?? ""}${member.last_name[0] ?? ""}`.toUpperCase()}
+                </span>
+                <span>{member.first_name} {member.last_name}</span>
+              </Link></td>
               <td className="px-4 py-3 capitalize text-slate-600">{member.staff_category.replace("_", " ")}</td>
               <td className="px-4 py-3 text-slate-600">{member.job_title || "—"}</td>
               <td className="px-4 py-3 text-slate-600">{campusNameById.get(member.branch_id) ?? "Campus"}</td>

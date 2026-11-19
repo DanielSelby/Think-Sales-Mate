@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { updateEducationStudent } from "@/app/(dashboard)/education/actions";
 import type { EducationStudentProfile } from "@/lib/education/student-profile";
 
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function StudentProfileForm({ student, canEdit, studentPhotoUrl }: Props) {
+  const router = useRouter();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [warning, setWarning] = useState("");
@@ -45,6 +47,7 @@ export function StudentProfileForm({ student, canEdit, studentPhotoUrl }: Props)
       } else {
         if (result.warning) setWarning(result.warning);
         else setNotice("Student profile saved.");
+        router.refresh();
       }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "The student profile could not be saved.");
@@ -61,6 +64,14 @@ export function StudentProfileForm({ student, canEdit, studentPhotoUrl }: Props)
       <label className="grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-[auto_1fr] sm:items-center">
         <span>
           Student photo
+          <span
+            role="img"
+            aria-label={`${student.first_name} ${student.last_name} photo`}
+            className="mt-2 grid h-16 w-16 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-lg font-semibold text-blue-700"
+            style={studentPhotoUrl ? { backgroundImage: `url(${JSON.stringify(studentPhotoUrl)})` } : undefined}
+          >
+            {!studentPhotoUrl && `${student.first_name[0] ?? ""}${student.last_name[0] ?? ""}`.toUpperCase()}
+          </span>
           <input name="student_photo" type="file" accept="image/jpeg,image/png,image/webp" className={inputClassName} />
           <span className="mt-1 block text-xs font-normal text-slate-500">JPEG, PNG, or WebP; maximum 5 MB.</span>
         </span>

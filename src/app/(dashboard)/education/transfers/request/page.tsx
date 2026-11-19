@@ -5,7 +5,8 @@ import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { createEducationStudentTransfer } from "../../actions";
+import { createClient } from "@/lib/supabase/server";
+import { TransferRequestForm } from "./transfer-request-form";
 
 export default async function EducationStudentTransferRequestPage({
   searchParams,
@@ -21,9 +22,36 @@ export default async function EducationStudentTransferRequestPage({
   const params = await searchParams;
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const canCreate = await canTabPermission("education_transfers", "transfers", "requests", "create");
+  let students: Array<{
+    id: string;
+    branch_id: string;
+    student_number: string;
+    first_name: string;
+    last_name: string;
+    other_names: string | null;
+  }> = [];
+  if (canCreate && campuses.length > 1) {
+    const supabase = await createClient();
+    const { data, error, count } = await supabase.from("education_students")
+      .select("id, branch_id, student_number, first_name, last_name, other_names", { count: "exact" })
+      .eq("org_id", context.orgId)
+      .in("branch_id", campuses.map((campus) => campus.id))
+      .eq("status", "active")
+      .order("last_name")
+      .order("first_name")
+      .range(0, 4_999);
+    if (error) {
+      console.error("Could not load active students for transfer search:", error.message);
+      throw new Error("Active students for transfer requests could not be loaded.");
+    }
+    if ((count ?? 0) > 5_000) {
+      throw new Error("More than 5,000 active students match your campus access. Narrow your campus access before creating a transfer request.");
+    }
+    students = data ?? [];
+  }
   const today = new Date().toISOString().slice(0, 10);
   const errorMessage = params.error === "student"
-    ? "No active student with that number was found at the source campus."
+    ? "No active student with that name or number was found at the source campus."
     : params.error === "source"
       ? "The student is no longer at the selected source campus."
       : params.error === "invalid"
@@ -53,32 +81,7 @@ export default async function EducationStudentTransferRequestPage({
         ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">At least two assigned campuses are required to request a transfer.</p>
         : <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm leading-6 text-slate-600">The student stays at the source campus while the request is pending or approved. Their campus changes only after an authorized user completes the transfer on or after its effective date.</p>
-          <form action={createEducationStudentTransfer} className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-slate-700">Student number
-              <input required name="student_number" maxLength={32} pattern="[A-Za-z0-9._/-]+" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-            </label>
-            <label className="text-sm font-medium text-slate-700">Effective date
-              <input required type="date" name="effective_on" min={today} defaultValue={today} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-            </label>
-            <label className="text-sm font-medium text-slate-700">Source campus
-              <select required name="source_branch_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-                <option value="" disabled>Select source campus</option>
-                {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
-              </select>
-            </label>
-            <label className="text-sm font-medium text-slate-700">Destination campus
-              <select required name="destination_branch_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-                <option value="" disabled>Select destination campus</option>
-                {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
-              </select>
-            </label>
-            <label className="text-sm font-medium text-slate-700 sm:col-span-2">Reason for transfer
-              <textarea required name="reason" maxLength={500} rows={3} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-            </label>
-            <div className="flex justify-end sm:col-span-2">
-              <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Submit transfer request</button>
-            </div>
-          </form>
+          <TransferRequestForm campuses={campuses} students={students} today={today} />
         </section>}
   </main>;
 }

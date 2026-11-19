@@ -12,6 +12,13 @@ import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/sales/format";
 import { formatOrganizationExpiryDate } from "@/lib/organization-access-expiry";
 import type { OrganizationUsageSummary } from "@/lib/organizations/usage-summary";
+import {
+  getProductNavigationItems,
+  getProductNavigationScope,
+  getProductScopedHref,
+  getVisibleNavigationChildren,
+} from "@/lib/product-navigation";
+import { NAV_ITEMS } from "./sidebar";
 
 const THEME_OPTIONS: { key: ThemeKey; label: string }[] = [
   { key: "fintech", label: "Fintech Blue" },
@@ -38,7 +45,7 @@ interface NotificationItem {
   location_id: string | null;
 }
 
-export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, workspaceHubAppearanceLocked = false, organizationUsage, organizationAccessExpiresAt, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; workspaceHubAppearanceLocked?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; onOpenMobileSidebar: () => void }) {
+export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, workspaceHubAppearanceLocked = false, organizationUsage, organizationAccessExpiresAt, enabledModules, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; workspaceHubAppearanceLocked?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; enabledModules?: string[]; onOpenMobileSidebar: () => void }) {
   const { activeTheme, setTheme, darkMode, setDarkMode, darkStyle, setDarkStyle, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -235,6 +242,38 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
   const { currentBranch, setBranch, currentCurrency, setCurrency } = useAccountingStore();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const productScope = getProductNavigationScope(pathname);
+  const productItems = getProductNavigationItems(NAV_ITEMS, productScope);
+  const visibleProductItems = productItems.filter((item) => !enabledModules || enabledModules.includes(item.label));
+  const thinkSalesPosEnabled = productScope === "thinksales-erp" && visibleProductItems.some((item) => item.label === "POS");
+  const restaurantNavigation = productScope === "restaurant"
+    ? visibleProductItems.find((item) => item.label === "Restaurant")
+    : undefined;
+  const restaurantPosEnabled = restaurantNavigation
+    ? getVisibleNavigationChildren(restaurantNavigation.children, restaurantNavigation.label, enabledModules)
+      .some((child) => child.label === "Restaurant POS")
+    : false;
+  const posHref = thinkSalesPosEnabled
+    ? getProductScopedHref(pathname, "/pos")
+    : restaurantPosEnabled
+      ? getProductScopedHref(pathname, "/restaurant/pos")
+      : null;
+  const canSelectBranches = branchOptions.length > 1 || (canViewAllBranches && branchOptions.length > 0);
+  const canUseCommandBar = visibleProductItems.some((item) =>
+    Boolean(getProductScopedHref(pathname, item.href))
+    || getVisibleNavigationChildren(item.children, item.label, enabledModules)
+      .some((child) => Boolean(getProductScopedHref(pathname, child.href)))
+  );
+  const communicationHref = visibleProductItems.flatMap((item) => {
+    const children = getVisibleNavigationChildren(item.children, item.label, enabledModules);
+    return [
+      ...(item.label.toLowerCase().includes("communication") ? [item.href] : []),
+      ...children
+        .filter((child) => child.label.toLowerCase().includes("communication"))
+        .map((child) => child.href),
+    ];
+  }).map((href) => getProductScopedHref(pathname, href)).find((href) => Boolean(href)) ?? null;
+  const isPosActive = Boolean(posHref && pathname === posHref);
   const [showBranches, setShowBranches] = useState(false);
   const [showCurrencies, setShowCurrencies] = useState(false);
   const organizationInfoOpen = showOrganizationInfo || hoverOrganizationInfo;
@@ -252,6 +291,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
 
   // Global Ctrl+K / Ctrl+/ shortcut
   useEffect(() => {
+    if (!canUseCommandBar) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K" || e.key === "/")) {
         e.preventDefault();
@@ -260,11 +300,19 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setCommandBarOpen]);
+  }, [canUseCommandBar, setCommandBarOpen]);
+
+  const commandBarSearchLabel = productScope === "think-education"
+    ? "Search education pages, students, and staff"
+    : productScope === "restaurant"
+      ? "Search restaurant pages, menu, and orders"
+      : productScope === "think-service-repairs"
+        ? "Search service pages and jobs"
+        : "Search pages, customers, products, and transactions";
 
   return (
     <>
-    <CommandBar open={commandBarOpen} onClose={() => setCommandBarOpen(false)} />
+    {canUseCommandBar && <CommandBar open={commandBarOpen} onClose={() => setCommandBarOpen(false)} enabledModules={enabledModules} />}
     <header
       className="relative z-30 flex h-14 shrink-0 items-center gap-1 px-2 sm:gap-3 sm:px-5"
       style={{ background: topbar.background, borderBottom: `1px solid ${sidebar.borderColor}` }}
@@ -288,19 +336,20 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         <Menu className="h-5 w-5" />
       </button>
       {/* Global search — anchored to the far left */}
-      <button
+      {canUseCommandBar && <button
         onClick={() => setCommandBarOpen(true)}
+        aria-label={commandBarSearchLabel}
         className="relative flex h-8.5 min-w-0 flex-1 items-center gap-2 rounded-xl border px-2 text-xs transition-all sm:w-[clamp(10rem,30vw,28rem)] sm:flex-none sm:px-3"
         style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = sidebar.hoverBackground; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.8)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)"; }}
       >
         <Search className="h-3.5 w-3.5 shrink-0 text-white/40" />
-        <span className="flex-1 text-left hidden sm:block truncate">Search anything... (accounts, transactions, reports...)</span>
+        <span className="flex-1 text-left hidden sm:block truncate">{commandBarSearchLabel}</span>
         <kbd className="hidden sm:flex items-center text-[10px] border rounded px-1.5 py-0.5 shrink-0 bg-white/5 border-white/20 text-white/50 font-mono">
           Ctrl + K
         </kbd>
-      </button>
+      </button>}
 
       {/* Organization branding — centered between search and actions */}
       <div className="hidden min-w-0 flex-1 md:block" />
@@ -311,17 +360,17 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       <div className="hidden min-w-0 flex-1 md:block" />
 
       <RefreshButton className="hidden shrink-0 text-white/70 hover:bg-white/10 sm:flex" />
-      <Link
-        href="/pos"
+      {posHref && <Link
+        href={posHref}
         aria-label="Open POS"
         title="Open POS"
         className={`flex h-8 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition-all ${
-          pathname === "/pos" ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10"
+          isPosActive ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10"
         }`}
       >
         <ShoppingCart className="h-4 w-4" />
-        <span className="hidden sm:inline">POS</span>
-      </Link>
+        <span className="hidden sm:inline">{productScope === "restaurant" ? "Restaurant POS" : "POS"}</span>
+      </Link>}
       <div
         className="relative shrink-0"
         onMouseEnter={() => setHoverOrganizationInfo(true)}
@@ -383,7 +432,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         )}
       </div>
       {/* Branch Selector */}
-      <div className="relative">
+      {canSelectBranches && <div className="relative">
         <button
           disabled={branchOptions.length === 0}
           onClick={() => { setShowBranches(v => !v); setShowCurrencies(false); setShowThemes(false); setShowDarkStyles(false); setShowUser(false); setShowNotifications(false); setShowOrganizationInfo(false); }}
@@ -426,7 +475,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
             </div>
           </>
         )}
-      </div>
+      </div>}
 
       {/* Currency Selector */}
       <div className="relative">
@@ -624,9 +673,9 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       </div>
 
       {/* Messages Icon */}
-      <div className="relative">
+      {communicationHref && <div className="relative">
         <button
-          onClick={() => router.push("/communication")}
+          onClick={() => router.push(communicationHref)}
           className="relative hidden h-8 w-8 items-center justify-center rounded-xl transition-all text-white/70 hover:bg-white/10 sm:flex"
         >
           <MessageSquare className="h-4 w-4" />
@@ -636,7 +685,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
             </span>
           )}
         </button>
-      </div>
+      </div>}
 
       {/* User profile menu */}
       <div className="relative">

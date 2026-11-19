@@ -36,10 +36,22 @@ export default async function EducationStaffProfilePage({
   const campusIds = campuses.map((campus) => campus.id);
   const supabase = await createClient();
   const { data: staff, error: staffError } = await supabase.from("education_staff")
-    .select("id, branch_id, staff_number, first_name, last_name, other_names, email, phone, date_of_birth, address, emergency_contact_name, emergency_contact_phone, staff_category, department_id, job_title, status")
+    .select("id, branch_id, staff_number, first_name, last_name, other_names, email, phone, date_of_birth, address, emergency_contact_name, emergency_contact_phone, staff_category, department_id, job_title, status, photo_path")
     .eq("org_id", context.orgId).eq("id", staffId).maybeSingle();
   if (staffError) throw new Error(`Could not load Think Education staff profile: ${staffError.message}`);
   if (!staff || !campusIds.includes(staff.branch_id)) notFound();
+
+  let staffPhotoUrl: string | null = null;
+  if (staff.photo_path) {
+    const { data: photo, error: photoError } = await supabase.storage
+      .from("education-staff-images")
+      .createSignedUrl(staff.photo_path, 60 * 60);
+    if (photoError) {
+      console.error("Could not load Think Education staff photo:", photoError.message);
+      throw new Error("The staff photo could not be loaded.");
+    }
+    staffPhotoUrl = photo.signedUrl;
+  }
 
   const [canEdit, employmentResult] = await Promise.all([
     canTabPermission("education_staff", "staff", "directory", "edit"),
@@ -67,6 +79,8 @@ export default async function EducationStaffProfilePage({
         ? "The selected department is not available at this campus."
         : query.error === "save"
           ? "The staff details could not be saved. Please try again."
+          : query.error === "photo-invalid"
+            ? "Choose a valid JPEG, PNG, or WebP staff photo no larger than 5 MB."
           : null;
 
   return <main className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
@@ -74,11 +88,26 @@ export default async function EducationStaffProfilePage({
       <Link href={getProductAppPath("think-education", "/staff")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
         <ArrowLeft className="h-4 w-4" /> Staff management
       </Link>
-      <h1 className="mt-2 text-2xl font-bold text-slate-950">{staff.first_name} {staff.last_name}</h1>
-      <p className="mt-1 text-sm text-slate-600">{staff.staff_number} · {campusName} · {label(staff.status)}</p>
+        <div className="mt-3 flex items-center gap-4">
+          <span
+            role="img"
+            aria-label={`${staff.first_name} ${staff.last_name} photo`}
+            className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-2xl font-semibold text-blue-700"
+            style={staffPhotoUrl ? { backgroundImage: `url(${JSON.stringify(staffPhotoUrl)})` } : undefined}
+          >
+            {!staffPhotoUrl && <UserRound className="h-9 w-9" />}
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-950">{staff.first_name} {staff.last_name}</h1>
+            <p className="mt-1 text-sm text-slate-600">{staff.staff_number} · {campusName} · {label(staff.status)}</p>
+          </div>
+        </div>
     </header>
 
     {query.saved === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Staff profile saved.</p>}
+    {query.photo === "upload" && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">The staff profile was saved, but the photo could not be uploaded.</p>}
+    {query.photo === "save" && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">The staff profile was saved, but the photo could not be attached.</p>}
+    {query.photo === "cleanup" && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">The new staff photo was saved, but the previous photo could not be removed.</p>}
     {query.employment === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Employment history recorded.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
@@ -87,8 +116,12 @@ export default async function EducationStaffProfilePage({
         <UserRound className="h-5 w-5 text-blue-700" />
         <h2 className="text-lg font-bold text-slate-950">Personal and contact details</h2>
       </div>
-      {canEdit ? <form action={updateEducationStaffProfile} className="mt-4 grid gap-3 sm:grid-cols-2">
+      {canEdit ? <form action={updateEducationStaffProfile} encType="multipart/form-data" className="mt-4 grid gap-3 sm:grid-cols-2">
         <input type="hidden" name="staff_id" value={staff.id} />
+        <label className="text-sm font-medium text-slate-700 sm:col-span-2">Staff photo
+          <input name="staff_photo" type="file" accept="image/jpeg,image/png,image/webp" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          <span className="mt-1 block text-xs font-normal text-slate-500">JPEG, PNG, or WebP; maximum 5 MB.</span>
+        </label>
         <label className="text-sm font-medium text-slate-700">First name
           <input required name="first_name" maxLength={100} defaultValue={staff.first_name} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>

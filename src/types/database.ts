@@ -487,6 +487,7 @@ type EducationStaff = {
   address: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
+  photo_path: string | null;
   staff_category: "teaching" | "non_teaching";
   department_id: string | null;
   job_title: string | null;

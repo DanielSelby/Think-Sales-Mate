@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 const TEXT_INPUT_TYPES = new Set(["text", "search", "email", "number", "tel", "url"]);
-const SEARCH_DELAY_MS = 350;
+const SEARCH_DELAY_MS = 120;
 
 export function AutoSubmitGetFilters() {
   useEffect(() => {

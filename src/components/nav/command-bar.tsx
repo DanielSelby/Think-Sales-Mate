@@ -2,17 +2,26 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Search, X, ChevronRight, Zap,
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
   Landmark, Receipt, Package, FolderKanban,
-  BarChart3, Settings, Sparkles, Plus, ArrowLeftRight,
+  BarChart3, Settings, Sparkles, Plus, ArrowLeftRight, GraduationCap,
   FileText, Tag, TrendingUp, TrendingDown, Clock, MapPin, Truck,
+  CalendarDays, Utensils, Wrench,
 } from "lucide-react";
 import { useAppStore, THEMES } from "@/store/useAppStore";
 import { createClient } from "@/lib/supabase/client";
 import { formatMoney } from "@/lib/currency";
+import {
+  getProductNavigationItems,
+  getProductNavigationScope,
+  getProductScopedHref,
+  getVisibleNavigationChildren,
+  type ProductNavigationScope,
+} from "@/lib/product-navigation";
+import { getProductAppPath } from "@/lib/product-app-routes";
 
 // The Zustand store's activeOrgId is never actually populated anywhere in
 // this app — every page resolves the active org from the `active_org_id`
@@ -49,48 +58,101 @@ async function resolveActiveOrgId(
 // Add new pages to sidebar.tsx NAV_ITEMS and they appear here automatically
 import { NAV_ITEMS } from "./sidebar";
 
-function flattenNavItems(items: typeof NAV_ITEMS): { id: string; label: string; path: string; icon: any; group: string }[] {
+type CommandPage = { id: string; label: string; path: string; icon: any; group: string };
+
+function flattenNavItems(
+  items: typeof NAV_ITEMS,
+  pathname: string,
+  enabledModules?: string[],
+): CommandPage[] {
   const result: { id: string; label: string; path: string; icon: any; group: string }[] = [];
-  for (const item of items) {
-    result.push({
-      id:    item.href.replace(/\//g, "-").slice(1) || "home",
+  const scope = getProductNavigationScope(pathname);
+  for (const item of getProductNavigationItems(items, scope)) {
+    if (enabledModules && !enabledModules.includes(item.label)) continue;
+    const itemPath = getProductScopedHref(pathname, item.href);
+    if (itemPath) result.push({
+      id: item.href.replace(/\//g, "-").slice(1) || "home",
       label: item.label,
-      path:  item.href,
-      icon:  item.icon,
+      path: itemPath,
+      icon: item.icon,
       group: "Pages",
     });
-    if (item.children) {
-      for (const child of item.children) {
-        result.push({
-          id:    child.href.replace(/\//g, "-").slice(1) || "child",
-          label: child.label,
-          path:  child.href,
-          icon:  child.icon ?? item.icon,
-          group: "Pages",
-        });
-      }
+    const children = getVisibleNavigationChildren(item.children, item.label, enabledModules);
+    for (const child of children) {
+      const childPath = getProductScopedHref(pathname, child.href);
+      if (!childPath) continue;
+      result.push({
+        id: child.href.replace(/\//g, "-").slice(1) || "child",
+        label: child.label,
+        path: childPath,
+        icon: child.icon ?? item.icon,
+        group: "Pages",
+      });
     }
   }
-  // Add settings children
-  result.push(
-    { id: "settings-org",          label: "Organization Settings", path: "/settings/organization", icon: Settings, group: "Pages" },
-    { id: "settings-team",         label: "Team Members",          path: "/settings/team",          icon: Users,    group: "Pages" },
-    { id: "settings-locations",    label: "Locations",             path: "/settings/locations",     icon: MapPin,   group: "Pages" },
-  );
+  for (const [id, label, href, icon] of [
+    ["settings-org", "Organization Settings", "/settings/organization", Settings],
+    ["settings-team", "Team Members", "/settings/team", Users],
+    ["settings-locations", "Locations", "/settings/locations", MapPin],
+  ] as const) {
+    const path = getProductScopedHref(pathname, href);
+    if (path) result.push({ id, label, path, icon, group: "Pages" });
+  }
   return result;
 }
 
-const PAGES = flattenNavItems(NAV_ITEMS);
+type ActionDefinition = { id: string; label: string; icon: any; href: string };
 
-// ── Quick Actions ─────────────────────────────────────────────
-const buildActions = (router: ReturnType<typeof useRouter>, close: () => void) => [
-  { id: "new-sale",     label: "New Sale",         icon: ShoppingCart,   action: () => { router.push("/sales/new");                 close(); } },
-  { id: "new-invoice",  label: "New Invoice",      icon: FileText,       action: () => { router.push("/accounting/invoices/new");   close(); } },
-  { id: "new-expense",  label: "New Expense",      icon: TrendingDown,   action: () => { router.push("/accounting/expenses/new");   close(); } },
-  { id: "new-customer", label: "New Customer",     icon: Contact,        action: () => { router.push("/crm/customers/new");         close(); } },
-  { id: "new-product",  label: "New Product",      icon: Tag,            action: () => { router.push("/inventory/products/new");    close(); } },
-  { id: "new-transfer", label: "Bank Transfer",    icon: ArrowLeftRight, action: () => { router.push("/banking?transfer=1");        close(); } },
-];
+function buildActions(
+  router: ReturnType<typeof useRouter>,
+  close: () => void,
+  scope: ProductNavigationScope,
+  pathname: string,
+  pages: CommandPage[],
+): CommandItem[] {
+  const definitions: Record<ProductNavigationScope, ActionDefinition[]> = {
+    "thinksales-erp": [
+      { id: "new-sale", label: "New Sale", icon: ShoppingCart, href: "/sales/new" },
+      { id: "new-invoice", label: "New Invoice", icon: FileText, href: "/accounting/invoices/new" },
+      { id: "new-expense", label: "New Expense", icon: TrendingDown, href: "/expenses/new" },
+      { id: "new-customer", label: "New Customer", icon: Contact, href: "/crm/customers/new" },
+      { id: "new-product", label: "New Product", icon: Tag, href: "/inventory/new" },
+      { id: "new-transfer", label: "Bank Transfer", icon: ArrowLeftRight, href: "/banking?transfer=1" },
+    ],
+    restaurant: [
+      { id: "restaurant-pos", label: "Open Restaurant POS", icon: ShoppingCart, href: "/restaurant/pos" },
+      { id: "restaurant-orders", label: "Open Orders & Kitchen", icon: Utensils, href: "/restaurant" },
+      { id: "restaurant-menu", label: "Manage Menu", icon: Tag, href: "/restaurant?view=menu" },
+    ],
+    "think-service-repairs": [
+      { id: "service-jobs", label: "Open Service Jobs", icon: Wrench, href: "/service-center#service-jobs" },
+      { id: "service-appointments", label: "Open Appointments", icon: CalendarDays, href: "/service-center/appointments" },
+      { id: "service-customers", label: "Open Customers", icon: Contact, href: "/service-center/customers" },
+    ],
+    "think-education": [
+      { id: "education-students", label: "Open Students", icon: Users, href: "/education/students" },
+      { id: "education-admissions", label: "Open Admissions", icon: Plus, href: "/education/admissions" },
+      { id: "education-transfer", label: "Request Student Transfer", icon: Truck, href: "/education/transfers/request" },
+    ],
+  };
+  const pagePaths = new Set(pages.map((page) => page.path));
+  return definitions[scope].flatMap((definition) => {
+    const href = getProductScopedHref(pathname, definition.href);
+    if (!href) return [];
+    const actionPath = new URL(href, "http://localhost").pathname;
+    const hasVisibleDestination = [...pagePaths].some((pagePath) => {
+      const visiblePath = new URL(pagePath, "http://localhost").pathname;
+      return actionPath === visiblePath || actionPath.startsWith(`${visiblePath}/`);
+    });
+    if (!hasVisibleDestination) return [];
+    return [{
+      ...definition,
+      sub: "Quick action",
+      group: "Actions",
+      action: () => { router.push(href); close(); },
+    }];
+  });
+}
 
 interface CommandItem {
   id:     string;
@@ -101,9 +163,11 @@ interface CommandItem {
   action: () => void;
 }
 
-export function CommandBar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CommandBar({ open, onClose, enabledModules }: { open: boolean; onClose: () => void; enabledModules?: string[] }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { activeTheme } = useAppStore();
+  const productScope = getProductNavigationScope(pathname);
   const theme   = THEMES[activeTheme];
   const primary = theme.colors.primary;
   const accent  = theme.colors.accent;
@@ -118,12 +182,16 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
   const inputRef  = useRef<HTMLInputElement>(null);
   const listRef   = useRef<HTMLDivElement>(null);
   const debounce  = useRef<NodeJS.Timeout>();
+  const pages = useMemo(() => flattenNavItems(NAV_ITEMS, pathname, enabledModules), [pathname, enabledModules]);
 
   const close = useCallback(() => {
     setQuery(""); setResults([]); setActiveIdx(0); onClose();
   }, [onClose]);
 
-  const actions = useMemo(() => buildActions(router, close), [router, close]);
+  const actions = useMemo(
+    () => buildActions(router, close, productScope, pathname, pages),
+    [router, close, productScope, pathname, pages],
+  );
 
   function navigate(path: string) {
     try {
@@ -171,7 +239,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
     try {
       const stored = JSON.parse(localStorage.getItem("sm-recent-nav") || "[]") as string[];
       const items  = stored
-        .map(path => PAGES.find(p => p.path === path))
+        .map(path => pages.find(p => p.path === path))
         .filter(Boolean)
         .slice(0, 4)
         .map(p => ({
@@ -185,7 +253,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
       frame = window.requestAnimationFrame(() => setRecentItems(items));
     } catch { /* silent */ }
     return () => window.cancelAnimationFrame(frame);
-  }, [open]);
+  }, [open, pages]);
 
   // Search across pages + Supabase
   useEffect(() => {
@@ -196,7 +264,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
       const q = query.trim().toLowerCase();
 
       // Page matches
-      const pageMatches: CommandItem[] = PAGES
+      const pageMatches: CommandItem[] = pages
         .filter(p => p.label.toLowerCase().includes(q))
         .map(p => ({
           id:     "page-" + p.id,
@@ -221,6 +289,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
         if (user) {
           const orgId = await resolveActiveOrgId(supabase, user.id);
           if (orgId) {
+            if (productScope === "thinksales-erp") {
             const [
               { data: products },
               { data: customers },
@@ -310,21 +379,107 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
               sub: `Employee · ${e.job_title ?? e.department ?? `#${e.employee_number}`}`,
               icon: Users, group: "Employees", action: () => { navigate("/hrm/employees"); close(); }
             }));
+            } else if (productScope === "think-education") {
+              const [
+                { data: students, error: studentsError },
+                { data: staff, error: staffError },
+              ] = await Promise.all([
+                supabase.from("education_students")
+                  .select("id, student_number, first_name, last_name, other_names")
+                  .eq("org_id", orgId)
+                  .or(`student_number.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,other_names.ilike.%${q}%`)
+                  .limit(5),
+                supabase.from("education_staff")
+                  .select("id, staff_number, first_name, last_name")
+                  .eq("org_id", orgId)
+                  .or(`staff_number.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+                  .limit(5),
+              ]);
+              if (studentsError) throw studentsError;
+              if (staffError) throw staffError;
+              (students ?? []).forEach((student) => dbItems.push({
+                id: `education-student-${student.id}`,
+                label: [student.first_name, student.other_names, student.last_name].filter(Boolean).join(" "),
+                sub: `Student · ${student.student_number}`,
+                icon: GraduationCap,
+                group: "Students",
+                action: () => { navigate(getProductAppPath("think-education", `/students/${student.id}`)); close(); },
+              }));
+              (staff ?? []).forEach((member) => dbItems.push({
+                id: `education-staff-${member.id}`,
+                label: `${member.first_name} ${member.last_name}`,
+                sub: `Staff · ${member.staff_number}`,
+                icon: Users,
+                group: "Staff",
+                action: () => { navigate(getProductAppPath("think-education", `/staff/${member.id}`)); close(); },
+              }));
+            } else if (productScope === "restaurant") {
+              const [
+                { data: menuItems, error: menuError },
+                { data: orders, error: ordersError },
+              ] = await Promise.all([
+                supabase.from("restaurant_menu_items")
+                  .select("id, name, sku")
+                  .eq("org_id", orgId)
+                  .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+                  .limit(5),
+                supabase.from("restaurant_orders")
+                  .select("id, order_number, cue_number, customer_name, status")
+                  .eq("org_id", orgId)
+                  .or(`cue_number.ilike.%${q}%,customer_name.ilike.%${q}%`)
+                  .limit(5),
+              ]);
+              if (menuError) throw menuError;
+              if (ordersError) throw ordersError;
+              (menuItems ?? []).forEach((item) => dbItems.push({
+                id: `restaurant-menu-${item.id}`,
+                label: item.name,
+                sub: `Menu item${item.sku ? ` · ${item.sku}` : ""}`,
+                icon: Utensils,
+                group: "Menu",
+                action: () => { navigate(getProductAppPath("restaurant", "/")); close(); },
+              }));
+              (orders ?? []).forEach((order) => dbItems.push({
+                id: `restaurant-order-${order.id}`,
+                label: order.customer_name || `Order #${order.order_number}`,
+                sub: `Order ${order.cue_number} · ${order.status.replaceAll("_", " ")}`,
+                icon: Receipt,
+                group: "Orders",
+                action: () => { navigate(getProductAppPath("restaurant", "/")); close(); },
+              }));
+            } else if (productScope === "think-service-repairs") {
+              const { data: jobs, error: jobsError } = await supabase.from("service_jobs")
+                .select("id, job_number, status, reported_problem")
+                .eq("org_id", orgId)
+                .or(`job_number.ilike.%${q}%,reported_problem.ilike.%${q}%`)
+                .limit(8);
+              if (jobsError) throw jobsError;
+              (jobs ?? []).forEach((job) => dbItems.push({
+                id: `service-job-${job.id}`,
+                label: job.job_number,
+                sub: `${job.status.replaceAll("_", " ")} · ${job.reported_problem}`,
+                icon: Wrench,
+                group: "Service jobs",
+                action: () => { navigate(getProductAppPath("think-service-repairs", "/")); close(); },
+              }));
+            }
           }
         }
-      } catch { /* silent */ }
+      } catch (error) {
+        console.error(`Could not search ${productScope} records:`, error);
+      }
 
       setResults([...pageMatches, ...actionMatches, ...dbItems]);
       setSearching(false);
     }, 200);
     return () => clearTimeout(debounce.current);
-  }, [query, orgCurrency]);
+  }, [query, orgCurrency, productScope, pages, actions]);
 
   // Flat list for keyboard nav
   const flatItems = useMemo(() => {
     if (query.trim()) return results;
-    return [...actions.map(a => ({ ...a, sub: "Quick action", group: "Quick Actions" })), ...recentItems, ...PAGES.map(p => ({ id: "page-" + p.id, label: p.label, sub: "Navigate", icon: p.icon, group: "Pages", action: () => { navigate(p.path); close(); } }))];
-  }, [query, results, actions, recentItems]);
+    return [...actions.map(a => ({ ...a, sub: "Quick action", group: "Quick Actions" })), ...recentItems, ...pages.map(p => ({ id: "page-" + p.id, label: p.label, sub: "Navigate", icon: p.icon, group: "Pages", action: () => { navigate(p.path); close(); } }))];
+  }, [query, results, actions, recentItems, pages]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -373,7 +528,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
               ref={inputRef}
               value={query}
               onChange={e => handleQueryChange(e.target.value)}
-              placeholder="Search pages, actions, customers, products, transactions…"
+              placeholder={`Search ${productScope === "thinksales-erp" ? "pages, actions, customers, products, transactions" : productScope === "think-education" ? "education pages, students, and staff" : productScope === "restaurant" ? "restaurant pages, menu, and orders" : "service pages and jobs"}…`}
               className="flex-1 text-sm bg-white outline-none placeholder:text-slate-400 text-slate-800"
             />
             <div className="flex items-center gap-2 shrink-0">
@@ -393,7 +548,7 @@ export function CommandBar({ open, onClose }: { open: boolean; onClose: () => vo
               <div className="px-4 py-8 text-center">
                 <Search className="w-8 h-8 mx-auto mb-2 text-slate-200" />
                 <p className="text-sm text-slate-400">No results for &quot;<span className="font-medium text-slate-600">{query}</span>&quot;</p>
-                <p className="text-xs text-slate-300 mt-1">Try a page name, customer, or product</p>
+                <p className="text-xs text-slate-300 mt-1">Try a page or record in this product</p>
               </div>
             )}
 
