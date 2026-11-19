@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, FileText, GraduationCap, HeartPulse, Users, Wallet } from "lucide-react";
 import { StudentConsentForm } from "../student-consent-form";
 import { StudentProfileForm } from "../student-profile-form";
+import { FeePaymentDialog } from "./fee-payment-dialog";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import type { EducationStudentProfile } from "@/lib/education/student-profile";
 
@@ -148,6 +149,11 @@ type Props = {
   communications: CommunicationRow[];
   consentEvents: ConsentEvent[];
   currency: string;
+  canRecordFeePayment: boolean;
+  paymentRecorded: boolean;
+  paymentError: string | null;
+  classPosition: { position: number; cohortSize: number; examinationName: string } | null;
+  classPositionStatus: string;
 };
 
 const TABS: Array<{ id: ProfileTab; label: string }> = [
@@ -189,6 +195,8 @@ export function StudentProfileView(props: Props) {
     student, studentPhotoUrl, fullName, selectedTab, permissions, enrollments,
     attendance, results, examinations, componentScores, charges, guardians,
     documents, transfers, communications, consentEvents, currency,
+    canRecordFeePayment, paymentRecorded, paymentError,
+    classPosition, classPositionStatus,
   } = props;
   const profilePath = getProductAppPath("think-education", `/students/${student.id}`);
   const activeEnrollment = enrollments.find((enrollment) => enrollment.status === "active") ?? null;
@@ -208,6 +216,14 @@ export function StudentProfileView(props: Props) {
   }).format(amount);
   const examinationById = new Map(examinations.map((examination) => [examination.id, examination]));
   const guardianStatus = (status: string) => status.replaceAll("_", " ");
+  const ordinalPosition = (position: number) => {
+    const remainder = position % 100;
+    const suffix = remainder >= 11 && remainder <= 13 ? "th"
+      : position % 10 === 1 ? "st"
+        : position % 10 === 2 ? "nd"
+          : position % 10 === 3 ? "rd" : "th";
+    return `${position}${suffix}`;
+  };
 
   function renderOverview() {
     const recentAttendance = attendance.slice(0, 30).reverse();
@@ -224,12 +240,12 @@ export function StudentProfileView(props: Props) {
     return <div className="space-y-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Published average", value: permissions.canViewResults && resultAverage !== null ? `${resultAverage.toFixed(1)}%` : "—", icon: GraduationCap },
-          { label: "Recent attendance rate", value: permissions.canViewAttendance && attendanceRate !== null ? `${attendanceRate.toFixed(1)}%` : "—", icon: CalendarDays },
-          { label: "Class position", value: "Not configured", icon: GraduationCap },
-          { label: "Outstanding fees", value: permissions.canViewFinance && charges.length ? formatMoney(balance) : "—", icon: Wallet },
-        ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p></div>
+          { label: "Published average", value: permissions.canViewResults && resultAverage !== null ? `${resultAverage.toFixed(1)}%` : "—", detail: "", icon: GraduationCap },
+          { label: "Recent attendance rate", value: permissions.canViewAttendance && attendanceRate !== null ? `${attendanceRate.toFixed(1)}%` : "—", detail: "", icon: CalendarDays },
+          { label: "Class position", value: classPosition ? `${ordinalPosition(classPosition.position)} of ${classPosition.cohortSize}` : classPositionStatus, detail: classPosition?.examinationName ?? "", icon: GraduationCap },
+          { label: "Outstanding fees", value: permissions.canViewFinance && charges.length ? formatMoney(balance) : "—", detail: "", icon: Wallet },
+        ].map(({ label, value, detail, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p>{detail && <p className="mt-1 text-xs text-slate-500">Latest published exam: {detail}</p>}</div>
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
         </article>)}
       </div>
@@ -396,6 +412,8 @@ export function StudentProfileView(props: Props) {
   function renderFees() {
     if (!permissions.canViewFinance) return <PermissionMessage />;
     return <div className="space-y-5">
+      {paymentRecorded && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Fee payment recorded. The balance below has been updated.</p>}
+      {paymentError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{paymentError}</p>}
       <section className="grid gap-3 sm:grid-cols-3">
         {[["Total billed", totalBilled], ["Total paid", totalPaid], ["Outstanding balance", balance]].map(([label, amount]) => <article key={String(label)} className={cardClass}>
           <p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{formatMoney(Number(amount))}</p>
@@ -407,8 +425,28 @@ export function StudentProfileView(props: Props) {
           <Link href={getProductAppPath("think-education", `/finance/students/${student.id}`)} className="text-sm font-semibold text-blue-700 hover:underline">Open full finance statement</Link>
         </div>
         {charges.length ? <table className="mt-4 w-full min-w-[680px] text-sm">
-          <thead className={tableHeadClass}><tr><th className="px-3 py-2">Charge</th><th className="px-3 py-2">Due date</th><th className="px-3 py-2">Charged</th><th className="px-3 py-2">Paid</th><th className="px-3 py-2">Balance</th><th className="px-3 py-2">Status</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{charges.map((charge) => <tr key={charge.id}><td className="px-3 py-3">{charge.description}</td><td className="px-3 py-3">{formatDate(charge.due_on)}</td><td className="px-3 py-3">{formatMoney(charge.amount)}</td><td className="px-3 py-3">{formatMoney(charge.paid)}</td><td className="px-3 py-3">{formatMoney(Math.max(0, charge.amount - charge.paid))}</td><td className="px-3 py-3 capitalize">{charge.status}</td></tr>)}</tbody>
+          <thead className={tableHeadClass}><tr><th className="px-3 py-2">Charge</th><th className="px-3 py-2">Due date</th><th className="px-3 py-2">Charged</th><th className="px-3 py-2">Paid</th><th className="px-3 py-2">Balance</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Action</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">{charges.map((charge) => {
+            const chargeBalance = Math.max(0, charge.amount - charge.paid);
+            return <tr key={charge.id}>
+              <td className="px-3 py-3">{charge.description}</td>
+              <td className="px-3 py-3">{formatDate(charge.due_on)}</td>
+              <td className="px-3 py-3">{formatMoney(charge.amount)}</td>
+              <td className="px-3 py-3">{formatMoney(charge.paid)}</td>
+              <td className="px-3 py-3">{formatMoney(chargeBalance)}</td>
+              <td className="px-3 py-3 capitalize">{charge.status}</td>
+              <td className="px-3 py-3">{canRecordFeePayment && charge.status === "open" && chargeBalance > 0
+                ? <FeePaymentDialog
+                  chargeId={charge.id}
+                  studentId={student.id}
+                  studentName={fullName}
+                  chargeDescription={charge.description}
+                  balance={chargeBalance}
+                  currency={currency}
+                />
+                : "—"}</td>
+            </tr>;
+          })}</tbody>
         </table> : <EmptyState>No fee charges are recorded for this student.</EmptyState>}
       </section>
     </div>;

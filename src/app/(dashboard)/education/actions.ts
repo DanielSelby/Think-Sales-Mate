@@ -42,6 +42,7 @@ import {
 } from "@/lib/education/student-progression";
 import { dispatchEducationAnnouncementDeliveries } from "@/lib/education/announcement-delivery";
 import { findDuplicateEducationStudentNumberRows } from "@/lib/education/student-import";
+import { isEducationFeePaymentMethod } from "@/lib/education/fee-payment-methods";
 
 export type EducationImportEntity = "students" | "staff" | "campuses";
 
@@ -457,17 +458,39 @@ export async function recordEducationFeePayment(formData: FormData) {
   }
 
   const chargeId = String(formData.get("charge_id") ?? "");
+  const requestedStudentId = String(formData.get("student_id") ?? "");
   const amountText = String(formData.get("amount") ?? "").trim();
   const paymentMethod = String(formData.get("payment_method") ?? "");
   const reference = String(formData.get("reference") ?? "").trim();
   const amount = Number(amountText);
-  const allowedMethods = ["cash", "mobile_money", "bank_transfer", "card", "cheque", "other"];
+  const supabase = await createClient();
+  let returnStudentId = "";
+  if (EDUCATION_COMMUNICATION_UUID_PATTERN.test(requestedStudentId) && chargeId) {
+    const { data: charge, error: chargeError } = await supabase.from("education_fee_charges")
+      .select("student_id, branch_id")
+      .eq("org_id", context.orgId)
+      .eq("id", chargeId)
+      .maybeSingle();
+    if (chargeError) throw new Error(`Could not verify the student fee charge: ${chargeError.message}`);
+    if (charge?.student_id === requestedStudentId) {
+      const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+      if (campuses.some((campus) => campus.id === charge.branch_id)) returnStudentId = requestedStudentId;
+    }
+  }
+  const financePath = getProductAppPath("think-education", "/finance");
+  const returnPath = (error?: string) => {
+    const path = returnStudentId
+      ? getProductAppPath("think-education", `/students/${returnStudentId}`)
+      : financePath;
+    const query = new URLSearchParams(returnStudentId ? { tab: "fees" } : {});
+    if (error) query.set("error", error);
+    return `${path}?${query.toString()}`;
+  };
   if (!chargeId || !/^\d{1,10}(?:\.\d{1,2})?$/.test(amountText) || !Number.isFinite(amount)
-    || amount <= 0 || !allowedMethods.includes(paymentMethod) || reference.length > 120) {
-    redirect(`${getProductAppPath("think-education", "/finance")}?error=invalid`);
+    || amount <= 0 || !isEducationFeePaymentMethod(paymentMethod) || reference.length > 120) {
+    redirect(returnPath("invalid"));
   }
 
-  const supabase = await createClient();
   const { error } = await supabase.rpc("education_record_fee_payment", {
     p_org_id: context.orgId,
     p_charge_id: chargeId,
@@ -476,13 +499,13 @@ export async function recordEducationFeePayment(formData: FormData) {
     p_reference: reference || null,
   });
   if (error) {
-    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-mapping`);
-    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-period`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance")}?error=payment`);
-    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/finance")}?error=not-found`);
+    if (error.code === "23514") redirect(returnPath("accounting-mapping"));
+    if (error.message.includes("open fiscal period")) redirect(returnPath("accounting-period"));
+    if (error.code === "22023") redirect(returnPath("payment"));
+    if (error.code === "P0002") redirect(returnPath("not-found"));
     if (error.code === "42501") throw new Error("You are not authorized to record a payment for this charge.");
     console.error("Could not record Think Education fee payment:", error.message);
-    redirect(`${getProductAppPath("think-education", "/finance")}?error=save`);
+    redirect(returnPath("save"));
   }
   revalidatePath("/education/finance");
   revalidatePath("/education/accounting");
@@ -490,7 +513,9 @@ export async function recordEducationFeePayment(formData: FormData) {
   revalidatePath("/education/accounting/general-ledger");
   revalidatePath("/education/accounting/cashbook");
   revalidatePath("/education/accounting/reports");
-  redirect(`${getProductAppPath("think-education", "/finance")}?paid=1`);
+  if (returnStudentId) revalidatePath(`/education/students/${returnStudentId}`);
+  const successPath = returnPath();
+  redirect(`${successPath}${successPath.includes("?") ? "&" : "?"}paid=1`);
 }
 
 export async function createEducationGuardianLink(formData: FormData) {

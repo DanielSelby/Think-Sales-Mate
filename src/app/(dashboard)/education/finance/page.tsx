@@ -6,6 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { EDUCATION_FEE_PAYMENT_METHODS } from "@/lib/education/fee-payment-methods";
 import {
   applyEducationFeeSchedule,
   archiveEducationFeeSchedule,
@@ -25,15 +26,6 @@ type PaymentRecord = {
   reference: string | null;
   created_at: string;
 };
-
-const PAYMENT_METHODS = [
-  ["cash", "Cash"],
-  ["mobile_money", "Mobile money"],
-  ["bank_transfer", "Bank transfer"],
-  ["card", "Card"],
-  ["cheque", "Cheque"],
-  ["other", "Other"],
-] as const;
 
 export default async function EducationFinancePage({
   searchParams,
@@ -320,7 +312,7 @@ export default async function EducationFinancePage({
               </label>
               <label className="text-xs font-medium text-slate-600">Method
                 <select required name="payment_method" defaultValue="cash" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal">
-                  {PAYMENT_METHODS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  {EDUCATION_FEE_PAYMENT_METHODS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </label>
               <label className="text-xs font-medium text-slate-600 sm:col-span-2">Reference

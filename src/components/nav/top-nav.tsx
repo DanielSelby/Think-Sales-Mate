@@ -45,12 +45,15 @@ interface NotificationItem {
   location_id: string | null;
 }
 
-export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, workspaceHubAppearanceLocked = false, organizationUsage, organizationAccessExpiresAt, enabledModules, onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; workspaceHubAppearanceLocked?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; enabledModules?: string[]; onOpenMobileSidebar: () => void }) {
+export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, workspaceHubAppearanceLocked = false, organizationUsage, organizationAccessExpiresAt, enabledModules, educationCampuses = [], onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; workspaceHubAppearanceLocked?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; enabledModules?: string[]; educationCampuses?: Array<{ id: string; name: string }>; onOpenMobileSidebar: () => void }) {
   const { activeTheme, setTheme, darkMode, setDarkMode, darkStyle, setDarkStyle, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
   const topbar  = theme.topbar;
   const router  = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const productScope = getProductNavigationScope(pathname);
 
   const [showThemes,        setShowThemes]        = useState(false);
   const [showDarkStyles,    setShowDarkStyles]    = useState(false);
@@ -180,7 +183,9 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
           notificationQuery = notificationQuery.or(`user_id.eq.${userId}${visibleLocations}`);
         }
         const [locationResult, notificationResult] = await Promise.all([
-          supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true).order("name"),
+          productScope === "think-education"
+            ? Promise.resolve({ data: null, error: null })
+            : supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true).order("name"),
           notificationQuery,
         ]);
         if (locationResult.error) throw locationResult.error;
@@ -188,19 +193,27 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         if (cancelled) return;
         setUserName(initialUserName ?? "");
         setAvatarUrl(initialAvatarUrl ?? null);
-        const options = canViewAllBranches
-          ? (locationResult.data ?? [])
-          : (locationResult.data ?? []).filter((location) => allowedLocationIds.includes(location.id));
+        const availableLocations = locationResult.data ?? [];
+        const accessibleLocations = canViewAllBranches
+          ? availableLocations
+          : availableLocations.filter((location) => allowedLocationIds.includes(location.id));
+        const options = productScope === "think-education" ? educationCampuses : accessibleLocations;
         setBranchOptions(options);
-        const selectedBranch = useAccountingStore.getState().currentBranch;
-        const masterLocationId = document.cookie.split("; ").find((item) => item.startsWith("master_location_id="))?.split("=")[1];
+        const productCookie = `master_location_id_${productScope}=`;
+        const productCookieValue = document.cookie.split("; ").find((item) => item.startsWith(productCookie))?.slice(productCookie.length);
+        const legacyCookieValue = productScope === "thinksales-erp"
+          ? document.cookie.split("; ").find((item) => item.startsWith("master_location_id="))?.split("=")[1]
+          : undefined;
+        const masterLocationId = productCookieValue ?? legacyCookieValue;
         const masterLocation = options.find((location) => location.id === decodeURIComponent(masterLocationId ?? ""));
         if (masterLocation) {
           useAccountingStore.getState().setBranch(masterLocation.name);
-        } else if (!canViewAllBranches && selectedBranch === "all" && options.length > 0) {
+        } else if (productCookieValue !== undefined) {
+          useAccountingStore.getState().setBranch("all");
+        } else if (!canViewAllBranches && productScope === "thinksales-erp" && options.length === 1) {
           useAccountingStore.getState().setBranch(options[0].name);
-        } else if (selectedBranch !== "all" && options.length > 0 && !options.some((location) => location.name === selectedBranch)) {
-          useAccountingStore.getState().setBranch(options[0].name);
+        } else {
+          useAccountingStore.getState().setBranch("all");
         }
         if (currency) {
           setCurrencyOptions([{ code: currency, label: currency }]);
@@ -219,7 +232,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       cancelled = true;
       window.clearInterval(refreshTimer);
     };
-  }, [initialUserName, initialAvatarUrl, userId, orgId, currency, allowedLocationKey, allowedLocationIds, canViewAllBranches]);
+  }, [initialUserName, initialAvatarUrl, userId, orgId, currency, allowedLocationKey, allowedLocationIds, canViewAllBranches, pathname, productScope, educationCampuses]);
 
   const initials = userName
     ? userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
@@ -240,9 +253,6 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
   };
 
   const { currentBranch, setBranch, currentCurrency, setCurrency } = useAccountingStore();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const productScope = getProductNavigationScope(pathname);
   const productItems = getProductNavigationItems(NAV_ITEMS, productScope);
   const visibleProductItems = productItems.filter((item) => !enabledModules || enabledModules.includes(item.label));
   const thinkSalesPosEnabled = productScope === "thinksales-erp" && visibleProductItems.some((item) => item.label === "POS");
@@ -259,6 +269,14 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
       ? getProductScopedHref(pathname, "/restaurant/pos")
       : null;
   const canSelectBranches = branchOptions.length > 1 || (canViewAllBranches && branchOptions.length > 0);
+  const canSelectAllProductBranches = branchOptions.length > 1 || canViewAllBranches;
+  const branchAllLabel = productScope === "think-education"
+    ? "All Campuses"
+    : productScope === "restaurant"
+      ? "All Locations"
+      : productScope === "think-service-repairs"
+        ? "All Service Locations"
+        : "All Branches";
   const canUseCommandBar = visibleProductItems.some((item) =>
     Boolean(getProductScopedHref(pathname, item.href))
     || getVisibleNavigationChildren(item.children, item.label, enabledModules)
@@ -280,11 +298,22 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
 
   const selectBranch = (branch: { id: string; name: string } | null) => {
     setBranch(branch?.name ?? "all");
-    if (branch) document.cookie = `master_location_id=${encodeURIComponent(branch.id)}; path=/; max-age=31536000; samesite=lax`;
-    else document.cookie = "master_location_id=; path=/; max-age=0; samesite=lax";
+    if (branch) {
+      document.cookie = `master_location_id_${productScope}=${encodeURIComponent(branch.id)}; path=/; max-age=31536000; samesite=lax`;
+      if (productScope === "thinksales-erp") {
+        document.cookie = `master_location_id=${encodeURIComponent(branch.id)}; path=/; max-age=31536000; samesite=lax`;
+      }
+    } else {
+      document.cookie = `master_location_id_${productScope}=; path=/; max-age=0; samesite=lax`;
+      if (productScope === "thinksales-erp") {
+        document.cookie = "master_location_id=; path=/; max-age=0; samesite=lax";
+      }
+    }
     const params = new URLSearchParams(searchParams.toString());
-    if (branch) params.set("location", branch.id);
-    else params.delete("location");
+    const filterKey = productScope === "think-education" ? "branch" : "location";
+    params.delete(filterKey === "branch" ? "location" : "branch");
+    if (branch) params.set(filterKey, branch.id);
+    else params.delete(filterKey);
     router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ""}`);
     setShowBranches(false);
   };
@@ -439,7 +468,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
           className="flex shrink-0 items-center gap-1.5 h-8 px-1.5 sm:px-2.5 rounded-xl text-xs font-medium transition-all text-white/80 hover:bg-white/10"
         >
           <Building2 className="h-3.5 w-3.5 text-white/60" />
-          <span className="hidden sm:block">{branchOptions.length > 0 ? (currentBranch === "all" ? "All Branches" : currentBranch) : "No locations"}</span>
+          <span className="hidden sm:block">{currentBranch === "all" ? branchAllLabel : currentBranch}</span>
           <ChevronDown className="w-3 h-3 opacity-60" />
         </button>
         {showBranches && (
@@ -447,15 +476,15 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
             <div className="fixed inset-0 z-40" onClick={() => setShowBranches(false)} />
             <div className="absolute right-0 top-10 z-50 w-48 rounded-xl border bg-white shadow-2xl overflow-hidden dark:bg-slate-900 border-slate-200 dark:border-slate-800">
               <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select Branch</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select {productScope === "think-education" ? "Campus" : "Branch"}</p>
               </div>
               {branchOptions.length > 0 ? (
                 <>
-                {canViewAllBranches && <button
+                {canSelectAllProductBranches && <button
                   onClick={() => selectBranch(null)}
                   className="flex w-full items-center justify-between px-3 py-2 text-xs text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
                 >
-                  <span>All Branches</span>
+                  <span>{branchAllLabel}</span>
                   {currentBranch === "all" && <Check className="h-3.5 w-3.5 text-blue-600" />}
                 </button>}
                 {branchOptions.map((branch) => (

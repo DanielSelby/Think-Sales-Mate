@@ -7,6 +7,7 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { deactivateEducationAccountingAccount, saveEducationAccountingAccount } from "../actions";
+import { DeleteAccountButton } from "./delete-account-button";
 
 const accountTypes = [
   { value: "asset", label: "Asset", normalBalance: "Debit" },
@@ -21,7 +22,7 @@ const fieldClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3
 export default async function EducationChartOfAccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
@@ -50,7 +51,13 @@ export default async function EducationChartOfAccountsPage({
   const campusesById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const errorMessage = params.error === "account-save"
     ? "The account could not be saved. Check that the code is unique and the parent account has the same type and campus scope."
-    : null;
+    : params.error === "account-mapped"
+      ? "Remove this account from automated posting mappings before deactivating it."
+      : params.error === "account-in-use"
+        ? "This account is used by a journal, mapping, reconciliation, or child account. Deactivate it instead."
+        : params.error === "account-delete"
+          ? "The account could not be deleted. Refresh the page and try again."
+          : null;
 
   return (
     <main className="mx-auto w-full max-w-[1500px] space-y-6 p-4 md:p-6">
@@ -67,6 +74,7 @@ export default async function EducationChartOfAccountsPage({
       </header>
 
       {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
+      {params.saved === "account-deleted" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Account deleted.</p>}
 
       {createAllowed && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -144,7 +152,7 @@ export default async function EducationChartOfAccountsPage({
           <p className="px-5 py-10 text-center text-sm text-slate-600">No accounts have been configured yet.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Code / name</th>
@@ -163,42 +171,9 @@ export default async function EducationChartOfAccountsPage({
                   return (
                     <tr key={account.id} className="align-top text-slate-700">
                       <td className="px-4 py-3">
-                        {editAllowed ? (
-                          <form action={saveEducationAccountingAccount} className="space-y-2">
-                            <input type="hidden" name="accountId" value={account.id} />
-                            <input required name="code" defaultValue={account.code} maxLength={20} pattern="[A-Za-z0-9][A-Za-z0-9._/-]{1,19}" aria-label="Account code" className="w-28 rounded border border-slate-300 px-2 py-1 font-mono" />
-                            <input required name="name" defaultValue={account.name} maxLength={120} aria-label="Account name" className="w-56 rounded border border-slate-300 px-2 py-1" />
-                            <input name="description" defaultValue={account.description ?? ""} maxLength={500} aria-label="Description" placeholder="Description" className="w-56 rounded border border-slate-300 px-2 py-1" />
-                            <select name="parentAccountId" defaultValue={account.parent_account_id ?? ""} aria-label="Parent account" className="w-56 rounded border border-slate-300 bg-white px-2 py-1">
-                              <option value="">No parent</option>
-                              {accounts.filter((candidate) =>
-                                candidate.is_active
-                                && candidate.id !== account.id
-                                && candidate.account_type === account.account_type
-                                && (candidate.branch_id === null || candidate.branch_id === account.branch_id)
-                              ).map((candidate) => (
-                                <option key={candidate.id} value={candidate.id}>{candidate.code} · {candidate.name}</option>
-                              ))}
-                            </select>
-                            <label className="flex items-center gap-2 text-xs">
-                              <input type="checkbox" name="isCashAccount" defaultChecked={account.is_cash_account} className="h-4 w-4 rounded border-slate-300" />
-                              Cash/bank
-                            </label>
-                            <select name="cashFlowActivity" defaultValue={account.cash_flow_activity ?? ""} aria-label="Cash flow activity" className="w-56 rounded border border-slate-300 bg-white px-2 py-1">
-                              <option value="">Unclassified cash flow</option>
-                              <option value="operating">Operating</option>
-                              <option value="investing">Investing</option>
-                              <option value="financing">Financing</option>
-                            </select>
-                            <button type="submit" className="rounded bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200">Save changes</button>
-                          </form>
-                        ) : (
-                          <>
-                            <p className="font-mono font-semibold text-slate-900">{account.code}</p>
-                            <p>{account.name}</p>
-                            {account.description && <p className="mt-1 max-w-xs text-xs text-slate-500">{account.description}</p>}
-                          </>
-                        )}
+                        <p className="font-mono font-semibold text-slate-900">{account.code}</p>
+                        <p>{account.name}</p>
+                        {account.description && <p className="mt-1 max-w-xs text-xs text-slate-500">{account.description}</p>}
                       </td>
                       <td className="px-4 py-3 capitalize">{account.account_type}</td>
                       <td className="px-4 py-3">{account.normal_balance}</td>
@@ -214,12 +189,56 @@ export default async function EducationChartOfAccountsPage({
                       </td>
                       {editAllowed && (
                         <td className="px-4 py-3">
-                          {account.is_active && (
-                            <form action={deactivateEducationAccountingAccount}>
-                              <input type="hidden" name="accountId" value={account.id} />
-                              <button type="submit" className="text-xs font-semibold text-rose-700 hover:underline">Deactivate</button>
-                            </form>
-                          )}
+                          <div className="flex flex-col items-start gap-2">
+                            <details>
+                              <summary className="cursor-pointer text-xs font-semibold text-blue-700 hover:underline">Edit</summary>
+                              <form action={saveEducationAccountingAccount} className="mt-2 min-w-64 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <input type="hidden" name="accountId" value={account.id} />
+                                <label className="block text-xs font-medium text-slate-700">Account code
+                                  <input required name="code" defaultValue={account.code} maxLength={20} pattern="[A-Za-z0-9][A-Za-z0-9._/-]{1,19}" className="mt-1 w-full rounded border border-slate-300 px-2 py-1 font-mono" />
+                                </label>
+                                <label className="block text-xs font-medium text-slate-700">Account name
+                                  <input required name="name" defaultValue={account.name} maxLength={120} className="mt-1 w-full rounded border border-slate-300 px-2 py-1" />
+                                </label>
+                                <label className="block text-xs font-medium text-slate-700">Description
+                                  <input name="description" defaultValue={account.description ?? ""} maxLength={500} className="mt-1 w-full rounded border border-slate-300 px-2 py-1" />
+                                </label>
+                                <label className="block text-xs font-medium text-slate-700">Parent account
+                                  <select name="parentAccountId" defaultValue={account.parent_account_id ?? ""} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1">
+                                    <option value="">No parent</option>
+                                    {accounts.filter((candidate) =>
+                                      candidate.is_active
+                                      && candidate.id !== account.id
+                                      && candidate.account_type === account.account_type
+                                      && (candidate.branch_id === null || candidate.branch_id === account.branch_id)
+                                    ).map((candidate) => (
+                                      <option key={candidate.id} value={candidate.id}>{candidate.code} · {candidate.name}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                                  <input type="checkbox" name="isCashAccount" defaultChecked={account.is_cash_account} className="h-4 w-4 rounded border-slate-300" />
+                                  Cash/bank
+                                </label>
+                                <label className="block text-xs font-medium text-slate-700">Cash flow activity
+                                  <select name="cashFlowActivity" defaultValue={account.cash_flow_activity ?? ""} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1">
+                                    <option value="">Unclassified cash flow</option>
+                                    <option value="operating">Operating</option>
+                                    <option value="investing">Investing</option>
+                                    <option value="financing">Financing</option>
+                                  </select>
+                                </label>
+                                <button type="submit" className="rounded bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">Save changes</button>
+                              </form>
+                            </details>
+                            {account.is_active && (
+                              <form action={deactivateEducationAccountingAccount}>
+                                <input type="hidden" name="accountId" value={account.id} />
+                                <button type="submit" className="text-xs font-semibold text-amber-700 hover:underline">Deactivate</button>
+                              </form>
+                            )}
+                            <DeleteAccountButton accountId={account.id} accountName={`${account.code} · ${account.name}`} />
+                          </div>
                         </td>
                       )}
                     </tr>

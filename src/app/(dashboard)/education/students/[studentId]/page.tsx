@@ -5,6 +5,7 @@ import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { calculateEducationClassPosition } from "@/lib/education/class-position";
 
 const PROFILE_TABS = [
   "overview", "personal", "academic", "performance", "exams", "attendance",
@@ -38,6 +39,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     canViewAttendance,
     canViewFinanceCharges,
     canViewFinancePayments,
+    canRecordFeePayment,
     canViewGuardians,
     canViewDocuments,
     canViewTransfers,
@@ -50,6 +52,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     canTabPermission("education_attendance", "attendance", "register", "view"),
     canTabPermission("education_finance", "finance", "charges", "view"),
     canTabPermission("education_finance", "finance", "payments", "view"),
+    canTabPermission("education_finance", "finance", "payments", "create"),
     canTabPermission("education_guardians", "guardians", "directory", "view"),
     canTabPermission("education_documents", "documents", "library", "view"),
     canTabPermission("education_transfers", "transfers", "requests", "view"),
@@ -79,6 +82,17 @@ export default async function EducationStudentProfilePage({ params, searchParams
     : "overview";
   const canViewFinance = canViewFinanceCharges && canViewFinancePayments;
   const campusName = campuses.find((campus) => campus.id === student.branch_id)?.name ?? "Campus";
+  const paymentError = firstParam(queryParams.error) === "invalid" || firstParam(queryParams.error) === "payment"
+    ? "Payment must be valid and cannot exceed the remaining balance."
+    : firstParam(queryParams.error) === "accounting-mapping"
+      ? "Configure the required campus account mappings before recording this payment."
+      : firstParam(queryParams.error) === "accounting-period"
+        ? "This payment date is outside an open accounting period."
+        : firstParam(queryParams.error) === "not-found"
+          ? "The fee charge could not be found or is no longer available."
+        : firstParam(queryParams.error) === "save"
+          ? "The payment could not be saved. Please try again."
+          : null;
 
   const [
     enrollmentResult,
@@ -179,6 +193,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
   }
 
   const enrollmentRows = enrollmentResult.data ?? [];
+  const activeEnrollmentRow = enrollmentRows.find((row) => row.status === "active") ?? null;
   const classIds = [...new Set(enrollmentRows.map((row) => row.class_id))];
   const academicYearIds = [...new Set(enrollmentRows.map((row) => row.academic_year_id))];
   const [{ data: classes, error: classesError }, { data: academicYears, error: academicYearsError }] = classIds.length || academicYearIds.length
@@ -232,7 +247,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
   const examinationIds = [...new Set(resultRows.map((row) => row.examination_id))];
   const { data: examinationsData, error: examinationsError } = examinationIds.length
     ? await supabase.from("education_examinations")
-      .select("id, name, academic_year_id, term_id")
+      .select("id, name, academic_year_id, term_id, status, starts_at, created_at")
       .eq("org_id", context.orgId).in("branch_id", campusIds).in("id", examinationIds)
     : { data: [], error: null };
   if (examinationsError) throw new Error(`Could not load student examinations: ${examinationsError.message}`);
@@ -250,6 +265,64 @@ export default async function EducationStudentProfilePage({ params, searchParams
     : [{ data: [], error: null }, { data: [], error: null }];
   if (examYearsError) throw new Error(`Could not load examination academic years: ${examYearsError.message}`);
   if (termsError) throw new Error(`Could not load examination terms: ${termsError.message}`);
+  const latestPublishedExam = selectedTab === "overview" && canViewResults && activeEnrollmentRow
+    ? (examinationsData ?? [])
+      .filter((exam) => exam.status === "published"
+        && exam.academic_year_id === activeEnrollmentRow.academic_year_id
+        && resultRows.some((result) => result.examination_id === exam.id && result.status === "published"))
+      .sort((left, right) =>
+        (right.starts_at ?? right.created_at).localeCompare(left.starts_at ?? left.created_at)
+      )[0] ?? null
+    : null;
+  let classPosition: { position: number; cohortSize: number; examinationName: string } | null = null;
+  let classPositionStatus = !canViewResults || !canViewAcademics
+    ? "Restricted"
+    : !activeEnrollmentRow
+      ? "No active class"
+      : "No published results";
+  if (latestPublishedExam && activeEnrollmentRow) {
+    const { data: classEnrollments, error: classEnrollmentsError, count: classEnrollmentCount } = await supabase
+      .from("education_student_enrollments")
+      .select("student_id", { count: "exact" })
+      .eq("org_id", context.orgId)
+      .eq("branch_id", student.branch_id)
+      .eq("class_id", activeEnrollmentRow.class_id)
+      .eq("academic_year_id", activeEnrollmentRow.academic_year_id)
+      .eq("status", "active")
+      .order("student_id")
+      .range(0, 4_999);
+    if (classEnrollmentsError) throw new Error(`Could not load the active class roster for ranking: ${classEnrollmentsError.message}`);
+    const classStudentIds = Array.from(new Set((classEnrollments ?? []).map((row) => row.student_id)));
+    if ((classEnrollmentCount ?? 0) <= 5_000 && classStudentIds.includes(student.id)) {
+      const { data: classResults, error: classResultsError, count: classResultCount } = await supabase
+        .from("education_results")
+        .select("student_id, subject_name, score, maximum_score", { count: "exact" })
+        .eq("org_id", context.orgId)
+        .eq("branch_id", student.branch_id)
+        .eq("examination_id", latestPublishedExam.id)
+        .eq("status", "published")
+        .in("student_id", classStudentIds)
+        .order("student_id")
+        .range(0, 9_999);
+      if (classResultsError) throw new Error(`Could not calculate class position: ${classResultsError.message}`);
+      if ((classResultCount ?? 0) <= 10_000) {
+        const calculatedPosition = calculateEducationClassPosition(classResults ?? [], student.id);
+        if (calculatedPosition) {
+          classPosition = {
+            ...calculatedPosition,
+            examinationName: latestPublishedExam.name,
+          };
+          classPositionStatus = "";
+        } else if ((classResults ?? []).some((result) => result.student_id === student.id)) {
+          classPositionStatus = "Not enough comparable results";
+        }
+      } else {
+        classPositionStatus = "Class too large to rank";
+      }
+    } else {
+      classPositionStatus = "Class too large to rank";
+    }
+  }
   const examYearById = new Map((examYears ?? []).map((row) => [row.id, row.name]));
   const termById = new Map((terms ?? []).map((row) => [row.id, row.name]));
   const examinations = (examinationsData ?? []).map((row) => ({
@@ -396,5 +469,10 @@ export default async function EducationStudentProfilePage({ params, searchParams
     communications={communications}
     consentEvents={consentResult.data ?? []}
     currency={organizationResult.data.currency}
+    canRecordFeePayment={canRecordFeePayment}
+    paymentRecorded={firstParam(queryParams.paid) === "1"}
+    paymentError={paymentError}
+    classPosition={classPosition}
+    classPositionStatus={classPositionStatus}
   />;
 }

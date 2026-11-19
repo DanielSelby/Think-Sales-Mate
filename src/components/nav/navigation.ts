@@ -35,6 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Think Education", href: "/education/dashboard", icon: GraduationCap, status: "live",
     children: [
       { label: "Dashboard", href: "/education/dashboard", icon: LayoutDashboard, section: "Overview" },
+      { label: "Approvals & Attention", href: "/education/approvals", icon: ClipboardCheck, section: "Overview" },
       { label: "Students", href: "/education/students", icon: Users, section: "Students & Admissions" },
       { label: "Parents & Guardians", href: "/education/guardians", icon: Users2, section: "Students & Admissions" },
       { label: "Admissions", href: "/education/admissions", icon: UserPlus, section: "Students & Admissions" },

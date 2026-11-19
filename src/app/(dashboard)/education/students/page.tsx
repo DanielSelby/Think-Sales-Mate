@@ -10,8 +10,10 @@ import { getProductAppPath } from "@/lib/product-app-routes";
 import { createEducationStudent } from "../actions";
 import { EducationRecordModal } from "@/components/education/education-record-modal";
 import { EducationImportModal } from "@/components/education/education-import-modal";
+import { StudentFilters } from "./student-filters";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = ["10", "50", "100", "all"] as const;
+type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 const STUDENT_STATUSES = ["active", "on_hold", "graduated", "transferred", "withdrawn", "archived"] as const;
 
 export default async function EducationStudentsPage({
@@ -28,8 +30,11 @@ export default async function EducationStudentsPage({
   const params = await searchParams;
   const search = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const status = STUDENT_STATUSES.find((item) => item === params.status) ?? "active";
+  const requestedPageSize = typeof params.pageSize === "string" ? params.pageSize : "";
+  const pageSize = PAGE_SIZE_OPTIONS.find((item) => item === requestedPageSize) ?? "10";
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
-  const currentPage = Math.min(1_000_000, Math.max(1, Number.parseInt(typeof params.page === "string" ? params.page : "1", 10) || 1));
+  const requestedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10) || 1;
+  const currentPage = pageSize === "all" ? 1 : Math.min(1_000_000, Math.max(1, requestedPage));
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const allowedBranchIds = campuses.map((campus) => campus.id);
   const selectedBranch = allowedBranchIds.includes(requestedBranch) ? requestedBranch : "";
@@ -61,28 +66,57 @@ export default async function EducationStudentsPage({
   if (branchIds.length) {
     let countQuery = supabase.from("education_students").select("id", { count: "exact", head: true })
       .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", status);
-    let studentQuery = supabase.from("education_students")
-      .select("id, student_number, first_name, last_name, other_names, branch_id, status, created_at")
-      .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", status)
-      .order("last_name").order("first_name")
-      .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+    const buildStudentQuery = () => {
+      let studentQuery = supabase.from("education_students")
+        .select("id, student_number, first_name, last_name, other_names, branch_id, status, created_at")
+        .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", status)
+        .order("last_name").order("first_name").order("id");
+      if (search) {
+        const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
+        if (safeSearch) {
+          const pattern = `%${safeSearch}%`;
+          const filter = `student_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},other_names.ilike.${pattern}`;
+          studentQuery = studentQuery.or(filter);
+        }
+      }
+      return studentQuery;
+    };
     if (search) {
       const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
       if (safeSearch) {
         const pattern = `%${safeSearch}%`;
-        const filter = `student_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern}`;
-        countQuery = countQuery.or(filter);
-        studentQuery = studentQuery.or(filter);
+        countQuery = countQuery.or(
+          `student_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},other_names.ilike.${pattern}`
+        );
       }
     }
-    const [{ count, error: countError }, { data, error: studentsError }] = await Promise.all([countQuery, studentQuery]);
-    if (countError) throw new Error(`Could not count Think Education students: ${countError.message}`);
-    if (studentsError) throw new Error(`Could not load Think Education students: ${studentsError.message}`);
-    totalCount = count ?? 0;
-    students = data ?? [];
+
+    if (pageSize === "all") {
+      const { count, error: countError } = await countQuery;
+      if (countError) throw new Error(`Could not count Think Education students: ${countError.message}`);
+      totalCount = count ?? 0;
+      const batchSize = 1000;
+      for (let offset = 0; offset < totalCount; offset += batchSize) {
+        const { data, error: studentsError } = await buildStudentQuery()
+          .range(offset, Math.min(offset + batchSize - 1, totalCount - 1));
+        if (studentsError) throw new Error(`Could not load Think Education students: ${studentsError.message}`);
+        students.push(...(data ?? []));
+      }
+    } else {
+      const numericPageSize = Number(pageSize);
+      const [{ count, error: countError }, { data, error: studentsError }] = await Promise.all([
+        countQuery,
+        buildStudentQuery().range((currentPage - 1) * numericPageSize, currentPage * numericPageSize - 1),
+      ]);
+      if (countError) throw new Error(`Could not count Think Education students: ${countError.message}`);
+      if (studentsError) throw new Error(`Could not load Think Education students: ${studentsError.message}`);
+      totalCount = count ?? 0;
+      students = data ?? [];
+    }
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const numericPageSize = pageSize === "all" ? totalCount : Number(pageSize);
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(totalCount / numericPageSize));
   const branchNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const csvRows = [
     ["Student ID", "Full name", "Campus", "Status", "Enrolled"],
@@ -100,6 +134,7 @@ export default async function EducationStudentsPage({
     if (search) next.set("search", search);
     if (status !== "active") next.set("status", status);
     if (selectedBranch) next.set("branch", selectedBranch);
+    if (pageSize !== "10") next.set("pageSize", pageSize);
     next.set("page", String(page));
     return `${getProductAppPath("think-education", "/students")}?${next.toString()}`;
   };
@@ -172,22 +207,18 @@ export default async function EducationStudentsPage({
     </section>
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/students")} className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto] md:p-5">
-        <label className="relative block">
-          <span className="sr-only">Search by student name or number</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input type="search" name="search" defaultValue={search} placeholder="Search name or student number" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-        </label>
-        <select name="branch" defaultValue={selectedBranch} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
-          <option value="">All assigned campuses</option>
-          {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
-        </select>
-        <select name="status" defaultValue={status} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
-          {STUDENT_STATUSES.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}
-        </select>
-        {canExport && students.length > 0 && <a href={csvHref} download={`education-students-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
-        <p className="text-xs text-slate-500 md:col-span-full">Results update automatically as you type or change a filter.</p>
-      </form>
+      <StudentFilters
+        key={`${search}:${selectedBranch}:${status}:${pageSize}`}
+        action={getProductAppPath("think-education", "/students")}
+        search={search}
+        branch={selectedBranch}
+        status={status}
+        pageSize={pageSize}
+        campuses={campuses}
+        canExport={canExport && students.length > 0}
+        csvHref={csvHref}
+        exportFilename={`education-students-${new Date().toISOString().slice(0, 10)}.csv`}
+      />
 
       {campuses.length === 0 ? <div className="p-8 text-center">
         <GraduationCap className="mx-auto h-10 w-10 text-slate-300" />
@@ -215,7 +246,7 @@ export default async function EducationStudentsPage({
       </div>}
 
       {totalCount > 0 && <footer className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
-        <span className="text-slate-500">Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()}</span>
+        <span className="text-slate-500">Showing {((currentPage - 1) * numericPageSize) + 1}–{Math.min(currentPage * numericPageSize, totalCount)} of {totalCount.toLocaleString()}</span>
         <div className="flex items-center gap-2">
           {currentPage > 1 && <Link href={queryForPage(currentPage - 1)} className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 font-medium text-slate-700"><ArrowLeft className="h-4 w-4" /> Previous</Link>}
           <span className="text-slate-600">{currentPage} / {totalPages}</span>

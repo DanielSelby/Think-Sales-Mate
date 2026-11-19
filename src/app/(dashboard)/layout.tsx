@@ -15,6 +15,7 @@ import {
 } from "@/lib/supabase/platform-admin";
 import { getUserRegistrationApplications } from "@/lib/organizations/registration";
 import { getOrganizationUsageSummary } from "@/lib/organizations/usage-summary";
+import { getAccessibleEducationCampuses } from "@/lib/education/access";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const roleKey = typeof context.accessPermissions.role_key === "string"
     ? context.accessPermissions.role_key
     : context.role;
-  const [{ data: companyProfile }, { data: profile }, roleThemeResult, platformSettings, organizationUsage] = await Promise.all([
+  const [{ data: companyProfile }, { data: profile }, roleThemeResult, platformSettings, organizationUsage, educationAccess] = await Promise.all([
     supabase.from("company_profile").select("logo_url").eq("org_id", context.orgId).maybeSingle(),
     supabase.from("profiles").select("full_name, avatar_url, ui_preferences").eq("id", context.userId).maybeSingle(),
     supabase.from("organization_role_themes").select("theme_key").eq("org_id", context.orgId).eq("role_key", roleKey).maybeSingle(),
@@ -57,6 +58,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       console.error("Organization capacity details could not be loaded:", error);
       return null;
     }),
+    getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   const { data: roleTheme, error: roleThemeError } = roleThemeResult;
   let selectedTheme = roleTheme?.theme_key as ThemeKey | null;
@@ -85,6 +87,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       avatarUrl={profile?.avatar_url ?? null}
       darkStyle={darkStyle}
       enabledModules={enabledModules}
+      educationCampuses={educationAccess.campuses.map(({ id, name }) => ({ id, name }))}
       systemLogoUrl={systemLogoUrl}
       systemName={systemName}
       productLogoUrls={productBranding?.productImageUrls}

@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import Papa from "papaparse";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { getProductAppPath } from "@/lib/product-app-routes";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 
-const chartPath = "/accounting/chart-of-accounts";
+const chartPath = getProductAppPath("think-education", "/accounting/chart-of-accounts");
+const chartCachePath = "/education/accounting/chart-of-accounts";
 const periodsPath = "/accounting/periods";
 const journalsPath = "/accounting/journal-entries";
 const ledgerPath = "/accounting/general-ledger";
@@ -245,10 +247,10 @@ export async function saveEducationAccountingAccount(formData: FormData) {
     if (error) accountError();
   }
 
-  revalidatePath(chartPath);
+  revalidatePath(chartCachePath);
   revalidatePath("/education/accounting/bank-accounts");
   revalidatePath(cashbookPath);
-  revalidatePath("/accounting");
+  revalidatePath("/education/accounting");
   redirect(chartPath);
 }
 
@@ -269,12 +271,42 @@ export async function deactivateEducationAccountingAccount(formData: FormData) {
     .eq("org_id", context.orgId)
     .eq("id", accountId)
     .eq("is_active", true);
+  if (error?.code === "23514" && error.message.includes("automated posting mappings")) {
+    redirect(`${chartPath}?error=account-mapped`);
+  }
   if (error) accountError();
 
-  revalidatePath(chartPath);
+  revalidatePath(chartCachePath);
   revalidatePath("/education/accounting/bank-accounts");
   revalidatePath(cashbookPath);
   redirect(chartPath);
+}
+
+export async function deleteEducationAccountingAccount(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_finance", "finance", "chart_of_accounts", "edit")) {
+    redirect("/dashboard?accessDenied=think-education.accounting");
+  }
+
+  const accountId = value(formData, "accountId");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountId)) {
+    accountError();
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("education_delete_accounting_account", {
+    p_org_id: context.orgId,
+    p_account_id: accountId,
+  });
+  if (error?.code === "23503") redirect(`${chartPath}?error=account-in-use`);
+  if (error?.code === "42501") redirect("/dashboard?accessDenied=think-education.accounting");
+  if (error || data !== true) redirect(`${chartPath}?error=account-delete`);
+
+  revalidatePath(chartCachePath);
+  revalidatePath("/education/accounting/bank-accounts");
+  revalidatePath(cashbookPath);
+  redirect(`${chartPath}?saved=account-deleted`);
 }
 
 export async function createEducationFiscalYear(formData: FormData) {

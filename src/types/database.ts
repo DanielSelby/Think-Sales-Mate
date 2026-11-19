@@ -7367,6 +7367,10 @@ export interface Database {
         };
         Returns: string;
       };
+      education_delete_accounting_account: {
+        Args: { p_org_id: string; p_account_id: string };
+        Returns: boolean;
+      };
       education_post_accounting_journal: {
         Args: { p_org_id: string; p_journal_id: string };
         Returns: boolean;

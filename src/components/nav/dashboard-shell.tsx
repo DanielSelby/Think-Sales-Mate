@@ -47,12 +47,13 @@ interface Props {
   canViewAllBranches?: boolean;
   canChangeTheme?: boolean;
   enabledModules?: string[];
+  educationCampuses?: Array<{ id: string; name: string }>;
   watermark?: PlatformWatermarkConfiguration | null;
   organizationAccessExpiresAt?: string | null;
   organizationUsage: OrganizationUsageSummary | null;
 }
 
-export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, systemLogoUrl, systemName, productLogoUrls, productNames, workspaceHubDarkThemeEnabled, workspaceHubDarkSurfaceStyle = "opaque", roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
+export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, systemLogoUrl, systemName, productLogoUrls, productNames, workspaceHubDarkThemeEnabled, workspaceHubDarkSurfaceStyle = "opaque", roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, educationCampuses, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
@@ -193,6 +194,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             organizationUsage={organizationUsage}
             organizationAccessExpiresAt={organizationAccessExpiresAt ?? null}
             enabledModules={enabledModules}
+            educationCampuses={educationCampuses}
             onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           />}
           <main
