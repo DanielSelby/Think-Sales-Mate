@@ -1,0 +1,22 @@
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  :global(body *) {
+    visibility: hidden;
+  }
+
+  .printReceipt,
+  .printReceipt * {
+    visibility: visible;
+  }
+
+  .printReceipt {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+  }
+}

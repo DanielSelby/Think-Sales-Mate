@@ -9,6 +9,7 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import PrintReceiptButton from "../../print-receipt-button";
+import styles from "./receipt.module.css";
 
 export default async function EducationFeeReceiptPage({
   params,
@@ -95,7 +96,7 @@ export default async function EducationFeeReceiptPage({
         <ArrowLeft className="h-4 w-4" /> Fees & Finance
       </Link>
     </div>
-    <article className="education-fee-receipt overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:rounded-none print:border-0 print:shadow-none">
+    <article className={`${styles.printReceipt} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:rounded-none print:border-0 print:shadow-none`}>
       <header className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-800 px-6 py-7 text-white md:px-10 print:bg-blue-950">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
@@ -166,13 +167,5 @@ export default async function EducationFeeReceiptPage({
       </div>
     </article>
     <div className="flex justify-end print:hidden"><PrintReceiptButton label="Print / Save receipt" /></div>
-    <style jsx global>{`
-      @page { size: A4; margin: 14mm; }
-      @media print {
-        body * { visibility: hidden; }
-        .education-fee-receipt, .education-fee-receipt * { visibility: visible; }
-        .education-fee-receipt { position: absolute; inset: 0; width: 100%; max-width: none; }
-      }
-    `}</style>
   </main>;
 }
