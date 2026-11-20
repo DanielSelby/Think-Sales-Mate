@@ -42,6 +42,11 @@ describe("product application routes", () => {
       productSlug: "think-education",
       appPath: "/education/settings/roles",
     });
+    expect(resolveProductAppRoute("/app/think-education/settings/portals")).toEqual({
+      kind: "valid",
+      productSlug: "think-education",
+      appPath: "/education/settings/portals",
+    });
     expect(resolveProductAppRoute("/app/think-education/settings/integrations/google-classroom")).toEqual({
       kind: "valid",
       productSlug: "think-education",

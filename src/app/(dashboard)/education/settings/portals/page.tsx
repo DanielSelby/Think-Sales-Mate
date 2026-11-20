@@ -1,0 +1,87 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ArrowLeft, ExternalLink, Link2 } from "lucide-react";
+import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { canTabPermission } from "@/lib/rbac/permissions";
+import { createClient } from "@/lib/supabase/server";
+import { getProductAppPath } from "@/lib/product-app-routes";
+import { PortalLinkCard } from "./portal-link-card";
+
+const PORTALS = [
+  { type: "student", title: "Student Portal", description: "Student timetable, attendance, and published results." },
+  { type: "family", title: "Family Portal", description: "Guardians can review linked students, announcements, and fee balances." },
+  { type: "staff", title: "Staff / Teacher Portal", description: "Active teaching staff can view assigned classes and record attendance." },
+] as const;
+
+export default async function EducationPortalLinksPage() {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_settings", "settings", "institution", "view")) {
+    redirect("/dashboard?accessDenied=think-education.settings");
+  }
+
+  const { hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!hasOrganizationScope) {
+    return <main className="mx-auto max-w-4xl space-y-4 p-4 md:p-6">
+      <h1 className="text-2xl font-bold text-slate-950">Portal Links</h1>
+      <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        Portal links are organization-wide. Ask an Education administrator to grant you organization-wide access.
+      </p>
+    </main>;
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
+  if (!siteUrl) throw new Error("Set NEXT_PUBLIC_SITE_URL or SITE_URL to display shareable portal links.");
+  let origin: string;
+  try {
+    origin = new URL(siteUrl).origin;
+  } catch {
+    throw new Error("The configured application URL is invalid. Set NEXT_PUBLIC_SITE_URL to the application origin.");
+  }
+
+  const supabase = await createClient();
+  const { data: records, error } = await supabase.from("education_portal_links")
+    .select("portal_type, portal_path")
+    .eq("org_id", context.orgId);
+  if (error) throw new Error(`Could not load portal links for ${context.orgName}: ${error.message}`);
+
+  const pathByType = new Map((records ?? []).map((record) => [record.portal_type, record.portal_path]));
+  const links = PORTALS.map((portal) => {
+    const path = pathByType.get(portal.type);
+    if (!path) {
+      throw new Error(`The ${portal.title} link is not configured for ${context.orgName}. Apply the Education portal links migration.`);
+    }
+    return { ...portal, url: new URL(path, origin).toString() };
+  });
+
+  return <main className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
+    <header>
+      <Link href={getProductAppPath("think-education", "/settings")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
+        <ArrowLeft className="h-4 w-4" /> Institution Settings
+      </Link>
+      <h1 className="mt-2 text-2xl font-bold text-slate-950">Portal Links</h1>
+      <p className="mt-1 text-sm text-slate-600">Share the correct portal link with students, families, and teaching staff at {context.orgName}.</p>
+    </header>
+
+    <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
+      These links are registered for this organization. Users still need to sign in with an email address that matches an active student, guardian, or teaching-staff profile. The links do not grant access by themselves.
+    </section>
+
+    <section className="grid gap-4 md:grid-cols-2">
+      {links.map((portal) => <PortalLinkCard key={portal.type} {...portal} />)}
+    </section>
+
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 font-semibold text-slate-950"><Link2 className="h-5 w-5 text-blue-700" />How portal sign-in works</h2>
+      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-700">
+        <li>The user opens their portal link and enters the email address saved on their profile.</li>
+        <li>They receive a secure sign-in link by email; no system username or password is required.</li>
+        <li>After verifying their email, the portal links the matching active profile and shows only information they are authorized to see.</li>
+      </ol>
+      <Link href={links[0].url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline">
+        Preview Student Portal <ExternalLink className="h-4 w-4" />
+      </Link>
+    </section>
+  </main>;
+}

@@ -52,6 +52,7 @@ export function resolveProductAppRoute(pathname: string): ResolvedProductAppRout
       suffix === "/settings"
       || suffix === "/settings/users"
       || suffix === "/settings/roles"
+      || suffix === "/settings/portals"
       || suffix.startsWith("/settings/integrations/")
     );
   const isContextualOrganizationPath = !isEducationScopedSettingsPath && isOrganizationWideRoute(suffix);

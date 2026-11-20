@@ -44,6 +44,7 @@ const guardianCurrencyConfigsSchema = z.array(z.object({
 
 function messageFor(params: Record<string, string | string[] | undefined>) {
   if (params.emailSent === "1") return "If this email can sign in, a secure link has been sent. Check your inbox and spam folder.";
+  if (params.signin === "expired") return "That sign-in link has expired or could not be verified. Request a new secure link below.";
   if (params.signin === "invalid") return "Enter a valid email address.";
   if (params.signin === "configuration") return "Sign-in links are temporarily unavailable. Please contact the school.";
   if (params.signin === "error") return "The sign-in email could not be sent. Please wait a moment and try again.";

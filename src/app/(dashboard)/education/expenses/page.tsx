@@ -25,6 +25,7 @@ import {
 } from "../actions";
 import { EducationSubmitButton } from "../submit-button";
 import { ConfirmDeleteButton } from "@/components/education/confirm-delete-button";
+import { EducationExpenseFeedback } from "@/components/education/education-expense-feedback";
 
 const PAGE_SIZE = 30;
 
@@ -153,6 +154,28 @@ export default async function EducationExpensesPage({
         : params.error === "save"
           ? "The expense could not be saved. Please try again."
           : null;
+  const feedback = typeof params.error === "string" && errorMessage
+    ? {
+      kind: "error" as const,
+      message: errorMessage,
+      ...(["accounting-mapping", "accounting-period"].includes(params.error) ? {
+        actionLabel: "Open accounting setup",
+        actionHref: getProductAppPath("think-education", params.error === "accounting-mapping" ? "/accounting/settings" : "/accounting/periods"),
+      } : {}),
+    }
+    : params.created === "1"
+      ? { kind: "success" as const, message: "Expense recorded and submitted for approval." }
+      : params.updated === "1"
+        ? { kind: "success" as const, message: "Expense updated and returned to pending approval." }
+        : params.deleted === "1"
+          ? { kind: "success" as const, message: "Expense deleted and recorded in the audit log." }
+          : params.reviewed === "approved"
+            ? { kind: "success" as const, message: "Expense approved." }
+            : params.reviewed === "rejected"
+              ? { kind: "warning" as const, message: "Expense rejected with a recorded reason." }
+              : params.paid === "1"
+                ? { kind: "success" as const, message: "Expense payment recorded." }
+                : null;
 
   return <main className="mx-auto max-w-[1400px] space-y-5 p-4 md:p-6">
     <header>
@@ -176,18 +199,7 @@ export default async function EducationExpensesPage({
       </div>
     </section>}
 
-    {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense recorded and submitted for approval.</p>}
-    {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense updated and returned to pending approval.</p>}
-    {params.deleted === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense deleted and recorded in the audit log.</p>}
-    {params.reviewed === "approved" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense approved.</p>}
-    {params.reviewed === "rejected" && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Expense rejected with a recorded reason.</p>}
-    {params.paid === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense payment recorded.</p>}
-    {params.error && errorMessage && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-      {errorMessage}
-      {(params.error === "accounting-mapping" || params.error === "accounting-period") && (
-        <> <Link href={getProductAppPath("think-education", params.error === "accounting-mapping" ? "/accounting/settings" : "/accounting/periods")} className="font-semibold underline">Open accounting setup</Link></>
-      )}
-    </p>}
+    {feedback && <EducationExpenseFeedback key={typeof params.notice_id === "string" ? params.notice_id : feedback.message} {...feedback} />}
 
     {canCreate && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="font-semibold text-slate-950">Record an expense</h2>

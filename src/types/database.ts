@@ -72,6 +72,13 @@ type EducationInstitutionSettings = {
   created_at: string;
   updated_at: string;
 };
+type EducationPortalLink = {
+  org_id: string;
+  portal_type: "student" | "family" | "staff";
+  portal_path: string;
+  created_at: string;
+  updated_at: string;
+};
 type EducationCampus = {
   org_id: string;
   branch_id: string;
@@ -2295,6 +2302,10 @@ export interface Database {
       education_institution_settings: EducationDatabaseTable<
         EducationInstitutionSettings,
         "org_id" | "institution_name" | "institution_code" | "institution_type"
+      >;
+      education_portal_links: EducationDatabaseTable<
+        EducationPortalLink,
+        "org_id" | "portal_type" | "portal_path"
       >;
       education_campuses: EducationDatabaseTable<EducationCampus, "org_id" | "branch_id">;
       education_google_classroom_connections: EducationDatabaseTable<

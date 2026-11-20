@@ -139,7 +139,7 @@ async function uploadEducationStaffPhoto(
 
 function educationExpenseReturnPath(pettyCash: boolean, query?: string) {
   const path = getProductAppPath("think-education", pettyCash ? "/accounting/petty-cash" : "/expenses");
-  return query ? `${path}?${query}` : path;
+  return query ? `${path}?${query}&notice_id=${randomUUID()}` : path;
 }
 
 function isValidEducationStaffDate(value: string) {

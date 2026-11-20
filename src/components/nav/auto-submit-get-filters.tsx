@@ -17,7 +17,7 @@ export function AutoSubmitGetFilters() {
         ? target
         : null;
       const form = field?.form ?? target.closest("form");
-      if (!form || form.method.toLowerCase() !== "get" || form.dataset.autoFilter === "false") return null;
+      if (!form || form.getAttribute("method")?.toLowerCase() !== "get" || form.dataset.autoFilter !== "true") return null;
       return form;
     }
 

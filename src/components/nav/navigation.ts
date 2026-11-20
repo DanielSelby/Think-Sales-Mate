@@ -72,6 +72,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Roles & Permissions", href: "/education/settings/roles", icon: ShieldCheck, section: "Administration" },
       { label: "Google Classroom", href: "/education/settings/integrations/google-classroom", icon: Link2, section: "Administration" },
       { label: "Settings", href: "/education/settings", icon: Settings, section: "Administration" },
+      { label: "Portal Links", href: "/education/settings/portals", icon: Link2, section: "Administration" },
     ],
   },
   {

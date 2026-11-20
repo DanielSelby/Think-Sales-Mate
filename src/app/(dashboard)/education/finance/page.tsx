@@ -226,6 +226,9 @@ export default async function EducationFinancePage({
       <p className="mt-1 text-sm text-slate-600">Step 1: create a charge for a student. Step 2: record their payment from the charge or payment list. Outstanding balances update automatically.</p>
       </div>
       <div className="flex flex-wrap gap-2">
+        {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createBranchStudents.length > 0 && <a href="#add-charge" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
+          Create student charge
+        </a>}
         {canViewPayments && <Link href={getProductAppPath("think-education", "/finance/payments")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">
           Fee payment list
         </Link>}
@@ -248,6 +251,10 @@ export default async function EducationFinancePage({
         </a>}
       </div>
     </header>
+
+    {canPrepareCharge && campuses.length > 0 && (!createYearId || createBranchStudents.length === 0) && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      {!createYearId ? "Create a planned or active academic year before adding fee charges." : "No active students are available at the selected campus."}
+    </p>}
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Fee charge created.</p>}
     {params.scheduleCreated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Fee schedule created. Apply it when you are ready to post charges to the class.</p>}

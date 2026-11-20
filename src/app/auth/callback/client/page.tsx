@@ -12,11 +12,21 @@ export default function ClientAuthCallback() {
     let cancelled = false;
     const supabase = createClient();
     const next = new URLSearchParams(window.location.search).get("next") || "/reset-password";
+    const portalPath = ["/student-education-portal", "/education-portal", "/teacher-education-portal"]
+      .includes(next) ? next : null;
+
+    function handleCallbackError(message: string) {
+      if (portalPath) {
+        router.replace(`${portalPath}?signin=expired`);
+        return;
+      }
+      if (!cancelled) setError(message);
+    }
 
     async function completeCallback() {
       const { data, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) {
-        if (!cancelled) setError(sessionError.message);
+        handleCallbackError(sessionError.message);
         return;
       }
 
@@ -29,7 +39,7 @@ export default function ClientAuthCallback() {
       const accessToken = hash.get("access_token");
       const refreshToken = hash.get("refresh_token");
       if (!accessToken || !refreshToken) {
-        if (!cancelled) setError("This invitation link is invalid or has expired.");
+        handleCallbackError("This sign-in link is invalid or has expired.");
         return;
       }
 
@@ -38,7 +48,7 @@ export default function ClientAuthCallback() {
         refresh_token: refreshToken
       });
       if (setSessionError) {
-        if (!cancelled) setError(setSessionError.message);
+        handleCallbackError(setSessionError.message);
         return;
       }
       router.replace(next);
