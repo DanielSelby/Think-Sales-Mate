@@ -34,15 +34,6 @@ export async function AiAssistantPage({
     );
   }
 
-  export default async function AiAssistantRoute({
-    searchParams,
-  }: {
-    searchParams: Promise<{ error?: string }>;
-  }) {
-    return <AiAssistantPage searchParams={searchParams} />;
-  }
-
-
   const supabase = await createClient();
   const { data: insights, error: insightsError } = await supabase
     .from("ai_insights")
@@ -208,4 +199,12 @@ export async function AiAssistantPage({
       )}
     </div>
   );
+}
+
+export default async function AiAssistantRoute({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  return <AiAssistantPage searchParams={searchParams} />;
 }
