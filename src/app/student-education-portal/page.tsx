@@ -9,6 +9,7 @@ import { educationStudentPortalSchema, type EducationStudentPortal } from "@/lib
 import { educationNotificationsSchema } from "@/lib/education/notifications";
 import { setEducationNotificationPreference } from "@/app/education-notifications/actions";
 import { createClient } from "@/lib/supabase/server";
+import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
 import { claimEducationStudentPortalAccount, requestEducationStudentPortalSignIn } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +35,7 @@ export default async function EducationStudentPortalPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const supabase = await createClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
+  const user = getOptionalAuthUser(await supabase.auth.getUser(), "the student portal");
 
   let portal: EducationStudentPortal = [];
   let announcements: EducationPortalCommunication[] = [];
@@ -285,9 +285,10 @@ export default async function EducationStudentPortalPage({
         </article>)}
       </div>}
 
-      <div className="flex justify-center gap-4 text-sm">
+      <nav aria-label="Education portals" className="flex justify-center gap-5 text-sm">
         <Link href="/education-portal" className="font-medium text-blue-700 hover:text-blue-900">Family Portal</Link>
-      </div>
+        <Link href="/teacher-education-portal" className="font-medium text-blue-700 hover:text-blue-900">Staff Portal</Link>
+      </nav>
       <footer className="text-center text-xs text-slate-500">
         Only this signed-in account’s active student profile is shown. Results are visible after publication by the school.
       </footer>

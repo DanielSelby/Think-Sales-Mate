@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -84,7 +86,8 @@ export default async function EducationFeeReceiptPage({
   const totalPaid = (chargePayments ?? []).reduce((sum, record) => sum + record.amount, 0);
   const balance = Math.max(0, charge.amount - totalPaid);
   const receiptNumber = `TE-${payment.id.toUpperCase()}`;
-  const formatMoney = (amount: number) => `${organization.currency} ${amount.toFixed(2)}`;
+  const currencyConfig = await getOrganizationCurrencyConfig();
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
 
   return <main className="mx-auto max-w-3xl space-y-5 p-4 md:p-8 print:max-w-none print:p-0">
     <div className="print:hidden">

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowDownToLine, ArrowLeft, Clock3, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -67,18 +69,14 @@ export default async function EducationFeeAgingPage({
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
   const supabase = await createClient();
 
-  const [{ data: years, error: yearsError }, { data: organization, error: organizationError }] = await Promise.all([
+  const [{ data: years, error: yearsError }, currencyConfig] = await Promise.all([
     supabase.from("education_academic_years")
       .select("id, name")
       .eq("org_id", context.orgId)
       .order("starts_on", { ascending: false }),
-    supabase.from("organizations")
-      .select("currency")
-      .eq("id", context.orgId)
-      .single(),
+    getOrganizationCurrencyConfig(),
   ]);
   if (yearsError) throw new Error(`Could not load academic years for fee aging: ${yearsError.message}`);
-  if (organizationError) throw new Error(`Could not load organization currency for fee aging: ${organizationError.message}`);
   const academicYears = years ?? [];
   const selectedYear = academicYears.some((year) => year.id === requestedYear) ? requestedYear : "";
   const canExportAging = canViewCharges && canExportCharges && canViewPayments && canExportPayments
@@ -224,7 +222,7 @@ export default async function EducationFeeAgingPage({
   accounts.sort((a, b) => b.balance - a.balance || a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
   const visibleAccounts = accounts.slice((currentPage - 1) * REPORT_PAGE_SIZE, currentPage * REPORT_PAGE_SIZE);
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  const formatMoney = (amount: number) => `${organization.currency} ${amount.toFixed(2)}`;
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
 
   return <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-6">
     <header>

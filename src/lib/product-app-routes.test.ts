@@ -47,6 +47,21 @@ describe("product application routes", () => {
       productSlug: "think-education",
       appPath: "/education/settings/integrations/google-classroom",
     });
+    for (const appPath of [
+      "/settings/company",
+      "/settings/locations",
+      "/settings/general",
+      "/settings/currencies",
+      "/settings/organization",
+      "/settings/team",
+      "/settings/products",
+    ]) {
+      expect(resolveProductAppRoute(`/app/think-education${appPath}`)).toEqual({
+        kind: "valid",
+        productSlug: "think-education",
+        appPath,
+      });
+    }
   });
 
   it("uses each product's canonical default path", () => {

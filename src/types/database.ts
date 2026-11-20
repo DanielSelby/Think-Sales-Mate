@@ -8279,6 +8279,19 @@ export interface Database {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      education_get_guardian_currency_configs: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          organization_id: string;
+          currency_code: string;
+          currency_symbol: string;
+          currency_name: string;
+          decimal_places: number;
+          thousand_separator: string;
+          decimal_separator: string;
+          currency_position: string;
+        }>;
+      };
       education_guardian_paystack_create_attempt: {
         Args: { p_user_id: string; p_charge_id: string };
         Returns: Json;

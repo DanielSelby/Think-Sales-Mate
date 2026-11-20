@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowDownToLine, ArrowLeft } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { summarizeEducationCampusComparison } from "@/lib/education/campus-comparison";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
@@ -271,6 +273,7 @@ export default async function EducationCampusComparisonPage({
     feeCollections: feeCollectionData,
   });
   const currency = organizationResult.data?.currency ?? "";
+  const currencyConfig = await getOrganizationCurrencyConfig();
   const csvRows = [
     ["Campus", "Applications", "Student attendance rate (%)", "Active enrollments", "Published exam average (%)", `Approved expenses${currency ? ` (${currency})` : ""}`, "Fee payment count", `Fees collected${currency ? ` (${currency})` : ""}`],
     ...rows.map((row) => [
@@ -292,10 +295,7 @@ export default async function EducationCampusComparisonPage({
     && (!canViewOutcomes || canExportOutcomes)
     && (!canViewExpenseSummary || canExportExpenseSummary)
     && (!canViewFeeCollectionSummary || canExportFeeCollectionSummary);
-  const formatMoney = (amount: number) => `${new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)}${currency ? ` ${currency}` : ""}`;
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
 
   return <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
     <header>

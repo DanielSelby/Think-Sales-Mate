@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, CreditCard, Receipt } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -43,8 +45,7 @@ export default async function EducationFeePaymentsPage({
     canTabPermission("education_academics", "academics", "calendar", "view"),
   ]);
   const canPrintReceipts = canPrint && canViewStudents && canViewAcademicYears;
-  const [{ data: organization, error: organizationError }, { data: openCharges, error: chargesError }, { data: payments, count: paymentCount, error: paymentsError }] = await Promise.all([
-    supabase.from("organizations").select("currency").eq("id", context.orgId).single(),
+  const [{ data: openCharges, error: chargesError }, { data: payments, count: paymentCount, error: paymentsError }, currencyConfig] = await Promise.all([
     branchIds.length ? supabase.from("education_fee_charges").select("id, branch_id, student_id, description, amount, status, created_at").eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "open").order("created_at", { ascending: false }).limit(1000) : Promise.resolve({ data: [], error: null }),
     branchIds.length
       ? supabase.from("education_fee_payments")
@@ -53,8 +54,8 @@ export default async function EducationFeePaymentsPage({
         .order("created_at", { ascending: false })
         .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1)
       : Promise.resolve({ data: [], count: 0, error: null }),
+    getOrganizationCurrencyConfig(),
   ]);
-  if (organizationError) throw new Error(`Could not load organization currency: ${organizationError.message}`);
   if (chargesError) throw new Error(`Could not load fee charges for payments: ${chargesError.message}`);
   if (paymentsError) throw new Error(`Could not load fee payment history: ${paymentsError.message}`);
 
@@ -102,13 +103,12 @@ export default async function EducationFeePaymentsPage({
       balance,
     }] : [];
   });
-  const currency = organization.currency;
   const studentName = (chargeId: string) => {
     const charge = chargeById.get(chargeId);
     const student = charge ? studentById.get(charge.student_id) : undefined;
     return student ? `${student.first_name} ${student.last_name} · ${student.student_number}` : "Student";
   };
-  const formatMoney = (amount: number) => `${currency} ${amount.toFixed(2)}`;
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
   const pageHref = (page: number) => `${getProductAppPath("think-education", "/finance/payments")}?page=${page}`;
   const paymentError = typeof params.error === "string" ? params.error : "";
   const paymentErrorMessage = paymentError === "invalid"
@@ -128,7 +128,7 @@ export default async function EducationFeePaymentsPage({
         <h1 className="mt-2 text-3xl font-semibold text-slate-950">Fee Payments</h1>
         <p className="mt-1 text-sm text-slate-600">Record any student fee payment and review payment history in one place.</p>
       </div>
-      {canCreate && payableCharges.length > 0 && <FeePaymentDialog charges={payableCharges} studentId="" studentName="" currency={currency} returnToPayments buttonLabel="Record fee payment" />}
+      {canCreate && payableCharges.length > 0 && <FeePaymentDialog charges={payableCharges} studentId="" studentName="" currencyConfig={currencyConfig} returnToPayments buttonLabel="Record fee payment" />}
     </header>
     {params.paid === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Payment recorded and receipt reference generated.</p>}
     {paymentError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{paymentErrorMessage}</p>}

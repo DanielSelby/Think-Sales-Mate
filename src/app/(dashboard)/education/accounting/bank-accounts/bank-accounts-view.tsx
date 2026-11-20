@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDownLeft, ArrowLeft, ArrowRightLeft, Ellipsis, Landmark, Pencil, Plus, Search, Trash2, Wallet, X } from "lucide-react";
-import { formatCurrency } from "@/lib/sales/format";
+import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import {
   deleteEducationBankAccount,
@@ -37,14 +37,14 @@ type EducationBankAccount = {
 export function EducationBankAccountsView({
   accounts,
   campuses,
-  currency,
+  currencyConfig,
   hasOrganizationScope,
   canCreate,
   canEdit,
 }: {
   accounts: EducationBankAccount[];
   campuses: Array<{ id: string; name: string }>;
-  currency: string;
+  currencyConfig: CurrencyConfig;
   hasOrganizationScope: boolean;
   canCreate: boolean;
   canEdit: boolean;
@@ -149,7 +149,7 @@ export function EducationBankAccountsView({
         {[
           { label: "Cash and bank accounts", value: accounts.length.toLocaleString(), icon: Landmark },
           { label: "Active accounts", value: activeCount.toLocaleString(), icon: Wallet },
-          { label: "Posted ledger balance", value: formatCurrency(balanceTotal, currency), icon: ArrowDownLeft },
+          { label: "Posted ledger balance", value: formatCurrencyAmount(balanceTotal, currencyConfig), icon: ArrowDownLeft },
         ].map(({ label, value, icon: Icon }) => (
           <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-xl font-bold text-slate-950">{value}</p></div>
@@ -244,7 +244,7 @@ export function EducationBankAccountsView({
                   </div>
                   <div className="mt-3 border-t border-slate-100 pt-3">
                     <p className="text-xs text-slate-500">Posted ledger balance</p>
-                    <p className="mt-0.5 truncate text-xl font-semibold tabular-nums text-slate-950">{account.balance === null ? "Not available" : formatCurrency(account.balance, currency)}</p>
+                    <p className="mt-0.5 truncate text-xl font-semibold tabular-nums text-slate-950">{account.balance === null ? "Not available" : formatCurrencyAmount(account.balance, currencyConfig)}</p>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-3 border-t border-slate-100 pt-3 text-sm font-semibold">
                     <Link href={`${cashbookHref}?account=${encodeURIComponent(account.id)}`} className="inline-flex items-center gap-1 text-blue-700 hover:underline"><ArrowRightLeft className="h-4 w-4" /> Transactions</Link>

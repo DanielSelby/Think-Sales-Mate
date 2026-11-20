@@ -4,6 +4,7 @@ import { StudentConsentForm } from "../student-consent-form";
 import { StudentProfileForm } from "../student-profile-form";
 import { FeePaymentDialog } from "./fee-payment-dialog";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 import type { EducationStudentProfile } from "@/lib/education/student-profile";
 
 type ProfileTab =
@@ -148,7 +149,7 @@ type Props = {
   transfers: TransferRow[];
   communications: CommunicationRow[];
   consentEvents: ConsentEvent[];
-  currency: string;
+  currencyConfig: CurrencyConfig;
   canRecordFeePayment: boolean;
   paymentRecorded: boolean;
   paymentError: string | null;
@@ -194,7 +195,7 @@ export function StudentProfileView(props: Props) {
   const {
     student, studentPhotoUrl, fullName, selectedTab, permissions, enrollments,
     attendance, results, examinations, componentScores, charges, guardians,
-    documents, transfers, communications, consentEvents, currency,
+    documents, transfers, communications, consentEvents, currencyConfig,
     canRecordFeePayment, paymentRecorded, paymentError,
     classPosition, classPositionStatus,
   } = props;
@@ -210,10 +211,7 @@ export function StudentProfileView(props: Props) {
   const totalBilled = charges.filter((charge) => charge.status === "open").reduce((total, charge) => total + charge.amount, 0);
   const totalPaid = charges.filter((charge) => charge.status === "open").reduce((total, charge) => total + charge.paid, 0);
   const balance = Math.max(0, totalBilled - totalPaid);
-  const formatMoney = (amount: number) => new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: currency || "USD",
-  }).format(amount);
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
   const examinationById = new Map(examinations.map((examination) => [examination.id, examination]));
   const guardianStatus = (status: string) => status.replaceAll("_", " ");
   const ordinalPosition = (position: number) => {
@@ -435,7 +433,7 @@ export function StudentProfileView(props: Props) {
             charges={payableCharges}
             studentId={student.id}
             studentName={fullName}
-            currency={currency}
+            currencyConfig={currencyConfig}
             buttonLabel="Record fee payment"
           />
         </div>
@@ -463,7 +461,7 @@ export function StudentProfileView(props: Props) {
                   studentName={fullName}
                   chargeDescription={charge.description}
                   balance={chargeBalance}
-                  currency={currency}
+                  currencyConfig={currencyConfig}
                 />
                 : "—"}</td>
             </tr>;

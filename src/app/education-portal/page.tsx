@@ -5,11 +5,13 @@ import { educationPortalCommunicationsSchema, type EducationPortalCommunication 
 import { markEducationNotificationRead } from "@/app/education-notifications/actions";
 import { educationGuardianPortalSchema, type EducationGuardianPortal } from "@/lib/education/guardian-portal";
 import { educationNotificationsSchema } from "@/lib/education/notifications";
+import { formatCurrencyAmount, getCurrencyConfigFromSettings } from "@/lib/currency";
 import {
   setEducationAnnouncementDeliveryPreference,
   setEducationNotificationPreference,
 } from "@/app/education-notifications/actions";
 import { createClient } from "@/lib/supabase/server";
+import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
 import {
   claimEducationGuardianPortalAccount,
   requestEducationGuardianPortalSignIn,
@@ -28,6 +30,16 @@ const guardianFeePaymentDataSchema = z.array(z.object({
   paid: z.number().nonnegative(),
   balance: z.number().nonnegative(),
   paymentStatus: z.enum(["pending", "paid", "failed", "expired"]).nullable(),
+}));
+const guardianCurrencyConfigsSchema = z.array(z.object({
+  organization_id: z.string().uuid(),
+  currency_code: z.string().regex(/^[A-Z]{3}$/),
+  currency_symbol: z.string(),
+  currency_name: z.string(),
+  decimal_places: z.number().int().min(0).max(4),
+  thousand_separator: z.string(),
+  decimal_separator: z.string(),
+  currency_position: z.enum(["before", "after"]),
 }));
 
 function messageFor(params: Record<string, string | string[] | undefined>) {
@@ -58,8 +70,7 @@ export default async function EducationGuardianPortalPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const supabase = await createClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
+  const user = getOptionalAuthUser(await supabase.auth.getUser(), "the family portal");
 
   let portal: EducationGuardianPortal = [];
   let announcements: EducationPortalCommunication[] = [];
@@ -72,6 +83,7 @@ export default async function EducationGuardianPortalPage({
     sms_enabled: boolean;
   }> = [];
   let guardianFeePaymentData: z.infer<typeof guardianFeePaymentDataSchema> = [];
+  const currencyConfigByOrganization = new Map<string, ReturnType<typeof getCurrencyConfigFromSettings>>();
   if (user) {
     const { data, error } = await supabase.rpc("education_get_guardian_portal");
     if (error) throw new Error(`Could not load the guardian portal: ${error.message}`);
@@ -81,6 +93,28 @@ export default async function EducationGuardianPortalPage({
       throw new Error("The guardian portal data could not be safely displayed.");
     }
     portal = parsedPortal.data;
+    if (portal.length) {
+      const { data: currencyConfigRows, error: currencyConfigError } = await supabase.rpc(
+        "education_get_guardian_currency_configs"
+      );
+      if (currencyConfigError) throw new Error(`Could not load guardian currency display settings: ${currencyConfigError.message}`);
+      const parsedCurrencyConfigs = guardianCurrencyConfigsSchema.safeParse(currencyConfigRows);
+      if (!parsedCurrencyConfigs.success) {
+        console.error("Think Education guardian currency settings returned unexpected data:", parsedCurrencyConfigs.error.flatten());
+        throw new Error("Guardian currency settings could not be safely displayed.");
+      }
+      for (const row of parsedCurrencyConfigs.data) {
+        currencyConfigByOrganization.set(row.organization_id, getCurrencyConfigFromSettings({
+          currency_code: row.currency_code,
+          currency_symbol: row.currency_symbol,
+          currency_name: row.currency_name,
+          decimal_places: row.decimal_places,
+          thousand_separator: row.thousand_separator,
+          decimal_separator: row.decimal_separator,
+          currency_position: row.currency_position,
+        }));
+      }
+    }
 
     const { data: feePaymentRows, error: feePaymentError } = await supabase.rpc("education_guardian_paystack_portal_fees");
     if (feePaymentError) throw new Error(`Could not load guardian fee payment status: ${feePaymentError.message}`);
@@ -133,6 +167,11 @@ export default async function EducationGuardianPortalPage({
   const params = await searchParams;
   const message = messageFor(params);
   const paymentMessage = paymentMessageFor(params);
+  const formatGuardianMoney = (organizationId: string, amount: number) => {
+    const config = currencyConfigByOrganization.get(organizationId);
+    if (!config) throw new Error("Currency display settings are unavailable for a linked school.");
+    return formatCurrencyAmount(amount, config);
+  };
 
   return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-6xl space-y-6">
@@ -309,7 +348,7 @@ export default async function EducationGuardianPortalPage({
                 </div>
                 <div className="rounded-xl bg-slate-50 p-3">
                   <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><Wallet className="h-4 w-4" /> Outstanding fees</div>
-                  <p className="mt-2 text-lg font-semibold">{organization.currencyCode} {student.feeBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="mt-2 text-lg font-semibold">{formatGuardianMoney(organization.organizationId, student.feeBalance)}</p>
                   <p className="text-xs text-slate-500">{student.fees.length} open charge{student.fees.length === 1 ? "" : "s"}</p>
                 </div>
               </div>
@@ -342,7 +381,7 @@ export default async function EducationGuardianPortalPage({
                       <span><span className="font-medium">{fee.description}</span><span className="block text-xs text-slate-500">{fee.dueOn ? `Due ${fee.dueOn}` : "No due date"}</span>
                         {fee.paymentStatus && <span className="mt-1 block text-xs font-medium capitalize text-slate-600">Payment {fee.paymentStatus}</span>}
                       </span>
-                      <span className="shrink-0 text-right">{organization.currencyCode} {fee.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<span className="block text-xs text-slate-500">of {organization.currencyCode} {fee.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="shrink-0 text-right">{formatGuardianMoney(organization.organizationId, fee.balance)}<span className="block text-xs text-slate-500">of {formatGuardianMoney(organization.organizationId, fee.amount)}</span>
                         {fee.balance > 0 && user.email_confirmed_at && <form action="/api/education/guardian-fees/checkout" method="post" className="mt-2">
                           <input type="hidden" name="charge_id" value={fee.chargeId} />
                           <button type="submit" className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">Pay securely</button>
@@ -360,7 +399,10 @@ export default async function EducationGuardianPortalPage({
       <footer className="text-center text-xs text-slate-500">
         Student details are shown only for verified relationships linked to this signed-in account.
       </footer>
-      <p className="text-center text-sm"><Link href="/student-education-portal" className="font-medium text-blue-700 hover:text-blue-900">Student Portal</Link></p>
+      <nav aria-label="Education portals" className="flex justify-center gap-5 text-sm">
+        <Link href="/student-education-portal" className="font-medium text-blue-700 hover:text-blue-900">Student Portal</Link>
+        <Link href="/teacher-education-portal" className="font-medium text-blue-700 hover:text-blue-900">Staff Portal</Link>
+      </nav>
     </div>
   </main>;
 }

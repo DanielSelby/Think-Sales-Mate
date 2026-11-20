@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowDownToLine, ArrowLeft, BarChart3, BookOpen, Boxes, CalendarCheck, Package, Receipt, Users, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -434,16 +436,8 @@ export default async function EducationReportsPage({
     ...summary,
     campus: campuses.find((campus) => campus.id === summary.branch_id)?.name ?? "Campus",
   }));
-  let currencyCode = "USD";
-  if (canViewExpenseSummary || canViewFeeCollectionSummary) {
-    const { data: organization, error } = await supabase.from("organizations").select("currency").eq("id", context.orgId).single();
-    if (error) throw new Error(`Could not load currency for the education finance report: ${error.message}`);
-    currencyCode = organization.currency;
-  }
-  const formatCurrency = (amount: number) => new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: currencyCode,
-  }).format(amount);
+  const currencyConfig = await getOrganizationCurrencyConfig();
+  const formatCurrency = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
   let libraryLoans: Array<{ branch_id: string; loaned_on: string; due_on: string; returned_on: string | null }> = [];
   let libraryLoanCount = 0;
   if (canViewLibrarySummary && libraryBranchIds.length && libraryFrom <= libraryTo) {

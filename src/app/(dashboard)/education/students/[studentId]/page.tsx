@@ -6,6 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { calculateEducationClassPosition } from "@/lib/education/class-position";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 
 const PROFILE_TABS = [
   "overview", "personal", "academic", "performance", "exams", "attendance",
@@ -103,7 +104,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     documentsResult,
     transfersResult,
     admissionResult,
-    organizationResult,
+    currencyConfig,
     consentResult,
   ] = await Promise.all([
     canViewAcademics
@@ -154,7 +155,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
         .select("application_number").eq("org_id", context.orgId).eq("enrolled_student_id", student.id)
         .eq("branch_id", student.branch_id).limit(1).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    supabase.from("organizations").select("currency").eq("id", context.orgId).single(),
+    getOrganizationCurrencyConfig(),
     supabase.from("education_student_consent_events")
       .select("id, consent_type, disclosure_version, decision, signer_name, signer_relationship, evidence_note, recorded_at")
       .eq("org_id", context.orgId).eq("student_id", student.id).eq("branch_id", student.branch_id)
@@ -170,7 +171,6 @@ export default async function EducationStudentProfilePage({ params, searchParams
     ["student documents", documentsResult.error],
     ["student transfers", transfersResult.error],
     ["student admission", admissionResult.error],
-    ["organization currency", organizationResult.error],
     ["student consent history", consentResult.error],
   ] as const;
   for (const [label, error] of queryErrors) {
@@ -178,9 +178,6 @@ export default async function EducationStudentProfilePage({ params, searchParams
       console.error(`Could not load Think Education ${label}:`, error.message);
       throw new Error(`The student profile ${label} could not be loaded.`);
     }
-  }
-  if (!organizationResult.data) {
-    throw new Error("The organization currency could not be loaded for the student profile.");
   }
   if ((chargesResult.count ?? 0) > 1000) {
     throw new Error("This student has more than 1,000 fee charges. Open the full finance statement to view complete records.");
@@ -468,7 +465,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     transfers={transfersResult.data ?? []}
     communications={communications}
     consentEvents={consentResult.data ?? []}
-    currency={organizationResult.data.currency}
+    currencyConfig={currencyConfig}
     canRecordFeePayment={canRecordFeePayment}
     paymentRecorded={firstParam(queryParams.paid) === "1"}
     paymentError={paymentError}

@@ -5,6 +5,7 @@ import { CreditCard, Loader2, X } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { recordEducationFeePayment } from "../../actions";
 import { EDUCATION_FEE_PAYMENT_METHODS } from "@/lib/education/fee-payment-methods";
+import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 
 function SaveFeePaymentButton() {
   const { pending } = useFormStatus();
@@ -21,7 +22,7 @@ export function FeePaymentDialog({
   studentName,
   chargeDescription,
   balance,
-  currency,
+  currencyConfig,
   returnToFinance = false,
   returnToPayments = false,
   buttonLabel = "Record payment",
@@ -32,7 +33,7 @@ export function FeePaymentDialog({
   studentName: string;
   chargeDescription?: string;
   balance?: number;
-  currency: string;
+  currencyConfig: CurrencyConfig;
   returnToFinance?: boolean;
   returnToPayments?: boolean;
   buttonLabel?: string;
@@ -47,10 +48,7 @@ export function FeePaymentDialog({
   const activeDescription = selectedCharge?.description ?? chargeDescription ?? "";
   const activeBalance = selectedCharge?.balance ?? balance ?? 0;
   const dialogTitleId = `fee-payment-title-${chargeId ?? "selected"}`;
-  const formatMoney = (amount: number) => new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: currency || "USD",
-  }).format(amount);
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
 
   useEffect(() => {
     if (!open) return;
@@ -104,8 +102,8 @@ export function FeePaymentDialog({
               </select>
             </label>
           )}
-          <label className="text-sm font-medium">Payment amount ({currency})
-            <input required name="amount" type="number" min="0.01" max={activeBalance.toFixed(2)} step="0.01" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" />
+          <label className="text-sm font-medium">Payment amount ({currencyConfig.symbol})
+            <input required name="amount" type="number" min="0.01" max={activeBalance.toFixed(currencyConfig.decimalPlaces)} step={10 ** -currencyConfig.decimalPlaces} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" />
           </label>
           <label className="text-sm font-medium">Payment method
             <select required name="payment_method" defaultValue="cash" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">

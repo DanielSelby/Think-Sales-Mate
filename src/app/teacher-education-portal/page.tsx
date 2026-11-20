@@ -1,6 +1,8 @@
 import { BookOpen, CalendarDays, GraduationCap, Users } from "lucide-react";
+import Link from "next/link";
 import { educationTeacherPortalSchema, type EducationTeacherPortal } from "@/lib/education/teacher-portal";
 import { createClient } from "@/lib/supabase/server";
+import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
 import { claimEducationTeacherPortalAccount, recordEducationTeacherAttendance, requestEducationTeacherPortalSignIn } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +28,7 @@ export default async function EducationTeacherPortalPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const supabase = await createClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
+  const user = getOptionalAuthUser(await supabase.auth.getUser(), "the teacher portal");
   let portal: EducationTeacherPortal = [];
   if (user) {
     const { data, error } = await supabase.rpc("education_get_teacher_portal");
@@ -86,6 +87,10 @@ export default async function EducationTeacherPortalPage({
           </section>;
         })}
       </div>}
+      <nav aria-label="Education portals" className="flex justify-center gap-5 text-sm">
+        <Link href="/student-education-portal" className="font-medium text-emerald-700 hover:text-emerald-900">Student Portal</Link>
+        <Link href="/education-portal" className="font-medium text-emerald-700 hover:text-emerald-900">Family Portal</Link>
+      </nav>
     </div>
   </main>;
 }

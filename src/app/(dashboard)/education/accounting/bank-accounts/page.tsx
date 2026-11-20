@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -12,11 +13,12 @@ export default async function EducationBankAccountsPage() {
     redirect("/dashboard?accessDenied=think-education.accounting");
   }
 
-  const [{ campuses, hasOrganizationScope }, supabase, canCreate, canEdit] = await Promise.all([
+  const [{ campuses, hasOrganizationScope }, supabase, canCreate, canEdit, currencyConfig] = await Promise.all([
     getAccessibleEducationCampuses(context.orgId, context.userId),
     createClient(),
     canTabPermission("education_finance", "finance", "chart_of_accounts", "create"),
     canTabPermission("education_finance", "finance", "chart_of_accounts", "edit"),
+    getOrganizationCurrencyConfig(),
   ]);
   let accountsQuery = supabase.from("education_accounting_accounts")
     .select("id, branch_id, code, name, is_active, bank_account_type, bank_account_number, bank_logo_path")
@@ -62,7 +64,7 @@ export default async function EducationBankAccountsPage() {
           balance: balances.get(account.id) ?? null,
         }))}
         campuses={campuses.map((campus) => ({ id: campus.id, name: campus.name }))}
-        currency={context.currency}
+        currencyConfig={currencyConfig}
         hasOrganizationScope={hasOrganizationScope}
         canCreate={canCreate && (hasOrganizationScope || campuses.length > 0)}
         canEdit={canEdit}

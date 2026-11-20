@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Banknote, CreditCard, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -94,18 +96,14 @@ export default async function EducationCollectionsPage({
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
   const supabase = await createClient();
   const [
-    { data: organization, error: organizationError },
+    currencyConfig,
     { data: academicYears, error: yearsError },
   ] = await Promise.all([
-    supabase.from("organizations")
-      .select("currency")
-      .eq("id", context.orgId)
-      .single(),
+    getOrganizationCurrencyConfig(),
     supabase.from("education_academic_years")
       .select("id, name")
       .eq("org_id", context.orgId),
   ]);
-  if (organizationError) throw new Error(`Could not load organization currency for collections: ${organizationError.message}`);
   if (yearsError) throw new Error(`Could not load academic years for collections: ${yearsError.message}`);
 
   const payments: PaymentRecord[] = [];
@@ -198,7 +196,7 @@ export default async function EducationCollectionsPage({
   const visibleRows = visiblePayments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const yearNameById = new Map((academicYears ?? []).map((year) => [year.id, year.name]));
-  const formatMoney = (amount: number) => `${organization.currency} ${amount.toFixed(2)}`;
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
   const exportParams = new URLSearchParams({ from, to });
   if (selectedBranch) exportParams.set("branch", selectedBranch);
   if (selectedMethod) exportParams.set("method", selectedMethod);

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowDownToLine, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -141,7 +143,8 @@ export default async function EducationStudentFeeStatementPage({
   const totalPaid = rows.filter((charge) => charge.status === "open")
     .reduce((sum, charge) => sum + (paidByCharge.get(charge.id) ?? 0), 0);
   const balance = Math.max(0, totalBilled - totalPaid);
-  const formatMoney = (amount: number) => `${organization.currency} ${amount.toFixed(2)}`;
+  const currencyConfig = await getOrganizationCurrencyConfig();
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
   const canExportStatement = canExportCharges && canExportPayments && canExportStudents && canViewAcademicYears;
   const exportParams = new URLSearchParams();
   if (selectedYear) exportParams.set("year", selectedYear);

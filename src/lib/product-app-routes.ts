@@ -47,9 +47,14 @@ export function resolveProductAppRoute(pathname: string): ResolvedProductAppRout
   const isSharedPath = productRoute.sharedPaths?.some((path) =>
     suffix === path || suffix.startsWith(`${path}/`)
   );
-  const isEducationSettingsPath = productRoute.productSlug === "think-education"
-    && (suffix === "/settings" || suffix.startsWith("/settings/"));
-  const isContextualOrganizationPath = !isEducationSettingsPath && isOrganizationWideRoute(suffix);
+  const isEducationScopedSettingsPath = productRoute.productSlug === "think-education"
+    && (
+      suffix === "/settings"
+      || suffix === "/settings/users"
+      || suffix === "/settings/roles"
+      || suffix.startsWith("/settings/integrations/")
+    );
+  const isContextualOrganizationPath = !isEducationScopedSettingsPath && isOrganizationWideRoute(suffix);
   return {
     kind: "valid",
     productSlug: productRoute.productSlug,

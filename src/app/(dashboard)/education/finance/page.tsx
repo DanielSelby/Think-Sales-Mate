@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Banknote, CreditCard, Receipt, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -46,18 +48,14 @@ export default async function EducationFinancePage({
   const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
   const supabase = await createClient();
-  const [{ data: years, error: yearsError }, { data: organization, error: organizationError }] = await Promise.all([
+  const [{ data: years, error: yearsError }, currencyConfig] = await Promise.all([
     supabase.from("education_academic_years")
       .select("id, name, status")
       .eq("org_id", context.orgId)
       .order("starts_on", { ascending: false }),
-    supabase.from("organizations")
-      .select("currency")
-      .eq("id", context.orgId)
-      .single(),
+    getOrganizationCurrencyConfig(),
   ]);
   if (yearsError) throw new Error(`Could not load academic years for fees: ${yearsError.message}`);
-  if (organizationError) throw new Error(`Could not load the organization currency: ${organizationError.message}`);
   const academicYears = years ?? [];
   const availableYears = academicYears.filter((year) => year.status === "planned" || year.status === "active");
   const yearIds = academicYears.map((year) => year.id);
@@ -181,8 +179,7 @@ export default async function EducationFinancePage({
   const totalCharged = activeCharges.reduce((sum, charge) => sum + charge.amount, 0);
   const totalPaid = activeCharges.reduce((sum, charge) => sum + (paidByCharge.get(charge.id) ?? 0), 0);
   const outstanding = Math.max(0, totalCharged - totalPaid);
-  const currency = organization.currency;
-  const formatMoney = (amount: number) => `${currency} ${amount.toFixed(2)}`;
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
   const createBranchId = selectedBranch || campuses[0]?.id || "";
   const createYearId = availableYears.some((year) => year.id === selectedYear) ? selectedYear : availableYears[0]?.id || "";
   const createBranchStudents = students.filter((student) => student.branch_id === createBranchId);
@@ -236,7 +233,7 @@ export default async function EducationFinancePage({
           charges={payableCharges}
           studentId=""
           studentName=""
-          currency={currency}
+          currencyConfig={currencyConfig}
           returnToFinance
           buttonLabel="Record fee payment"
         />}
@@ -330,7 +327,7 @@ export default async function EducationFinancePage({
               studentName={studentName}
               chargeDescription={charge.description}
               balance={balance}
-              currency={currency}
+              currencyConfig={currencyConfig}
               returnToFinance
             />}
 
@@ -427,7 +424,7 @@ export default async function EducationFinancePage({
           <label className="text-sm font-medium text-slate-700">Fee description
             <input required name="description" maxLength={160} placeholder="e.g. Term tuition" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
-          <label className="text-sm font-medium text-slate-700">Amount per student ({currency})
+          <label className="text-sm font-medium text-slate-700">Amount per student ({currencyConfig.symbol})
             <input required name="amount" type="number" min="0.01" step="0.01" max="9999999999.99" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
           <label className="text-sm font-medium text-slate-700">Due date
@@ -460,7 +457,7 @@ export default async function EducationFinancePage({
         <label className="text-sm font-medium text-slate-700">Charge description
           <input required name="description" maxLength={160} placeholder="e.g. Tuition, books, or transport" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
-        <label className="text-sm font-medium text-slate-700">Amount ({currency})
+        <label className="text-sm font-medium text-slate-700">Amount ({currencyConfig.symbol})
           <input required name="amount" type="number" min="0.01" step="0.01" max="9999999999.99" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <label className="text-sm font-medium text-slate-700">Due date

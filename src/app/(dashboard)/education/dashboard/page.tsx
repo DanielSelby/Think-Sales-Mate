@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, BookOpen, Building2, CalendarCheck, ClipboardCheck, FileText, GraduationCap, TrendingUp, Users, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -233,15 +235,8 @@ export default async function ThinkEducationDashboardPage({
     }
   }
 
-  const { data: organization, error: organizationError } = canReadFeePayments || canViewExpenseRecords
-    ? await supabase.from("organizations").select("currency").eq("id", context.orgId).single()
-    : { data: null, error: null };
-  if (organizationError) throw new Error(`Could not load currency for the Think Education dashboard: ${organizationError.message}`);
-  const currency = organization?.currency ?? "";
-  const formatMoney = (amount: number) => `${new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)}${currency ? ` ${currency}` : ""}`;
+  const currencyConfig = await getOrganizationCurrencyConfig();
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
   const totalOutstandingFees = Array.from(feeStatsByCampus.values())
     .reduce((total, stats) => total + stats.outstanding, 0);
   const attendanceTrendDates = Array.from({ length: 7 }, (_, index) => {

@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { ArrowLeft, Banknote, ClipboardCheck, Receipt, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
+import { formatCurrencyAmount } from "@/lib/currency";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import {
   EDUCATION_EXPENSE_CATEGORIES,
   getEducationExpensePaymentMethods,
@@ -80,8 +82,8 @@ export default async function EducationExpensesPage({
   const toDate = isValidEducationExpenseDate(requestedTo) ? requestedTo : "";
   const searchFilter = requestedSearch.trim();
   const supabase = await createClient();
-  const [{ data: organization, error: organizationError }, result] = await Promise.all([
-    supabase.from("organizations").select("currency").eq("id", context.orgId).single(),
+  const [currencyConfig, result] = await Promise.all([
+    getOrganizationCurrencyConfig(),
     (async () => {
       if (!branchIds.length) return { data: [], count: 0, error: null };
       let query = supabase.from("education_expenses")
@@ -102,7 +104,6 @@ export default async function EducationExpensesPage({
       return query;
     })(),
   ]);
-  if (organizationError) throw new Error(`Could not load organization currency: ${organizationError.message}`);
   if (result.error) throw new Error(`Could not load Think Education expenses: ${result.error.message}`);
 
   const expenses = result.data ?? [];
@@ -208,7 +209,7 @@ export default async function EducationExpensesPage({
             </select>
           </label>
         )}
-        <label className="text-sm font-medium text-slate-700">Amount ({organization.currency})
+        <label className="text-sm font-medium text-slate-700">Amount ({currencyConfig.symbol})
           <input required name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" inputMode="decimal" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <label className="text-sm font-medium text-slate-700">Expense date
@@ -282,7 +283,7 @@ export default async function EducationExpensesPage({
               </div>
             </div>
             <div className="text-right">
-              <p className="text-lg font-semibold text-slate-950">{organization.currency} {Number(expense.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-lg font-semibold text-slate-950">{formatCurrencyAmount(Number(expense.amount), currencyConfig)}</p>
               <div className="mt-1 flex flex-wrap justify-end gap-2 text-xs">
                 <span className={`rounded-full px-2.5 py-1 font-medium ${
                   expense.status === "approved" ? "bg-emerald-50 text-emerald-700" : expense.status === "pending_approval" ? "bg-amber-50 text-amber-800" : "bg-red-50 text-red-700"
@@ -306,8 +307,8 @@ export default async function EducationExpensesPage({
                     {EDUCATION_EXPENSE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
                   </select>
                 </label>}
-              <label className="text-sm font-medium text-slate-700">Amount ({organization.currency})
-                <input required name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" defaultValue={Number(expense.amount).toFixed(2)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              <label className="text-sm font-medium text-slate-700">Amount ({currencyConfig.symbol})
+                <input required name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" defaultValue={Number(expense.amount).toFixed(currencyConfig.decimalPlaces)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
               </label>
               <label className="text-sm font-medium text-slate-700">Expense date
                 <input required name="expense_date" type="date" max={new Date().toISOString().slice(0, 10)} defaultValue={expense.expense_date} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
