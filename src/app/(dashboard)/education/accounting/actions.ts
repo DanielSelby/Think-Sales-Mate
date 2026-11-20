@@ -11,7 +11,8 @@ import { createClient } from "@/lib/supabase/server";
 
 const chartPath = getProductAppPath("think-education", "/accounting/chart-of-accounts");
 const chartCachePath = "/education/accounting/chart-of-accounts";
-const periodsPath = "/accounting/periods";
+const periodsPath = getProductAppPath("think-education", "/accounting/periods");
+const periodsCachePath = "/education/accounting/periods";
 const journalsPath = "/accounting/journal-entries";
 const ledgerPath = "/accounting/general-ledger";
 const cashbookPath = "/education/accounting/cashbook";
@@ -329,7 +330,7 @@ export async function createEducationFiscalYear(formData: FormData) {
   }
   const access = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (!access.hasOrganizationScope) {
-    redirect("/accounting/periods?error=organization-scope");
+    redirect(`${periodsPath}?error=organization-scope`);
   }
 
   const name = value(formData, "name");
@@ -359,8 +360,8 @@ export async function createEducationFiscalYear(formData: FormData) {
   });
   if (error) redirect(`${periodsPath}?error=fiscal-year-create`);
 
-  revalidatePath(periodsPath);
-  revalidatePath("/accounting");
+  revalidatePath(periodsCachePath);
+  revalidatePath("/education/accounting");
   redirect(periodsPath);
 }
 
@@ -448,7 +449,7 @@ export async function setEducationAccountingPeriodStatus(formData: FormData) {
     p_reason: reason,
   });
   if (error) redirect(`${periodsPath}?error=${error.code === "42501" ? "permission" : "period-status"}`);
-  revalidatePath(periodsPath);
+  revalidatePath(periodsCachePath);
   revalidatePath(journalsPath);
   revalidatePath("/accounting/reports");
   redirect(`${periodsPath}?updated=${status}`);
