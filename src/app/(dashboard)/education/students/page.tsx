@@ -157,7 +157,7 @@ export default async function EducationStudentsPage({
       <div className="flex flex-wrap gap-2">
         {canImport && campuses.length > 0 && <EducationImportModal entity="students" label="students" columns={[
           { key: "campus", label: "Campus", required: true },
-          { key: "student_number", label: "Student Number", required: true },
+          { key: "student_number", label: "Student Number" },
           { key: "first_name", label: "First Name", required: true },
           { key: "last_name", label: "Last Name", required: true },
           { key: "other_names", label: "Other Names" },
@@ -169,7 +169,7 @@ export default async function EducationStudentsPage({
         ]} />}
         {canCreate && campuses.length > 0 && <EducationRecordModal
           title="Add student"
-          description="Create an Education student record and optionally provision a linked login."
+          description="Student numbers are generated automatically. Optionally provision a linked login."
           buttonLabel="Add student"
           submitLabel="Save student"
           action={createEducationStudent}
@@ -177,7 +177,6 @@ export default async function EducationStudentsPage({
           accountRole="education_student"
           fields={[
             { name: "branch_id", label: "Campus", type: "select", required: true, options: campuses.map((campus) => ({ value: campus.id, label: campus.name })) },
-            { name: "student_number", label: "Student number", required: true, maxLength: 32, pattern: "[A-Za-z0-9._/-]+" },
             { name: "first_name", label: "First name", required: true, maxLength: 100 },
             { name: "last_name", label: "Last name", required: true, maxLength: 100 },
             { name: "other_names", label: "Other names", maxLength: 100 },

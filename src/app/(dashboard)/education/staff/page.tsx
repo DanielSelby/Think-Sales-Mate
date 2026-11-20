@@ -128,7 +128,7 @@ export default async function EducationStaffPage({
       <div className="flex flex-wrap gap-2">
         {canImport && campuses.length > 0 && <EducationImportModal entity="staff" label="staff" columns={[
           { key: "campus", label: "Campus", required: true },
-          { key: "staff_number", label: "Staff Number", required: true },
+          { key: "staff_number", label: "Staff Number" },
           { key: "first_name", label: "First Name", required: true },
           { key: "last_name", label: "Last Name", required: true },
           { key: "staff_category", label: "Category", required: true },
@@ -138,7 +138,7 @@ export default async function EducationStaffPage({
         ]} />}
         {canCreate && campuses.length > 0 && <EducationRecordModal
           title="Add staff member"
-          description="Create an Education staff record and optionally provision a linked login."
+          description="Staff numbers are generated automatically. Optionally provision a linked login."
           buttonLabel="Add staff member"
           submitLabel="Save staff member"
           action={createEducationStaff}
@@ -151,7 +151,6 @@ export default async function EducationStaffPage({
           ]}
           fields={[
             { name: "branch_id", label: "Campus", type: "select", required: true, options: campuses.map((campus) => ({ value: campus.id, label: campus.name })) },
-            { name: "staff_number", label: "Staff number", required: true, maxLength: 32, pattern: "[A-Za-z0-9._/-]+" },
             { name: "first_name", label: "First name", required: true, maxLength: 100 },
             { name: "last_name", label: "Last name", required: true, maxLength: 100 },
             { name: "staff_category", label: "Category", type: "select", required: true, options: [

@@ -48,6 +48,8 @@ export type EducationImportEntity = "students" | "staff" | "campuses";
 
 const EDUCATION_COMMUNICATION_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EDUCATION_STUDENT_IMAGE_BUCKET = "education-student-images";
+const generateEducationRecordNumber = (prefix: "APP" | "STU" | "STF") =>
+  `${prefix}-${new Date().getFullYear()}-${randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
 const EDUCATION_STAFF_IMAGE_BUCKET = "education-staff-images";
 const EDUCATION_STUDENT_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
 const EDUCATION_STAFF_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
@@ -910,7 +912,7 @@ export async function createEducationStudent(formData: FormData) {
   }
 
   const branchId = String(formData.get("branch_id") ?? "");
-  const studentNumber = String(formData.get("student_number") ?? "").trim();
+  const studentNumber = String(formData.get("student_number") ?? "").trim() || generateEducationRecordNumber("STU");
   const firstName = String(formData.get("first_name") ?? "").trim();
   const lastName = String(formData.get("last_name") ?? "").trim();
   const otherNames = String(formData.get("other_names") ?? "").trim();
@@ -923,7 +925,7 @@ export async function createEducationStudent(formData: FormData) {
   const photoResult = await getEducationStudentPhoto(formData);
   if (photoResult.error) return { error: photoResult.error };
   if (!branchId || !/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber) || !firstName || !lastName) {
-    return { error: "Check the student number, name, and campus fields." };
+    return { error: "Check the name and campus fields." };
   }
   if (firstName.length > 100 || lastName.length > 100 || otherNames.length > 100
     || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
@@ -1465,7 +1467,7 @@ export async function createEducationStaff(formData: FormData) {
   }
 
   const branchId = String(formData.get("branch_id") ?? "");
-  const staffNumber = String(formData.get("staff_number") ?? "").trim();
+  const staffNumber = String(formData.get("staff_number") ?? "").trim() || generateEducationRecordNumber("STF");
   const firstName = String(formData.get("first_name") ?? "").trim();
   const lastName = String(formData.get("last_name") ?? "").trim();
   const category = String(formData.get("staff_category") ?? "");
@@ -1479,7 +1481,7 @@ export async function createEducationStaff(formData: FormData) {
     || !["teaching", "non_teaching"].includes(category)
     || jobTitle.length > 120 || email.length > 254
     || phone.length > 32 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-    return { error: "Check the staff number, name, category, and email fields." };
+    return { error: "Check the name, category, and email fields." };
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -1633,11 +1635,11 @@ export async function importEducationRecords(
         const email = getValue(values, "email");
         const phone = getValue(values, "phone");
         const dateOfBirth = getValue(values, "date_of_birth");
-        if (!/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber)
+        if ((studentNumber && !/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber))
           || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
           || otherNames.length > 100 || !emailIsValid(email) || phone.length > 32
         ) {
-          return { row: rowNumber, error: "Check the student number, name, and contact fields." };
+          return { row: rowNumber, error: "Check the student number (if supplied), name, and contact fields." };
         }
         if (dateOfBirth && !isValidEducationStaffDate(dateOfBirth)) {
           return { row: rowNumber, error: "Date of birth must use DD-MM-YYYY (or YYYY-MM-DD) and cannot be in the future." };
@@ -1650,12 +1652,12 @@ export async function importEducationRecords(
       const lastName = getValue(values, "last_name");
       const category = getValue(values, "staff_category");
       const email = getValue(values, "email");
-      if (!/^[A-Za-z0-9._/-]{1,32}$/.test(staffNumber)
+      if ((staffNumber && !/^[A-Za-z0-9._/-]{1,32}$/.test(staffNumber))
         || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
         || !["teaching", "non_teaching"].includes(category)
         || getValue(values, "job_title").length > 120
         || !emailIsValid(email) || getValue(values, "phone").length > 32) {
-        return { row: rowNumber, error: "Check the staff number, name, category, and contact fields." };
+        return { row: rowNumber, error: "Check the staff number (if supplied), name, category, and contact fields." };
       }
       return runRowAction(rowNumber, () => createEducationStaff(formData));
     }));
@@ -1821,7 +1823,7 @@ export async function createEducationAdmission(formData: FormData) {
   }
 
   const branchId = String(formData.get("branch_id") ?? "");
-  const applicationNumber = String(formData.get("application_number") ?? "").trim();
+  const applicationNumber = String(formData.get("application_number") ?? "").trim() || generateEducationRecordNumber("APP");
   const firstName = String(formData.get("first_name") ?? "").trim();
   const lastName = String(formData.get("last_name") ?? "").trim();
   const otherNames = String(formData.get("other_names") ?? "").trim();
@@ -1957,7 +1959,7 @@ export async function updateEducationAdmissionStatus(formData: FormData) {
   const admissionId = String(formData.get("admission_id") ?? "");
   const status = String(formData.get("status") ?? "");
   const decisionNote = String(formData.get("decision_note") ?? "").trim();
-  const studentNumber = String(formData.get("student_number") ?? "").trim();
+  const studentNumber = String(formData.get("student_number") ?? "").trim() || generateEducationRecordNumber("STU");
   const classId = String(formData.get("class_id") ?? "").trim();
   if (!/^[0-9a-f-]{36}$/i.test(admissionId)
     || !["under_review", "admitted", "rejected", "withdrawn", "enrolled"].includes(status)
@@ -3490,12 +3492,14 @@ export async function createEducationExpense(formData: FormData) {
   const amountText = String(formData.get("amount") ?? "").trim();
   const expenseDate = String(formData.get("expense_date") ?? "");
   const reference = String(formData.get("reference") ?? "").trim();
+  const requestId = String(formData.get("request_id") ?? "");
   const pettyCash = category === "Petty Cash";
   const amount = Number(amountText);
   if (!branchId || !EDUCATION_EXPENSE_CATEGORIES.includes(category as typeof EDUCATION_EXPENSE_CATEGORIES[number])
     || vendor.length > 160 || !description || description.length > 500
     || !/^\d{1,10}(?:\.\d{1,2})?$/.test(amountText) || !Number.isFinite(amount) || amount <= 0
-    || amount > 9_999_999_999.99 || !isValidEducationExpenseDate(expenseDate) || reference.length > 120) {
+    || amount > 9_999_999_999.99 || !isValidEducationExpenseDate(expenseDate) || reference.length > 120
+    || !EDUCATION_COMMUNICATION_UUID_PATTERN.test(requestId)) {
     redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
   }
 
@@ -3509,6 +3513,7 @@ export async function createEducationExpense(formData: FormData) {
     p_amount: amount,
     p_expense_date: expenseDate,
     p_reference: reference || null,
+    p_request_id: requestId,
   });
   if (error) {
     if (error.code === "22023") redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
@@ -3518,6 +3523,83 @@ export async function createEducationExpense(formData: FormData) {
   }
   revalidatePath("/education/expenses");
   redirect(educationExpenseReturnPath(pettyCash, "created=1"));
+}
+
+export async function updateEducationExpense(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_expenses", "expenses", "records", "edit")) {
+    throw new Error("You do not have permission to edit Think Education expenses.");
+  }
+
+  const expenseId = String(formData.get("expense_id") ?? "");
+  const category = String(formData.get("category") ?? "");
+  const vendor = String(formData.get("vendor") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const amountText = String(formData.get("amount") ?? "").trim();
+  const expenseDate = String(formData.get("expense_date") ?? "");
+  const reference = String(formData.get("reference") ?? "").trim();
+  const pettyCash = formData.get("return_to") === "petty_cash";
+  const amount = Number(amountText);
+  if (!EDUCATION_COMMUNICATION_UUID_PATTERN.test(expenseId)
+    || !EDUCATION_EXPENSE_CATEGORIES.includes(category as typeof EDUCATION_EXPENSE_CATEGORIES[number])
+    || vendor.length > 160 || !description || description.length > 500
+    || !/^\d{1,10}(?:\.\d{1,2})?$/.test(amountText) || !Number.isFinite(amount) || amount <= 0
+    || amount > 9_999_999_999.99 || !isValidEducationExpenseDate(expenseDate) || reference.length > 120) {
+    redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_update_expense", {
+    p_org_id: context.orgId,
+    p_expense_id: expenseId,
+    p_category: category,
+    p_vendor: vendor || null,
+    p_description: description,
+    p_amount: amount,
+    p_expense_date: expenseDate,
+    p_reference: reference || null,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(educationExpenseReturnPath(pettyCash, "error=transition"));
+    if (error.code === "P0002") redirect(educationExpenseReturnPath(pettyCash, "error=not-found"));
+    if (error.code === "42501") throw new Error("You are not authorized to edit this expense at its campus.");
+    console.error("Could not update Think Education expense:", error.message);
+    redirect(educationExpenseReturnPath(pettyCash, "error=save"));
+  }
+  revalidatePath("/education/expenses");
+  revalidatePath("/education/accounting");
+  redirect(educationExpenseReturnPath(pettyCash, "updated=1"));
+}
+
+export async function deleteEducationExpense(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_expenses", "expenses", "records", "delete")) {
+    throw new Error("You do not have permission to delete Think Education expenses.");
+  }
+
+  const expenseId = String(formData.get("expense_id") ?? "");
+  const pettyCash = formData.get("return_to") === "petty_cash";
+  if (!EDUCATION_COMMUNICATION_UUID_PATTERN.test(expenseId)) {
+    redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_delete_expense", {
+    p_org_id: context.orgId,
+    p_expense_id: expenseId,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(educationExpenseReturnPath(pettyCash, "error=transition"));
+    if (error.code === "P0002") redirect(educationExpenseReturnPath(pettyCash, "error=not-found"));
+    if (error.code === "42501") throw new Error("You are not authorized to delete this expense at its campus.");
+    console.error("Could not delete Think Education expense:", error.message);
+    redirect(educationExpenseReturnPath(pettyCash, "error=save"));
+  }
+  revalidatePath("/education/expenses");
+  revalidatePath("/education/accounting");
+  redirect(educationExpenseReturnPath(pettyCash, "deleted=1"));
 }
 
 export async function reviewEducationExpense(formData: FormData) {

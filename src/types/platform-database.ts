@@ -523,6 +523,7 @@ export interface PlatformDatabase {
         background_artwork: string | null;
         background_artwork_visibility: number;
         login_form_transparent: boolean;
+        login_form_background_mode: "light" | "dark";
         theme_type: string;
         is_active: boolean;
         created_at: string;
@@ -535,6 +536,7 @@ export interface PlatformDatabase {
         background_artwork?: string | null;
         background_artwork_visibility?: number;
         login_form_transparent?: boolean;
+        login_form_background_mode?: "light" | "dark";
         theme_type: string;
         is_active?: boolean;
         created_at?: string;

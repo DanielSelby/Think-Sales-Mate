@@ -15,6 +15,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         backgroundArtworkUrl={experience.backgroundArtworkUrl}
         backgroundArtworkVisibility={experience.backgroundArtworkVisibility}
         loginFormTransparent={experience.loginFormTransparent}
+        loginFormBackgroundMode={experience.loginFormBackgroundMode}
       />
     );
   }

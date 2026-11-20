@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Eye, Globe2, ImagePlus, Monitor, Pencil, Plus, ShieldCheck, Smartphone, Tablet, Upload, Users } from "lucide-react";
+import { Check, ChevronDown, Eye, Globe2, ImagePlus, Monitor, Moon, Pencil, Plus, ShieldCheck, Smartphone, Sun, Tablet, Upload, Users } from "lucide-react";
 import { LoginArtwork, ModernGreenLogin } from "@/app/(auth)/login/modern-green-login";
 import { createPlatformClient } from "@/lib/supabase/platform-client";
 import {
@@ -22,6 +22,7 @@ type LoginTheme = {
   background_artwork: string | null;
   background_artwork_visibility: number;
   login_form_transparent: boolean;
+  login_form_background_mode: "light" | "dark";
   theme_type: string;
   is_active: boolean;
   created_at: string;
@@ -307,7 +308,7 @@ export function LoginExperienceManager({
                               const transparent = event.target.checked;
                               const visibility = backgroundVisibilityDrafts[theme.id] ?? theme.background_artwork_visibility;
                               void run(
-                                () => updateLoginThemeFormSettings(theme.id, transparent, visibility),
+                                () => updateLoginThemeFormSettings(theme.id, transparent, visibility, theme.login_form_background_mode),
                                 transparent ? "Login form background is transparent." : "Login form background is opaque.",
                               ).then((saved) => {
                                 if (saved) setPreview((current) => current?.id === theme.id
@@ -320,6 +321,40 @@ export function LoginExperienceManager({
                           <span><span className="block font-semibold">Transparent login form</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">Show the uploaded form background through the login card.</span></span>
                         </label>
                         <div className="rounded-lg border border-slate-200 p-3">
+                          <p className="text-xs font-semibold text-slate-700">Login form background mode</p>
+                          <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Login form background mode">
+                            {([
+                              { mode: "light", label: "Light", Icon: Sun },
+                              { mode: "dark", label: "Dark", Icon: Moon },
+                            ] as const).map(({ mode, label, Icon }) => (
+                              <button
+                                key={mode}
+                                type="button"
+                                aria-pressed={theme.login_form_background_mode === mode}
+                                disabled={busy || theme.login_form_background_mode === mode}
+                                onClick={() => {
+                                  const visibility = backgroundVisibilityDrafts[theme.id] ?? theme.background_artwork_visibility;
+                                  void run(
+                                    () => updateLoginThemeFormSettings(theme.id, theme.login_form_transparent, visibility, mode),
+                                    `${label} login form background saved.`,
+                                  ).then((saved) => {
+                                    if (saved) setPreview((current) => current?.id === theme.id
+                                      ? { ...current, login_form_background_mode: mode, background_artwork_visibility: visibility }
+                                      : current);
+                                  });
+                                }}
+                                className={`inline-flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold disabled:cursor-default ${
+                                  theme.login_form_background_mode === mode
+                                    ? "border-emerald-700 bg-emerald-50 text-emerald-800"
+                                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                                }`}
+                              >
+                                <Icon className="h-3.5 w-3.5" />
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="mt-1 text-[11px] leading-4 text-slate-500">Choose the color treatment behind the login form.</p>
                           <div className="flex items-center justify-between gap-3">
                             <label htmlFor={`background-visibility-${theme.id}`} className="text-xs font-semibold text-slate-700">Background artwork visibility</label>
                             <output htmlFor={`background-visibility-${theme.id}`} className="text-xs font-semibold tabular-nums text-emerald-700">
@@ -352,7 +387,7 @@ export function LoginExperienceManager({
                             onClick={() => {
                               const visibility = backgroundVisibilityDrafts[theme.id] ?? theme.background_artwork_visibility;
                               void run(
-                                () => updateLoginThemeFormSettings(theme.id, theme.login_form_transparent, visibility),
+                                () => updateLoginThemeFormSettings(theme.id, theme.login_form_transparent, visibility, theme.login_form_background_mode),
                                 "Background artwork visibility saved.",
                               ).then((saved) => {
                                 if (saved) setPreview((current) => current?.id === theme.id
@@ -416,6 +451,7 @@ export function LoginExperienceManager({
                   backgroundArtworkUrl={preview.background_artwork}
                   backgroundArtworkVisibility={preview.background_artwork_visibility}
                   loginFormTransparent={preview.login_form_transparent}
+                  loginFormBackgroundMode={preview.login_form_background_mode}
                 />
               </div>
             ) : preview ? (

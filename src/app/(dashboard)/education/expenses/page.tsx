@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 import { ArrowLeft, Banknote, ClipboardCheck, Receipt, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import {
@@ -13,8 +14,15 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { createEducationExpense, markEducationExpensePaid, reviewEducationExpense } from "../actions";
+import {
+  createEducationExpense,
+  deleteEducationExpense,
+  markEducationExpensePaid,
+  reviewEducationExpense,
+  updateEducationExpense,
+} from "../actions";
 import { EducationSubmitButton } from "../submit-button";
+import { ConfirmDeleteButton } from "@/components/education/confirm-delete-button";
 
 const PAGE_SIZE = 30;
 
@@ -50,10 +58,11 @@ export default async function EducationExpensesPage({
   const currentPage = Math.min(1_000_000, Math.max(1, Number.parseInt(
     typeof params.page === "string" ? params.page : "1", 10
   ) || 1));
-  const [canCreate, canApprove, canEdit, canExport, { campuses }] = await Promise.all([
+  const [canCreate, canApprove, canEdit, canDelete, canExport, { campuses }] = await Promise.all([
     canTabPermission("education_expenses", "expenses", "records", "create"),
     canTabPermission("education_expenses", "expenses", "records", "approve"),
     canTabPermission("education_expenses", "expenses", "records", "edit"),
+    canTabPermission("education_expenses", "expenses", "records", "delete"),
     canTabPermission("education_expenses", "expenses", "records", "export"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
@@ -167,6 +176,8 @@ export default async function EducationExpensesPage({
     </section>}
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense recorded and submitted for approval.</p>}
+    {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense updated and returned to pending approval.</p>}
+    {params.deleted === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense deleted and recorded in the audit log.</p>}
     {params.reviewed === "approved" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense approved.</p>}
     {params.reviewed === "rejected" && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Expense rejected with a recorded reason.</p>}
     {params.paid === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expense payment recorded.</p>}
@@ -181,6 +192,7 @@ export default async function EducationExpensesPage({
       <h2 className="font-semibold text-slate-950">Record an expense</h2>
       <p className="mt-1 text-sm text-slate-500">New expenses are pending until an authorized reviewer approves them.</p>
       {!campuses.length ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">You need an assigned Think Education campus before recording expenses.</p> : <form action={createEducationExpense} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <input type="hidden" name="request_id" value={randomUUID()} />
         <label className="text-sm font-medium text-slate-700">Campus
           <select required name="branch_id" defaultValue={selectedBranch || campuses[0]?.id || ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
             {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
@@ -281,6 +293,47 @@ export default async function EducationExpensesPage({
               </div>
             </div>
           </div>
+
+          {canEdit && expense.status !== "approved" && expense.payment_status === "unpaid" && <details className="border-t border-slate-100 pt-3">
+            <summary className="cursor-pointer text-sm font-semibold text-blue-700">Edit expense</summary>
+            <form action={updateEducationExpense} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <input type="hidden" name="expense_id" value={expense.id} />
+              {isPettyCashMode && <input type="hidden" name="return_to" value="petty_cash" />}
+              {isPettyCashMode
+                ? <input type="hidden" name="category" value={expense.category} />
+                : <label className="text-sm font-medium text-slate-700">Category
+                  <select required name="category" defaultValue={expense.category} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+                    {EDUCATION_EXPENSE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                </label>}
+              <label className="text-sm font-medium text-slate-700">Amount ({organization.currency})
+                <input required name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" defaultValue={Number(expense.amount).toFixed(2)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Expense date
+                <input required name="expense_date" type="date" max={new Date().toISOString().slice(0, 10)} defaultValue={expense.expense_date} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Vendor
+                <input name="vendor" maxLength={160} defaultValue={expense.vendor ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">Reference
+                <input name="reference" maxLength={120} defaultValue={expense.reference ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <label className="text-sm font-medium text-slate-700 sm:col-span-2">Description
+                <input required name="description" maxLength={500} defaultValue={expense.description} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+              </label>
+              <div className="flex items-end">
+                <button type="submit" className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800">Save changes</button>
+              </div>
+              <p className="text-xs text-slate-500 sm:col-span-2 lg:col-span-4">Editing a rejected expense resubmits it for approval. Approved or paid expenses remain locked to protect accounting history.</p>
+            </form>
+          </details>}
+
+          {canDelete && expense.status !== "approved" && expense.payment_status === "unpaid" && <form action={deleteEducationExpense} className="border-t border-slate-100 pt-3">
+            <input type="hidden" name="expense_id" value={expense.id} />
+            {isPettyCashMode && <input type="hidden" name="return_to" value="petty_cash" />}
+            <ConfirmDeleteButton />
+            <p className="mt-1 text-xs text-slate-500">Only pending or rejected expenses can be deleted. Deletion is retained in the audit log.</p>
+          </form>}
 
           {expense.status === "pending_approval" && canApprove && <div className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-3">
             <form action={reviewEducationExpense}>

@@ -360,7 +360,7 @@ export default async function ThinkEducationDashboardPage({
       })}
     </section>
 
-    {canReadFeePayments && canReadFeeCharges && <section aria-label="Campus-by-campus fee breakdown" data-education-fee-breakdown className="overflow-hidden rounded-xl border p-5 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
+    {canReadFeePayments && canReadFeeCharges &&     <section aria-label="Campus-by-campus fee breakdown" data-education-fee-breakdown data-education-dashboard-card className="overflow-hidden rounded-xl border p-5 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
       <div>
         <h2 className="text-lg font-bold" style={{ color: "var(--theme-text, #111827)" }}>Campus-by-campus fee breakdown</h2>
         <p className="mt-1 text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>
@@ -392,7 +392,7 @@ export default async function ThinkEducationDashboardPage({
         </div>}
     </section>}
 
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-950">Attendance trend</h2>
@@ -415,7 +415,7 @@ export default async function ThinkEducationDashboardPage({
     </section>
 
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
-      <article data-education-student-distribution className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <article data-education-dashboard-card data-education-student-distribution className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-950">Student distribution by campus</h2>
@@ -443,7 +443,7 @@ export default async function ThinkEducationDashboardPage({
             </ul>}
       </article>
 
-      <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-slate-950">Quick actions</h2>
         <p className="mt-1 text-sm text-slate-500">Open the education workflows available to your role.</p>
         <div className="mt-4 grid grid-cols-2 gap-3">

@@ -404,9 +404,7 @@ export default async function EducationAdmissionsPage({
                 </div>}
                 {application.status === "admitted" && canEnroll && (!application.guardian_first_name || canCreateGuardian) && <form action={updateEducationAdmissionStatus} className="mt-3 grid max-w-xs gap-2">
                   <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="enrolled" />
-                  <label className="text-xs font-medium text-slate-700">Student number
-                    <input required name="student_number" maxLength={32} pattern="[A-Za-z0-9._/-]+" className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs" />
-                  </label>
+                  <p className="text-xs text-slate-600">A student number will be generated automatically when enrolling.</p>
                   <label className="text-xs font-medium text-slate-700">Active class
                     <select required name="class_id" defaultValue={application.requested_class_id ?? ""} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
                       <option value="" disabled>Select a class</option>

@@ -243,6 +243,7 @@ type EducationExpense = {
   id: string;
   org_id: string;
   branch_id: string;
+  request_id: string | null;
   expense_number: number;
   category: string;
   vendor: string | null;
@@ -2332,7 +2333,7 @@ export interface Database {
       education_departments: EducationDatabaseTable<EducationDepartment, "org_id" | "name">;
       education_students: EducationDatabaseTable<
         EducationStudent,
-        "org_id" | "branch_id" | "student_number" | "first_name" | "last_name"
+        "org_id" | "branch_id" | "first_name" | "last_name"
       >;
       education_guardians: EducationDatabaseTable<
         EducationGuardian,
@@ -2412,7 +2413,7 @@ export interface Database {
       >;
       education_staff: EducationDatabaseTable<
         EducationStaff,
-        "org_id" | "branch_id" | "staff_number" | "first_name" | "last_name" | "staff_category"
+        "org_id" | "branch_id" | "first_name" | "last_name" | "staff_category"
       >;
       education_staff_employment_records: EducationDatabaseTable<
         EducationStaffEmploymentRecord,
@@ -2496,7 +2497,7 @@ export interface Database {
       >;
       education_admissions: EducationDatabaseTable<
         EducationAdmission,
-        "org_id" | "branch_id" | "application_number" | "applicant_first_name" | "applicant_last_name"
+        "org_id" | "branch_id" | "applicant_first_name" | "applicant_last_name"
       >;
       education_admission_offers: EducationDatabaseTable<
         EducationAdmissionOffer,
@@ -7781,8 +7782,29 @@ export interface Database {
           p_amount: number;
           p_expense_date: string;
           p_reference: string | null;
+          p_request_id: string;
         };
         Returns: string;
+      };
+      education_update_expense: {
+        Args: {
+          p_org_id: string;
+          p_expense_id: string;
+          p_category: string;
+          p_vendor: string | null;
+          p_description: string;
+          p_amount: number;
+          p_expense_date: string;
+          p_reference: string | null;
+        };
+        Returns: boolean;
+      };
+      education_delete_expense: {
+        Args: {
+          p_org_id: string;
+          p_expense_id: string;
+        };
+        Returns: boolean;
       };
       education_review_expense: {
         Args: {

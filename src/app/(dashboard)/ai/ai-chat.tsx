@@ -194,7 +194,30 @@ function formatConversationTime(timestamp: number): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(timestamp);
 }
 
-export function AiChat({ userLabel }: { userLabel: string }) {
+export function AiChat({
+  userLabel,
+  productLabel = "Think Digital Solutions",
+}: {
+  userLabel: string;
+  productLabel?: string;
+}) {
+  const education = productLabel === "Think Education";
+  const quickQuestions = education
+    ? [
+        { label: "Student enrollment summary", prompt: "Summarize active student enrollment across the campuses I can access.", icon: UsersRound },
+        { label: "Attendance overview", prompt: "Summarize attendance records for the current term or month.", icon: BarChart3 },
+        { label: "Fee collection status", prompt: "Summarize fee collection, outstanding balances, and overdue fees for the last 30 days.", icon: TrendingUp },
+        { label: "Campus performance", prompt: "Compare the accessible campuses for enrollment, attendance, and fee collection.", icon: Building2 },
+      ]
+    : QUICK_QUESTIONS;
+  const quickActions = education
+    ? [
+        { label: "Review enrollment", prompt: "Summarize active enrollment and recent admissions by campus.", icon: UsersRound },
+        { label: "Check attendance", prompt: "Show attendance trends for the current term across my authorized campuses.", icon: BarChart3 },
+        { label: "View education reports", href: "/education/reports", icon: FileBarChart },
+        { label: "Analyze fee collection", prompt: "Analyze fee collection and outstanding balances for the last 30 days. Separate retrieved facts from recommendations.", icon: TrendingUp },
+      ]
+    : QUICK_ACTIONS;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -498,12 +521,12 @@ export function AiChat({ userLabel }: { userLabel: string }) {
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">Hi, I&apos;m your AI Assistant</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-600 dark:text-slate-300">
-                  Ask about your business. I can help with the Think Digital Solutions data you&apos;re authorized to view.
+                  Ask about your business. I can help with the {productLabel} data you&apos;re authorized to view.
                 </p>
               </div>
             </div>
             <div className="mt-5 grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
-              {QUICK_QUESTIONS.map(({ label, prompt, icon: Icon }) => (
+              {quickQuestions.map(({ label, prompt, icon: Icon }) => (
                 <button
                   key={label}
                   type="button"
@@ -579,7 +602,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
                       : <p className="text-xs text-slate-500 dark:text-slate-400">{message.failed ? "I couldn’t prepare a reply. See the error details below." : "No response was received."}</p>}
                   {message.failed && message.content && <p className="mt-2 border-t border-slate-200 pt-2 text-xs text-amber-700 dark:border-slate-700 dark:text-amber-300">The response was interrupted and may be incomplete.</p>}
                 </div>
-                <p className="mt-1.5 text-[10px] text-slate-400">Think Digital Solutions AI · Gemini</p>
+                <p className="mt-1.5 text-[10px] text-slate-400">{productLabel} AI · Gemini</p>
               </div>
             </div>
           ))}
@@ -647,7 +670,7 @@ export function AiChat({ userLabel }: { userLabel: string }) {
             Quick Actions
           </div>
           <div className="space-y-1.5">
-            {QUICK_ACTIONS.map(({ label, prompt, href, icon: Icon }) => href ? (
+            {quickActions.map(({ label, prompt, href, icon: Icon }) => href ? (
               <a key={label} href={href} className="group flex min-h-10 items-center gap-2.5 rounded-lg border border-slate-100 px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:border-[var(--theme-primary)] hover:bg-[var(--theme-primary-pale)] dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800">
                 <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--theme-primary)] text-white"><Icon className="h-3.5 w-3.5" /></span>
                 <span className="flex-1">{label}</span><ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-[var(--theme-primary)]" />

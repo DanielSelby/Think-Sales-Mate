@@ -83,9 +83,7 @@ export default async function NewEducationAdmissionPage({
             {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
           </select>
         </label>
-        <label className="text-sm font-medium text-slate-700">Application number
-          <input required name="application_number" maxLength={32} pattern="[A-Za-z0-9._/-]+" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
-        </label>
+        <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">An application number will be generated automatically when you save.</p>
         <label className="text-sm font-medium text-slate-700">Applicant first name
           <input required name="first_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
         </label>

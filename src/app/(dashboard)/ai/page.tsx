@@ -10,7 +10,13 @@ import { AiGenerateButton } from "@/app/(dashboard)/ai/ai-generate-button";
 import { canPermission } from "@/lib/rbac/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export default async function AiAssistantPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export async function AiAssistantPage({
+  searchParams,
+  productLabel = "Think Digital Solutions",
+}: {
+  searchParams: Promise<{ error?: string }>;
+  productLabel?: string;
+}) {
   const params = await searchParams;
   const actionError = params.error?.startsWith("NEXT_REDIRECT")
     ? "The request was redirected unexpectedly. Refresh the page and try again. If it continues, check the server logs."
@@ -27,6 +33,15 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
       </div>
     );
   }
+
+  export default async function AiAssistantRoute({
+    searchParams,
+  }: {
+    searchParams: Promise<{ error?: string }>;
+  }) {
+    return <AiAssistantPage searchParams={searchParams} />;
+  }
+
 
   const supabase = await createClient();
   const { data: insights, error: insightsError } = await supabase
@@ -78,7 +93,7 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
           <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">AI Assistant</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Get instant answers, insights and help with your Think Digital Solutions data.
+            Get instant answers, insights and help with your {productLabel} data.
           </p>
           </div>
         </div>
@@ -109,7 +124,7 @@ export default async function AiAssistantPage({ searchParams }: { searchParams: 
       )}
 
       {canGenerate ? (
-        <AiChat key={context.orgId} userLabel="You" />
+        <AiChat key={context.orgId} userLabel="You" productLabel={productLabel} />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-ink-900">
           <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--theme-primary-pale)] text-[var(--theme-primary)]"><Sparkles className="h-5 w-5" /></span>

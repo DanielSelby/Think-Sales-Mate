@@ -12,6 +12,7 @@ export interface LoginExperience {
   backgroundArtworkUrl: string | null;
   backgroundArtworkVisibility: number;
   loginFormTransparent: boolean;
+  loginFormBackgroundMode: "light" | "dark";
   organizationName: string | null;
 }
 
@@ -23,6 +24,7 @@ const SYSTEM_DEFAULT: LoginExperience = {
   backgroundArtworkUrl: null,
   backgroundArtworkVisibility: 100,
   loginFormTransparent: false,
+  loginFormBackgroundMode: "light",
   organizationName: null,
 };
 
@@ -40,7 +42,7 @@ export async function getLoginExperience(requestedSlug?: string): Promise<LoginE
     const slug = requestedSlug?.trim().toLowerCase() || inferOrganizationSlug(host);
     const platform = createPlatformAdminClient();
     const [{ data: themes, error: themesError }, { data: globalSetting, error: globalError }] = await Promise.all([
-      platform.from("login_themes").select("id, name, theme_type, is_active, preview_image, background_artwork, background_artwork_visibility, login_form_transparent"),
+      platform.from("login_themes").select("id, name, theme_type, is_active, preview_image, background_artwork, background_artwork_visibility, login_form_transparent, login_form_background_mode"),
       platform.from("platform_settings").select("value").eq("key", "global_login_theme").maybeSingle(),
     ]);
     if (themesError) throw themesError;
@@ -85,6 +87,7 @@ export async function getLoginExperience(requestedSlug?: string): Promise<LoginE
       backgroundArtworkUrl: selectedTheme.background_artwork,
       backgroundArtworkVisibility: selectedTheme.background_artwork_visibility,
       loginFormTransparent: selectedTheme.login_form_transparent,
+      loginFormBackgroundMode: selectedTheme.login_form_background_mode,
       organizationName,
     };
   } catch (error) {

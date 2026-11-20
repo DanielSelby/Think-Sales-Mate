@@ -100,7 +100,10 @@ html.dark .education-page-content :is([class~="bg-blue-50"], [class~="bg-violet-
   background-color: color-mix(in srgb, var(--theme-primary, #2563eb) 14%, var(--theme-surface, #0f1d2d)) !important;
 }
 
-html.dark .education-page-content main > section[data-education-dashboard-metrics] > article {
+html.dark .education-page-content :is(
+  main > section[data-education-dashboard-metrics] > article,
+  [data-education-dashboard-card]
+) {
   border-color: color-mix(in srgb, var(--theme-primary, #60a5fa) 28%, #334960) !important;
   background:
     linear-gradient(135deg, rgb(255 255 255 / 0.045), rgb(255 255 255 / 0.01)),
@@ -1408,6 +1411,147 @@ html.dark .login-neumorphic-card a {
 
 html.dark .login-neumorphic-oauth {
   color: #e2e8e3;
+}
+
+.modern-login-form-panel.login-background-mode-light {
+  background:
+    radial-gradient(circle at 92% 10%, color-mix(in srgb, var(--login-primary) 8%, transparent), transparent 18rem),
+    linear-gradient(145deg, #f7f9f7, #f1f4f1);
+}
+
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card:not(.login-neumorphic-card-transparent) {
+  border-color: rgb(255 255 255 / 0.92);
+  background: linear-gradient(145deg, #ffffff, #f6f8f6);
+  box-shadow:
+    26px 30px 62px color-mix(in srgb, var(--login-primary) 16%, rgb(15 23 42 / 0.08)),
+    -14px -14px 34px rgb(255 255 255 / 0.96),
+    inset 1px 1px 0 rgb(255 255 255 / 0.98),
+    inset 0 -1px 0 rgb(15 23 42 / 0.035);
+}
+
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card-transparent {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-logo,
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-oauth {
+  border-color: rgb(255 255 255 / 0.98);
+  background: linear-gradient(145deg, #ffffff, #edf2ee);
+  color: #334155;
+}
+
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-input {
+  border-color: var(--login-input-border, rgb(255 255 255 / 0.96)) !important;
+  background: linear-gradient(160deg, #ffffff 0%, #f8faf8 45%, #eef3ef 100%) !important;
+  color: #0f172a !important;
+}
+
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-input::placeholder {
+  color: #64748b;
+}
+
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card .text-slate-900,
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card .text-slate-800,
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card .text-slate-700,
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card .text-slate-600,
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card .text-slate-500,
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card .text-slate-400 {
+  color: #334155 !important;
+}
+
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card h1,
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card label {
+  color: #1e293b !important;
+}
+
+.modern-login-form-panel.login-background-mode-light .login-neumorphic-card a {
+  color: #065f46 !important;
+}
+
+.modern-login-form-panel.login-background-mode-light .modern-login-language > span {
+  border-color: #e2e8f0;
+  background: rgb(255 255 255 / 0.8);
+  color: #475569;
+}
+
+.modern-login-form-panel.login-background-mode-light .modern-login-divider span {
+  background-color: #e2e8f0;
+}
+
+.modern-login-form-panel.login-background-mode-light .modern-login-copyright {
+  color: #94a3b8;
+}
+
+.modern-login-form-panel.login-background-mode-dark {
+  background:
+    radial-gradient(circle at 92% 10%, color-mix(in srgb, var(--login-primary) 14%, transparent), transparent 18rem),
+    linear-gradient(145deg, #17211c, #111a16);
+}
+
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card:not(.login-neumorphic-card-transparent) {
+  border-color: rgb(255 255 255 / 0.08);
+  background: linear-gradient(145deg, #1c2922, #141e19);
+  box-shadow:
+    20px 22px 48px rgb(0 0 0 / 0.32),
+    -8px -8px 24px rgb(255 255 255 / 0.025),
+    inset 1px 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card-transparent {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-logo,
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-oauth {
+  border-color: rgb(255 255 255 / 0.09);
+  background: linear-gradient(145deg, #26362d, #1a2720);
+  color: #e2e8e3;
+}
+
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-input {
+  border-color: rgb(255 255 255 / 0.08) !important;
+  background: linear-gradient(145deg, #121a16, #19231d) !important;
+  color: #f1f5f2 !important;
+}
+
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-input::placeholder {
+  color: #9aa9a0;
+}
+
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card .text-slate-900,
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card .text-slate-800,
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card .text-slate-700,
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card .text-slate-600,
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card .text-slate-500,
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card .text-slate-400 {
+  color: #d6e0d9 !important;
+}
+
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card h1,
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card label {
+  color: #e6efe9 !important;
+}
+
+.modern-login-form-panel.login-background-mode-dark .login-neumorphic-card a {
+  color: #7fe0ae !important;
+}
+
+.modern-login-form-panel.login-background-mode-dark .modern-login-language > span {
+  border-color: rgb(255 255 255 / 0.09);
+  background: rgb(26 39 32 / 0.8);
+  color: #d6e0d9;
+}
+
+.modern-login-form-panel.login-background-mode-dark .modern-login-divider span {
+  background-color: rgb(255 255 255 / 0.15);
+}
+
+.modern-login-form-panel.login-background-mode-dark .modern-login-copyright {
+  color: #94a3b8;
 }
 
 .login-error-enter {

@@ -226,7 +226,7 @@ export default async function EducationFinancePage({
         <ArrowLeft className="h-4 w-4" /> Dashboard
       </Link>
       <h1 className="mt-2 text-2xl font-bold text-slate-950">Fees & Finance</h1>
-      <p className="mt-1 text-sm text-slate-600">Create student fee charges, record payments, and track outstanding balances.</p>
+      <p className="mt-1 text-sm text-slate-600">Step 1: create a charge for a student. Step 2: record their payment from the charge or payment list. Outstanding balances update automatically.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {canViewPayments && <Link href={getProductAppPath("think-education", "/finance/payments")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">
@@ -440,8 +440,8 @@ export default async function EducationFinancePage({
     </section>}
 
     {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createBranchStudents.length > 0 && <section id="add-charge" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Create student fee charge</h2>
-      <p className="mt-1 text-sm text-slate-500">Charges and payments are retained in an auditable ledger. Payments cannot exceed the remaining balance.</p>
+      <h2 className="text-lg font-bold text-slate-950">Step 1: Create a student fee charge</h2>
+      <p className="mt-1 text-sm text-slate-500">Select the student, describe any fee (tuition, books, transport, or another charge), and enter the amount. Then use Record payment on that charge or open the Fee payment list. Payments are recorded in an auditable ledger and cannot exceed the balance.</p>
       <form action={createEducationFeeCharge} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm font-medium text-slate-700">Campus
           <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{campusNameById.get(createBranchId)}</span>

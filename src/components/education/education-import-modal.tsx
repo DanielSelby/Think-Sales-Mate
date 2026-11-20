@@ -146,7 +146,11 @@ export function EducationImportModal({ entity, label, columns }: EducationImport
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><FileSpreadsheet className="h-5 w-5" /></span>
             <div>
               <h2 id="education-import-title" className="font-semibold text-slate-950">Import {label}</h2>
-              <p className="mt-0.5 text-xs text-slate-500">Upload CSV or Excel, review the rows, then import up to 500 records.{entity === "students" ? " Use DD-MM-YYYY for dates of birth." : ""}</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Upload CSV or Excel, review the rows, then import up to 500 records.
+                {(entity === "students" || entity === "staff") && " Leave ID numbers blank to generate them automatically."}
+                {entity === "students" && " Use DD-MM-YYYY for dates of birth."}
+              </p>
             </div>
           </div>
           <button type="button" onClick={reset} aria-label="Close import dialog" className="rounded-lg p-2 text-slate-500 hover:bg-slate-200"><X className="h-4 w-4" /></button>

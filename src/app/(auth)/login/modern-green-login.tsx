@@ -244,6 +244,7 @@ export function ModernGreenLogin({
   backgroundArtworkUrl = null,
   backgroundArtworkVisibility = 100,
   loginFormTransparent = false,
+  loginFormBackgroundMode = "light",
 }: {
   organizationName?: string | null;
   preview?: boolean;
@@ -252,6 +253,7 @@ export function ModernGreenLogin({
   backgroundArtworkUrl?: string | null;
   backgroundArtworkVisibility?: number;
   loginFormTransparent?: boolean;
+  loginFormBackgroundMode?: "light" | "dark";
 }) {
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
   const pageHeight = preview ? "min-h-[680px] modern-login-preview" : "modern-login-viewport";
@@ -288,7 +290,7 @@ export function ModernGreenLogin({
             />
           </div>
         </section>
-        <section className="login-neumorphic-panel modern-login-form-panel relative flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <section className={`login-neumorphic-panel modern-login-form-panel login-background-mode-${loginFormBackgroundMode} relative flex min-h-0 min-w-0 flex-col overflow-hidden`}>
           <div className="pointer-events-none absolute inset-3 z-0 overflow-hidden rounded-2xl border border-white/90 shadow-[0_8px_32px_rgba(15,23,42,0.08)] sm:inset-4 lg:inset-5" aria-hidden="true">
             {backgroundArtworkUrl && (
               <>
@@ -299,7 +301,7 @@ export function ModernGreenLogin({
                   style={{ opacity: backgroundArtworkVisibility / 100 }}
                 />
                 <div
-                  className="absolute inset-0 bg-white dark:bg-slate-950"
+                  className={`absolute inset-0 ${loginFormBackgroundMode === "dark" ? "bg-slate-950" : "bg-white"}`}
                   style={{ opacity: ((100 - backgroundArtworkVisibility) / 100) * 0.45 }}
                 />
               </>

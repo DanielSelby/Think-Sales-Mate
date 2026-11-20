@@ -11,7 +11,13 @@ import {
 } from "@/lib/offline/queue";
 import { loadOfflineData, readOfflineCache } from "@/lib/offline/cache";
 
-export function OfflineCenter() {
+export function OfflineCenter({
+  productLabel = "Think Digital Solutions",
+  education = false,
+}: {
+  productLabel?: string;
+  education?: boolean;
+} = {}) {
   const [queue, setQueue] = useState<OfflineOperation[]>([]);
   const [online, setOnline] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -22,6 +28,10 @@ export function OfflineCenter() {
   useEffect(() => {
     const refresh = () => {
       setQueue(getOfflineQueue());
+      if (education) {
+        setCacheSnapshot("Education data snapshot support will become available when the offline sync feature is enabled.");
+        return;
+      }
       const cache = readOfflineCache();
       setCacheSnapshot(cache ? `Cached ${cache.products.length} products · ${cache.customers.length} customers` : "No cached data yet.");
     };
@@ -36,7 +46,7 @@ export function OfflineCenter() {
       window.removeEventListener("online", connection);
       window.removeEventListener("offline", connection);
     };
-  }, []);
+  }, [education]);
 
   async function sync() {
     setSyncing(true);
@@ -68,8 +78,12 @@ export function OfflineCenter() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Offline Center</h1>
-        <p className="mt-1 text-sm text-ledger-500">Review and sync queued sales and unpaid Restaurant orders. To create work offline, keep its POS screen that was opened online available on this device.</p>
+        <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">{education ? "Think Education Offline Center" : "Offline Center"}</h1>
+        <p className="mt-1 text-sm text-ledger-500">
+          {education
+            ? `Check Think Education connectivity and queued operations for ${productLabel}. Offline data entry and synchronization are not enabled yet.`
+            : "Review and sync queued sales and unpaid Restaurant orders. To create work offline, keep its POS screen that was opened online available on this device."}
+        </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
@@ -82,10 +96,10 @@ export function OfflineCenter() {
           <p className="mt-3 text-xs text-ledger-500">Queued transactions</p>
           <p className="font-semibold text-ink-900 dark:text-white">{queue.length}</p>
         </div>
-        <button onClick={() => void sync()} disabled={!online || syncing || queue.length === 0} className="rounded-2xl bg-blue-600 p-5 text-left text-white shadow-card disabled:cursor-not-allowed disabled:opacity-50">
+        <button onClick={() => void sync()} disabled={education || !online || syncing || queue.length === 0} className="rounded-2xl bg-blue-600 p-5 text-left text-white shadow-card disabled:cursor-not-allowed disabled:opacity-50">
           <RefreshCw className={`h-5 w-5 ${syncing ? "animate-spin" : ""}`} />
-          <p className="mt-3 text-xs text-blue-100">Sync now</p>
-          <p className="font-semibold">{syncing ? "Syncing…" : "Sync queued work"}</p>
+          <p className="mt-3 text-xs text-blue-100">{education ? "Education sync" : "Sync now"}</p>
+          <p className="font-semibold">{education ? "Not available yet" : syncing ? "Syncing…" : "Sync queued work"}</p>
         </button>
       </div>
       <div className="rounded-2xl border border-ledger-100 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
@@ -94,15 +108,17 @@ export function OfflineCenter() {
             <p className="text-xs text-ledger-500">Reference-data snapshot (not a substitute for an offline-ready Sales/POS screen)</p>
             <p className="text-sm font-semibold text-ink-900 dark:text-white">{cacheSnapshot ?? "No cached data yet."}</p>
           </div>
-          <button onClick={() => void loadData()} disabled={loadingData || !online} className="inline-flex items-center gap-2 rounded-xl border border-ledger-200 bg-white px-3 py-2 text-xs font-semibold text-ink-900 hover:bg-ledger-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-white dark:hover:bg-white/[0.04]">
+          <button onClick={() => void loadData()} disabled={education || loadingData || !online} className="inline-flex items-center gap-2 rounded-xl border border-ledger-200 bg-white px-3 py-2 text-xs font-semibold text-ink-900 hover:bg-ledger-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-ledger-700 dark:bg-ink-900 dark:text-white dark:hover:bg-white/[0.04]">
             <Download className={`h-3.5 w-3.5 ${loadingData ? "animate-pulse" : ""}`} />
-            {loadingData ? "Loading…" : "Load data"}
+            {education ? "Education data unavailable" : loadingData ? "Loading…" : "Load data"}
           </button>
         </div>
       </div>
       {message && <p className="text-sm text-ledger-600">{message}</p>}
       <div className="rounded-2xl border border-ledger-100 bg-white p-5 dark:border-ledger-700 dark:bg-ink-900">
-        {queue.length === 0 ? (
+        {education ? (
+          <div className="flex items-center gap-2 text-sm text-amber-700"><WifiOff className="h-4 w-4" /> Think Education offline operations are not enabled yet.</div>
+        ) : queue.length === 0 ? (
           <div className="flex items-center gap-2 text-sm text-emerald-600"><CheckCircle2 className="h-4 w-4" /> No pending offline transactions.</div>
         ) : queue.map((operation) => (
           <div key={operation.id} className="flex items-center justify-between border-b border-ledger-100 py-3 last:border-0 dark:border-ledger-700">
