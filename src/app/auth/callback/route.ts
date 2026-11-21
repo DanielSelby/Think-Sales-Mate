@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-const PORTAL_PATHS = new Set([
-  "/student-education-portal",
-  "/education-portal",
-  "/teacher-education-portal",
-]);
+import { getSafeAuthCallbackNext } from "@/lib/education/portal-auth";
 
 function redirectAfterAuthFailure(origin: string, next: string, message: string) {
-  if (PORTAL_PATHS.has(next)) {
+  if (
+    next === "/student-education-portal"
+    || next === "/education-portal"
+    || next === "/teacher-education-portal"
+  ) {
     const portalUrl = new URL(next, origin);
     portalUrl.searchParams.set("signin", "expired");
     return NextResponse.redirect(portalUrl);
@@ -23,7 +22,8 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const next = searchParams.get("next") ?? (type === "invite" ? "/reset-password" : "/onboarding");
+  const fallback = type === "invite" ? "/reset-password" : "/onboarding";
+  const next = getSafeAuthCallbackNext(searchParams.get("next"), origin, fallback);
 
   if (code) {
     const supabase = await createClient();
@@ -50,5 +50,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(clientCallback);
   }
 
-  return NextResponse.redirect(`${origin}${next}`);
+  return NextResponse.redirect(new URL(next, origin));
 }

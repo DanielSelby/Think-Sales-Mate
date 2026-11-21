@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getSafeAuthCallbackNext } from "@/lib/education/portal-auth";
 
 export default function ClientAuthCallback() {
   const router = useRouter();
@@ -11,7 +12,11 @@ export default function ClientAuthCallback() {
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
-    const next = new URLSearchParams(window.location.search).get("next") || "/reset-password";
+    const next = getSafeAuthCallbackNext(
+      new URLSearchParams(window.location.search).get("next"),
+      window.location.origin,
+      "/reset-password",
+    );
     const portalPath = ["/student-education-portal", "/education-portal", "/teacher-education-portal"]
       .includes(next) ? next : null;
 

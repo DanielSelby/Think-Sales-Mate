@@ -14,8 +14,6 @@ import { DashboardFilters } from "./dashboard-filters";
 type Metric = { label: string; value: number | string | null; icon: typeof Users; tint: string };
 type DashboardParams = Record<string, string | string[] | undefined>;
 
-const DASHBOARD_PAGE_SIZE = 500;
-
 function isValidDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);
@@ -124,150 +122,69 @@ export default async function ThinkEducationDashboardPage({
     paidAgainstRangeCharges: 0,
     outstanding: 0,
   }]));
-  let totalFeePaid = 0;
-  if (canReadFeePayments && canReadFeeCharges && branchIds.length) {
-    const { count: paymentCount, error: paymentCountError } = await supabase.from("education_fee_payments")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", context.orgId)
-      .gte("created_at", fromTimestamp)
-      .lt("created_at", toExclusiveTimestamp);
-    if (paymentCountError) throw new Error(`Could not count Think Education fee payments: ${paymentCountError.message}`);
-
-    for (let offset = 0; offset < (paymentCount ?? 0); offset += DASHBOARD_PAGE_SIZE) {
-      const { data: payments, error: paymentsError } = await supabase.from("education_fee_payments")
-        .select("charge_id, amount")
-        .eq("org_id", context.orgId)
-        .gte("created_at", fromTimestamp)
-        .lt("created_at", toExclusiveTimestamp)
-        .order("created_at").order("id")
-        .range(offset, offset + DASHBOARD_PAGE_SIZE - 1);
-      if (paymentsError) throw new Error(`Could not load Think Education fee payments: ${paymentsError.message}`);
-      const chargeIds = Array.from(new Set((payments ?? []).map((payment) => payment.charge_id)));
-      if (!chargeIds.length) continue;
-      const { data: charges, error: chargesError } = await supabase.from("education_fee_charges")
-        .select("id, branch_id")
-        .eq("org_id", context.orgId)
-        .in("branch_id", branchIds)
-        .in("id", chargeIds);
-      if (chargesError) throw new Error(`Could not scope Think Education fee payments: ${chargesError.message}`);
-      const campusByChargeId = new Map((charges ?? []).map((charge) => [charge.id, charge.branch_id]));
-      for (const payment of payments ?? []) {
-        const branchId = campusByChargeId.get(payment.charge_id);
-        const campusStats = branchId ? feeStatsByCampus.get(branchId) : undefined;
-        if (!campusStats) continue;
-        const amount = Number(payment.amount);
-        campusStats.paidInRange += amount;
-        totalFeePaid += amount;
-      }
-    }
-
-    const { count: chargeCount, error: chargeCountError } = await supabase.from("education_fee_charges")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", context.orgId)
-      .in("branch_id", branchIds)
-      .eq("status", "open");
-    if (chargeCountError) throw new Error(`Could not count outstanding Think Education fees: ${chargeCountError.message}`);
-
-    for (let offset = 0; offset < (chargeCount ?? 0); offset += DASHBOARD_PAGE_SIZE) {
-      const { data: charges, error: chargesError } = await supabase.from("education_fee_charges")
-        .select("id, branch_id, amount, created_at")
-        .eq("org_id", context.orgId)
-        .in("branch_id", branchIds)
-        .eq("status", "open")
-        .order("created_at").order("id")
-        .range(offset, offset + DASHBOARD_PAGE_SIZE - 1);
-      if (chargesError) throw new Error(`Could not load outstanding Think Education fees: ${chargesError.message}`);
-      const chargeRows = charges ?? [];
-      if (!chargeRows.length) continue;
-      const paidByChargeId = new Map<string, number>();
-      let paymentOffset = 0;
-      while (true) {
-        const { data: payments, error: paymentsError } = await supabase.from("education_fee_payments")
-          .select("charge_id, amount")
-          .eq("org_id", context.orgId)
-          .in("charge_id", chargeRows.map((charge) => charge.id))
-          .order("id")
-          .range(paymentOffset, paymentOffset + DASHBOARD_PAGE_SIZE - 1);
-        if (paymentsError) throw new Error(`Could not calculate outstanding Think Education fees: ${paymentsError.message}`);
-        const paymentRows = payments ?? [];
-        for (const payment of paymentRows) {
-          paidByChargeId.set(
-            payment.charge_id,
-            (paidByChargeId.get(payment.charge_id) ?? 0) + Number(payment.amount),
-          );
-        }
-        if (paymentRows.length < DASHBOARD_PAGE_SIZE) break;
-        paymentOffset += paymentRows.length;
-      }
-
-      for (const charge of chargeRows) {
-        const campusStats = feeStatsByCampus.get(charge.branch_id);
-        if (!campusStats) continue;
-        const amount = Number(charge.amount);
-        const paid = paidByChargeId.get(charge.id) ?? 0;
-        campusStats.outstanding += Math.max(0, amount - paid);
-        if (charge.created_at >= fromTimestamp && charge.created_at < toExclusiveTimestamp) {
-          campusStats.billedInRange += amount;
-          campusStats.paidAgainstRangeCharges += paid;
-        }
-      }
-    }
-  }
-
-  let totalExpenses = 0;
-  if (canViewExpenseRecords && branchIds.length) {
-    let offset = 0;
-    while (true) {
-      const { data: expenses, error: expensesError } = await supabase.from("education_expenses")
-        .select("amount")
-        .eq("org_id", context.orgId)
-        .in("branch_id", branchIds)
-        .eq("status", "approved")
-        .gte("expense_date", from)
-        .lte("expense_date", to)
-        .order("expense_date").order("id")
-        .range(offset, offset + DASHBOARD_PAGE_SIZE - 1);
-      if (expensesError) throw new Error(`Could not load approved Think Education expenses: ${expensesError.message}`);
-      const expenseRows = expenses ?? [];
-      totalExpenses += expenseRows.reduce((total, expense) => total + Number(expense.amount), 0);
-      if (expenseRows.length < DASHBOARD_PAGE_SIZE) break;
-      offset += expenseRows.length;
-    }
-  }
-
-  const currencyConfig = await getOrganizationCurrencyConfig();
-  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
-  const totalOutstandingFees = Array.from(feeStatsByCampus.values())
-    .reduce((total, stats) => total + stats.outstanding, 0);
   const attendanceTrendDates = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${today}T00:00:00.000Z`);
     date.setUTCDate(date.getUTCDate() - (6 - index));
     return date.toISOString().slice(0, 10);
   });
-  const attendanceTrend = canReadAttendance && branchIds.length
-    ? await Promise.all(attendanceTrendDates.map(async (date) => {
-      const [totalResult, presentResult] = await Promise.all([
-        supabase.from("education_attendance").select("id", { count: "exact", head: true })
-          .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", date),
-        supabase.from("education_attendance").select("id", { count: "exact", head: true })
-          .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", date).eq("status", "present"),
-      ]);
-      if (totalResult.error) throw new Error(`Could not load attendance trend for ${date}: ${totalResult.error.message}`);
-      if (presentResult.error) throw new Error(`Could not load present attendance for ${date}: ${presentResult.error.message}`);
-      const total = totalResult.count ?? 0;
-      const present = presentResult.count ?? 0;
-      return { date, total, present, rate: total ? Math.round((present / total) * 100) : null };
-    }))
-    : [];
-  const studentDistribution = canReadStudents
-    ? await Promise.all(selectedCampuses.map(async (campus) => {
-      const { count, error } = await supabase.from("education_students")
-        .select("id", { count: "exact", head: true })
-        .eq("org_id", context.orgId).eq("branch_id", campus.id).eq("status", "active");
-      if (error) throw new Error(`Could not load student count for ${campus.name}: ${error.message}`);
-      return { campus, count: count ?? 0 };
-    }))
-    : [];
+  const [
+    financeSummaryResult,
+    currencyConfig,
+    attendanceTrend,
+    studentDistribution,
+  ] = await Promise.all([
+    supabase.rpc("education_get_dashboard_finance_summary", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_from: fromTimestamp,
+      p_to_exclusive: toExclusiveTimestamp,
+      p_include_fees: canReadFeePayments && canReadFeeCharges,
+      p_include_expenses: canViewExpenseRecords,
+    }),
+    getOrganizationCurrencyConfig(),
+    canReadAttendance && branchIds.length
+      ? Promise.all(attendanceTrendDates.map(async (date) => {
+        const [totalResult, presentResult] = await Promise.all([
+          supabase.from("education_attendance").select("id", { count: "exact", head: true })
+            .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", date),
+          supabase.from("education_attendance").select("id", { count: "exact", head: true })
+            .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", date).eq("status", "present"),
+        ]);
+        if (totalResult.error) throw new Error(`Could not load attendance trend for ${date}: ${totalResult.error.message}`);
+        if (presentResult.error) throw new Error(`Could not load present attendance for ${date}: ${presentResult.error.message}`);
+        const total = totalResult.count ?? 0;
+        const present = presentResult.count ?? 0;
+        return { date, total, present, rate: total ? Math.round((present / total) * 100) : null };
+      }))
+      : Promise.resolve([]),
+    canReadStudents
+      ? Promise.all(selectedCampuses.map(async (campus) => {
+        const { count, error } = await supabase.from("education_students")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", context.orgId).eq("branch_id", campus.id).eq("status", "active");
+        if (error) throw new Error(`Could not load student count for ${campus.name}: ${error.message}`);
+        return { campus, count: count ?? 0 };
+      }))
+      : Promise.resolve([]),
+  ]);
+  if (financeSummaryResult.error) {
+    throw new Error(`Could not load Think Education dashboard finance summary: ${financeSummaryResult.error.message}`);
+  }
+  let totalFeePaid = 0;
+  let totalExpenses = 0;
+  for (const row of financeSummaryResult.data ?? []) {
+    const campusStats = feeStatsByCampus.get(row.branch_id);
+    if (!campusStats) continue;
+    campusStats.paidInRange = Number(row.paid_in_range);
+    campusStats.billedInRange = Number(row.billed_in_range);
+    campusStats.paidAgainstRangeCharges = Number(row.paid_against_range_charges);
+    campusStats.outstanding = Number(row.outstanding);
+    totalFeePaid += campusStats.paidInRange;
+    totalExpenses += Number(row.expenses);
+  }
+  const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
+  const totalOutstandingFees = Array.from(feeStatsByCampus.values())
+    .reduce((total, stats) => total + stats.outstanding, 0);
   const attendanceRate = attendanceCount
     ? Math.round(((presentCount ?? 0) / attendanceCount) * 1000) / 10
     : null;

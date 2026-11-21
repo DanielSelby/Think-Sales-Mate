@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDownLeft, ArrowLeft, ArrowRightLeft, Ellipsis, Landmark, Pencil, Plus, Search, Trash2, Wallet, X } from "lucide-react";
+import { ArrowDownLeft, ArrowLeft, ArrowRightLeft, Ellipsis, Landmark, Loader2, Pencil, Plus, Search, Trash2, Wallet, X } from "lucide-react";
 import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import {
@@ -75,24 +75,34 @@ export function EducationBankAccountsView({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setError("");
+    window.dispatchEvent(new Event("education:action-start"));
     startTransition(async () => {
-      const result = await saveEducationBankAccount(formData);
-      if (result.error) {
-        setError(result.error);
-        if (result.refresh) router.refresh();
-        return;
+      try {
+        const result = await saveEducationBankAccount(formData);
+        if (result.error) {
+          setError(result.error);
+          if (result.refresh) router.refresh();
+          return;
+        }
+        setFormTarget(undefined);
+        router.refresh();
+      } finally {
+        window.dispatchEvent(new Event("education:action-complete"));
       }
-      setFormTarget(undefined);
-      router.refresh();
     });
   }
 
   function updateActive(account: EducationBankAccount, isActive: boolean) {
     setError("");
+    window.dispatchEvent(new Event("education:action-start"));
     startTransition(async () => {
-      const result = await setEducationBankAccountActive(account.id, isActive);
-      if (result.error) setError(result.error);
-      else router.refresh();
+      try {
+        const result = await setEducationBankAccountActive(account.id, isActive);
+        if (result.error) setError(result.error);
+        else router.refresh();
+      } finally {
+        window.dispatchEvent(new Event("education:action-complete"));
+      }
     });
     setActiveMenu(null);
   }
@@ -102,13 +112,18 @@ export function EducationBankAccountsView({
       return;
     }
     setError("");
+    window.dispatchEvent(new Event("education:action-start"));
     startTransition(async () => {
-      const result = await deleteEducationBankAccount(account.id);
-      if (result.error) {
-        setError(result.error);
-        if (result.refresh) router.refresh();
+      try {
+        const result = await deleteEducationBankAccount(account.id);
+        if (result.error) {
+          setError(result.error);
+          if (result.refresh) router.refresh();
+        }
+        else router.refresh();
+      } finally {
+        window.dispatchEvent(new Event("education:action-complete"));
       }
-      else router.refresh();
     });
     setActiveMenu(null);
   }
@@ -303,7 +318,10 @@ export function EducationBankAccountsView({
               <p className="text-xs text-slate-500 sm:col-span-2">For security, only the last four account-number digits appear on the account card. Record opening balances with an opening-balance journal entry.</p>
               <div className="flex justify-end gap-2 sm:col-span-2">
                 <button type="button" onClick={() => setFormTarget(undefined)} disabled={isPending} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
-                <button type="submit" disabled={isPending} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">{isPending ? "Saving…" : formTarget ? "Save changes" : "Add account"}</button>
+                <button type="submit" disabled={isPending} aria-busy={isPending} className="inline-flex items-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60">
+                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                  {isPending ? "Saving…" : formTarget ? "Save changes" : "Add account"}
+                </button>
               </div>
             </form>
           </section>

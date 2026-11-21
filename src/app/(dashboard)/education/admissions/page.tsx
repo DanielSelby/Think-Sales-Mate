@@ -203,7 +203,7 @@ export default async function EducationAdmissionsPage({
   const errorMessage = params.error === "duplicate"
     ? "That application number is already in use."
     : params.error === "invalid"
-      ? "Check the application number, applicant name, email, and phone."
+      ? "Check the application number and applicant name. If supplied, email and phone must be valid."
       : params.error === "student-number"
         ? "That student number is already in use, or the student is already enrolled for this year."
         : params.error === "capacity"

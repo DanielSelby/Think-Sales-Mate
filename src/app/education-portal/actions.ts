@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getEducationPortalAuthRedirectTo } from "@/lib/education/portal-auth";
 
 const PORTAL_PATH = "/education-portal";
 
@@ -19,11 +20,18 @@ export async function requestEducationGuardianPortalSignIn(formData: FormData) {
   }
 
   const supabase = await createClient();
+  let emailRedirectTo: string;
+  try {
+    emailRedirectTo = getEducationPortalAuthRedirectTo(siteUrl, PORTAL_PATH);
+  } catch (error) {
+    console.error("Family portal sign-in URL is invalid:", error);
+    redirect(`${PORTAL_PATH}?signin=configuration`);
+  }
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: true,
-      emailRedirectTo: `${siteUrl.replace(/\/+$/, "")}/auth/callback?next=${PORTAL_PATH}`,
+      emailRedirectTo,
     },
   });
   if (error) {

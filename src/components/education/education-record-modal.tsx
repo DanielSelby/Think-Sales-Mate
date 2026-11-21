@@ -148,7 +148,8 @@ export function EducationRecordModal({
               <p className="font-semibold">Temporary login credentials</p>
               <p className="mt-1 break-all">Username: {credentials.username}</p>
               <p className="break-all">Password: {credentials.password}</p>
-              <p className="mt-2 text-xs">The account must change this password after signing in. Save these credentials now; they will not be shown again.</p>
+              <p className="mt-2 text-xs">Use these credentials on the Think Digital system login, not in the staff or student portal. After signing in, you must change this temporary password. Portal sign-in uses the secure email link sent from the portal.</p>
+              <p className="mt-1 text-xs">Save these credentials now; they will not be shown again.</p>
               <button type="button" onClick={copyCredentials} className="mt-3 inline-flex items-center gap-1 rounded-md border border-emerald-300 px-3 py-1.5 text-xs font-semibold hover:bg-emerald-50">
                 <Copy className="h-3.5 w-3.5" /> Copy credentials
               </button>

@@ -55,7 +55,7 @@ export default async function NewEducationAdmissionPage({
   const errorMessage = params.error === "duplicate"
     ? "That application number is already in use."
     : params.error === "invalid"
-      ? "Check the application number, applicant name, email, and phone."
+      ? "Check the application number and applicant name. If supplied, email and phone must be valid."
       : params.error === "class"
         ? "Choose an active class at the selected campus and academic year."
         : params.error === "save"
@@ -102,10 +102,10 @@ export default async function NewEducationAdmissionPage({
         <label className="text-sm font-medium text-slate-700">Home address
           <textarea name="address" maxLength={500} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
         </label>
-        <label className="text-sm font-medium text-slate-700">Email
+        <label className="text-sm font-medium text-slate-700">Email (optional)
           <input name="email" type="email" maxLength={254} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
         </label>
-        <label className="text-sm font-medium text-slate-700">Phone
+        <label className="text-sm font-medium text-slate-700">Phone (optional)
           <input name="phone" type="tel" maxLength={32} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
         </label>
         <fieldset className="rounded-lg border border-slate-200 p-4 sm:col-span-2 lg:col-span-3">

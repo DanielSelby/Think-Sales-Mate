@@ -7486,6 +7486,24 @@ export interface Database {
         Args: { p_org_id: string; p_account_ids: string[] };
         Returns: Array<{ account_id: string; balance: number }>;
       };
+      education_get_dashboard_finance_summary: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_from: string;
+          p_to_exclusive: string;
+          p_include_fees: boolean;
+          p_include_expenses: boolean;
+        };
+        Returns: Array<{
+          branch_id: string;
+          paid_in_range: number;
+          billed_in_range: number;
+          paid_against_range_charges: number;
+          outstanding: number;
+          expenses: number;
+        }>;
+      };
       education_post_accounting_journal: {
         Args: { p_org_id: string; p_journal_id: string };
         Returns: boolean;
