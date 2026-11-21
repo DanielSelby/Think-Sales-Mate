@@ -87,7 +87,7 @@ export default async function EducationLessonAttendancePage({
   const classNameById = new Map((classRows ?? []).map((classroom) => [classroom.id, classroom.name]));
 
   let totalCount = 0;
-  let students: Array<{ id: string; student_number: string; first_name: string; last_name: string }> = [];
+  let students: Array<{ id: string; student_number: string; first_name: string; last_name: string; photo_path: string | null }> = [];
   if (selectedLesson) {
     const { data: enrollmentRows, count, error: enrollmentError } = await supabase.from("education_student_enrollments")
       .select("student_id", { count: "exact" })
@@ -105,7 +105,7 @@ export default async function EducationLessonAttendancePage({
     const studentIds = (enrollmentRows ?? []).map((enrollment) => enrollment.student_id);
     if (studentIds.length) {
       const { data, error } = await supabase.from("education_students")
-        .select("id, student_number, first_name, last_name")
+        .select("id, student_number, first_name, last_name, photo_path")
         .eq("org_id", context.orgId)
         .eq("branch_id", selectedLesson.branch_id)
         .eq("status", "active")
@@ -113,6 +113,29 @@ export default async function EducationLessonAttendancePage({
         .order("last_name").order("first_name");
       if (error) throw new Error(`Could not load students for lesson attendance: ${error.message}`);
       students = data ?? [];
+    }
+  }
+
+  const studentPhotoUrlById = new Map<string, string>();
+  const studentIdByPhotoPath = new Map(students.flatMap((student) =>
+    student.photo_path ? [[student.photo_path, student.id] as const] : []
+  ));
+  const studentPhotoPaths = [...studentIdByPhotoPath.keys()];
+  for (let offset = 0; offset < studentPhotoPaths.length; offset += 100) {
+    const { data: signedPhotos, error: signedPhotosError } = await supabase.storage
+      .from("education-student-images")
+      .createSignedUrls(studentPhotoPaths.slice(offset, offset + 100), 60 * 60);
+    if (signedPhotosError) {
+      console.error("Could not load student lesson attendance photos:", signedPhotosError.message);
+      throw new Error("Student lesson attendance photos could not be loaded.");
+    }
+    for (const photo of signedPhotos ?? []) {
+      const studentId = photo.path ? studentIdByPhotoPath.get(photo.path) : undefined;
+      if (photo.error) {
+        console.error("Could not load a student lesson attendance photo:", photo.error);
+      } else if (studentId && photo.signedUrl) {
+        studentPhotoUrlById.set(studentId, photo.signedUrl);
+      }
     }
   }
 
@@ -227,13 +250,25 @@ export default async function EducationLessonAttendancePage({
             const canSave = existing ? canEdit : canCreate;
             return <tr key={student.id}>
               <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{student.student_number}</td>
-              <td className="px-4 py-3 font-medium text-slate-900">{student.first_name} {student.last_name}</td>
+              <td className="px-4 py-3 font-medium text-slate-900">
+                <span className="inline-flex items-center gap-3">
+                  <span
+                    role="img"
+                    aria-label={`${student.first_name} ${student.last_name} photo`}
+                    className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-xs font-semibold text-blue-700"
+                    style={studentPhotoUrlById.get(student.id) ? { backgroundImage: `url(${JSON.stringify(studentPhotoUrlById.get(student.id))})` } : undefined}
+                  >
+                    {!studentPhotoUrlById.has(student.id) && `${student.first_name[0] ?? ""}${student.last_name[0] ?? ""}`.toUpperCase()}
+                  </span>
+                  {student.first_name} {student.last_name}
+                </span>
+              </td>
               <td colSpan={3} className="px-4 py-3">
                 {canSave ? <form action={saveEducationLessonAttendance} className="grid gap-2 sm:grid-cols-[170px_minmax(160px,1fr)_auto]">
                   <input type="hidden" name="timetable_entry_id" value={selectedLesson.id} />
                   <input type="hidden" name="student_id" value={student.id} />
                   <input type="hidden" name="attendance_date" value={attendanceDate} />
-                  <select name="status" defaultValue={existing?.status ?? "present"} className="rounded-lg border border-slate-300 px-3 py-2">
+                  <select name="status" defaultValue={existing?.status ?? "absent"} className="rounded-lg border border-slate-300 px-3 py-2">
                     {ATTENDANCE_STATUSES.map((status) => <option key={status} value={status}>{status[0].toUpperCase() + status.slice(1)}</option>)}
                   </select>
                   <input name="note" defaultValue={existing?.note ?? ""} maxLength={500} placeholder="Optional note" className="rounded-lg border border-slate-300 px-3 py-2" />

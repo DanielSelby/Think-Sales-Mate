@@ -2838,7 +2838,7 @@ export async function createEducationClass(formData: FormData) {
     || streamName.length > 80
     || (classTeacherId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(classTeacherId))
     || (capacity !== null && (!Number.isInteger(capacity) || capacity < 1))) {
-    redirect(`${getProductAppPath("think-education", "/academics")}?error=invalid`);
+    redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=invalid`);
   }
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (!campuses.some((campus) => campus.id === branchId)) {
@@ -2860,9 +2860,9 @@ export async function createEducationClass(formData: FormData) {
       .maybeSingle();
     if (teacherError) {
       console.error("Could not validate the class teacher:", teacherError.message);
-      redirect(`${getProductAppPath("think-education", "/academics")}?error=save`);
+      redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=save`);
     }
-    if (!teacher) redirect(`${getProductAppPath("think-education", "/academics")}?error=teacher`);
+    if (!teacher) redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=teacher`);
   }
 
   const { error } = await supabase.from("education_classes").insert({
@@ -2876,12 +2876,12 @@ export async function createEducationClass(formData: FormData) {
     capacity,
   });
   if (error) {
-    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/academics")}?error=duplicate`);
+    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=duplicate`);
     console.error("Could not create Think Education class:", error.message);
-    redirect(`${getProductAppPath("think-education", "/academics")}?error=save`);
+    redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=save`);
   }
   revalidatePath("/education/academics");
-  redirect(`${getProductAppPath("think-education", "/academics")}?created=1`);
+  redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&created=1`);
 }
 
 export async function setEducationClassTeacher(formData: FormData) {

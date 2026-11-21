@@ -130,6 +130,7 @@ export default async function EducationStaffProfilePage({
         <ArrowLeft className="h-4 w-4" /> Staff management
       </Link>
       <EducationRecordSwitcher
+        key={staff.id}
         recordType="staff"
         searchPath={getProductAppPath("think-education", `/staff/${staff.id}`)}
         search={switchSearch}

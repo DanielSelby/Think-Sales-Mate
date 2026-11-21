@@ -13,7 +13,7 @@ import {
   setEducationAcademicTermStatus,
   setEducationAcademicYearStatus,
 } from "../actions";
-import { EducationClassForm } from "./education-class-form";
+import { EducationClassModal } from "./education-class-form";
 
 export default async function EducationAcademicsPage({
   searchParams,
@@ -132,7 +132,7 @@ export default async function EducationAcademicsPage({
       >{tab.label}</Link>)}
     </nav>
 
-    {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic record created.</p>}
+    {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{activeSection === "classes" ? "Class created." : "Academic record created."}</p>}
     {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic year status updated.</p>}
     {params.termCreated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic term created.</p>}
     {params.termUpdated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Academic term status updated.</p>}
@@ -207,9 +207,18 @@ export default async function EducationAcademicsPage({
 
     {activeSection === "classes" && <section className="space-y-5">
       <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="font-bold text-slate-950">Classes</h2>
-          <p className="mt-1 text-sm text-slate-500">Class groups for your assigned campuses.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="font-bold text-slate-950">Classes</h2>
+            <p className="mt-1 text-sm text-slate-500">Class groups for your assigned campuses.</p>
+          </div>
+          {canCreateClass && campuses.length > 0 && academicYears.length > 0 && <EducationClassModal
+            key={`${String(params.created ?? "")}:${String(params.error ?? "")}`}
+            campuses={campuses}
+            academicYears={academicYears}
+            teachers={staff.filter((member) => member.status === "active")}
+            canViewStaff={canViewStaff}
+          />}
         </div>
         {classes.length === 0 ? <p className="p-6 text-sm text-slate-500">{campuses.length ? "No classes found in your assigned campuses." : "Campus access has not been assigned."}</p> : <div>
           <div className="flex justify-end border-b border-slate-200 px-4 py-3">
@@ -266,20 +275,6 @@ export default async function EducationAcademicsPage({
           </label>
           <div className="flex items-end"><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"><Plus className="h-4 w-4" /> Save year</button></div>
         </form>
-      </article>}
-
-    </section>}
-
-    {activeSection === "classes" && <section className="grid gap-5">
-      {canCreateClass && campuses.length > 0 && academicYears.length > 0 && <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="font-bold text-slate-950">Add class</h2>
-        <p className="mt-1 text-sm text-slate-500">Create a class group in a campus and academic year you can access.</p>
-        <EducationClassForm
-          campuses={campuses}
-          academicYears={academicYears}
-          teachers={staff.filter((member) => member.status === "active")}
-          canViewStaff={canViewStaff}
-        />
       </article>}
 
     </section>}

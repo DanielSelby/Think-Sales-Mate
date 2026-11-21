@@ -596,7 +596,7 @@ export function StudentProfileView(props: Props) {
 
   return <main className="mx-auto w-full max-w-[1500px] space-y-5 p-4 md:p-6 xl:p-8">
     <Link href={getProductAppPath("think-education", "/students")} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:text-blue-900"><ArrowLeft className="h-4 w-4" /> Students</Link>
-    <EducationRecordSwitcher {...recordSwitcher} />
+    <EducationRecordSwitcher key={student.id} {...recordSwitcher} />
     <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
       <div className="flex flex-wrap items-center gap-4">
         <span role="img" aria-label={`${fullName} photo`} className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-2xl font-semibold text-blue-700" style={studentPhotoUrl ? { backgroundImage: `url(${JSON.stringify(studentPhotoUrl)})` } : undefined}>
