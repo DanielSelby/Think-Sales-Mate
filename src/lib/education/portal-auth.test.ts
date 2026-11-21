@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getEducationPortalAuthRedirectTo, getSafeAuthCallbackNext } from "./portal-auth";
+import {
+  getEducationPortalAuthRedirectTo,
+  getEducationPortalPostLoginPath,
+  getSafeAuthCallbackNext,
+} from "./portal-auth";
 
 describe("Think Education portal auth redirects", () => {
   it("uses the configured site origin and exact portal destination", () => {
@@ -19,5 +23,11 @@ describe("Think Education portal auth redirects", () => {
       .toBe("/onboarding");
     expect(getSafeAuthCallbackNext("https://attacker.example/path", "https://school.example", "/onboarding"))
       .toBe("/onboarding");
+  });
+
+  it("returns portal users to their portal after a forced password change", () => {
+    expect(getEducationPortalPostLoginPath("/teacher-education-portal")).toBe("/teacher-education-portal");
+    expect(getEducationPortalPostLoginPath("/login")).toBe("/product-hub");
+    expect(getEducationPortalPostLoginPath(null)).toBe("/product-hub");
   });
 });

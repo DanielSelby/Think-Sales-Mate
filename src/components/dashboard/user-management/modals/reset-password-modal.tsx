@@ -13,6 +13,12 @@ interface ResetPasswordModalProps {
   onConfirmReset: (userId: string, mode: "email" | "temporary", tempPassword?: string) => Promise<{ error?: string }>;
 }
 
+function makeTemporaryPassword() {
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  return `${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}Aa1!`;
+}
+
 export function ResetPasswordModal({
   isOpen,
   onClose,
@@ -27,6 +33,15 @@ export function ResetPasswordModal({
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen || !user) return null;
+
+  const handleClose = () => {
+    setResetMode("email");
+    setTempPassword("");
+    setCopied(false);
+    setSuccess(false);
+    setError(null);
+    onClose();
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(tempPassword);
@@ -44,10 +59,6 @@ export function ResetPasswordModal({
         return;
       }
       setSuccess(true);
-      window.setTimeout(() => {
-        setSuccess(false);
-        onClose();
-      }, 1200);
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : "Could not reset this password.");
     } finally {
@@ -71,7 +82,7 @@ export function ResetPasswordModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1.5 text-ledger-400 hover:bg-slate-100 hover:text-ink-900 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
           >
             <X className="h-4 w-4" />
@@ -87,8 +98,14 @@ export function ResetPasswordModal({
               <p className="text-xs text-ledger-400">
                 {resetMode === "email"
                   ? `A secure password reset email was sent to ${user.email}.`
-                  : "Temporary password set. The user must choose a new password before accessing the application."}
+                  : "Temporary password set. Share it securely; the user must change it at first sign-in."}
               </p>
+              {resetMode === "temporary" && <div className="mt-4 flex items-center gap-2">
+                <Input value={tempPassword} readOnly aria-label="Generated temporary password" className="h-9 text-xs font-mono font-semibold" />
+                <Button type="button" size="sm" variant="outline" onClick={handleCopy} className="h-9 shrink-0">
+                  <Copy className="mr-1 h-3.5 w-3.5" /> {copied ? "Copied!" : "Copy"}
+                </Button>
+              </div>}
             </div>
           ) : (
             <>
@@ -109,7 +126,10 @@ export function ResetPasswordModal({
 
                 <button
                   type="button"
-                  onClick={() => setResetMode("temporary")}
+                  onClick={() => {
+                    setTempPassword(makeTemporaryPassword());
+                    setResetMode("temporary");
+                  }}
                   className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
                     resetMode === "temporary"
                       ? "border-blue-600 bg-blue-50/50 text-blue-700 dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-300"
@@ -133,11 +153,14 @@ export function ResetPasswordModal({
                   <div className="flex items-center gap-2">
                     <Input
                       value={tempPassword}
-                      onChange={(e) => setTempPassword(e.target.value)}
+                      readOnly
                       autoComplete="new-password"
                       minLength={8}
                       className="h-9 text-xs font-mono font-semibold"
                     />
+                    <Button type="button" size="sm" variant="outline" onClick={() => setTempPassword(makeTemporaryPassword())} className="h-9 shrink-0">
+                      Generate
+                    </Button>
                     <Button type="button" size="sm" variant="outline" onClick={handleCopy} className="h-9 shrink-0">
                       <Copy className="h-3.5 w-3.5 mr-1" /> {copied ? "Copied!" : "Copy"}
                     </Button>
@@ -154,7 +177,7 @@ export function ResetPasswordModal({
         {/* Footer */}
         {!success && (
           <div className="flex items-center justify-between border-t border-ledger-100 bg-slate-50/75 px-6 py-3.5 dark:border-ledger-800 dark:bg-slate-800/50">
-            <Button variant="outline" size="sm" onClick={onClose}>
+            <Button variant="outline" size="sm" onClick={handleClose}>
               Cancel
             </Button>
             <Button
@@ -167,6 +190,9 @@ export function ResetPasswordModal({
             </Button>
           </div>
         )}
+        {success && <div className="flex justify-end border-t border-ledger-100 bg-slate-50/75 px-6 py-3.5 dark:border-ledger-800 dark:bg-slate-800/50">
+          <Button variant="outline" size="sm" onClick={handleClose}>Done</Button>
+        </div>}
 
       </div>
     </div>

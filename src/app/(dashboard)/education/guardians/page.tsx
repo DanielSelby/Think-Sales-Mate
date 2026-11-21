@@ -7,7 +7,8 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeGuardianSearchValue } from "@/lib/education/guardian-search";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { createEducationGuardianLink, linkEducationGuardianToStudent, verifyEducationGuardianLink } from "../actions";
+import { linkEducationGuardianToStudent, verifyEducationGuardianLink } from "../actions";
+import { EducationGuardianLinkForm } from "./education-guardian-link-form";
 import { EducationSubmitButton } from "../submit-button";
 
 const PAGE_SIZE = 50;
@@ -214,48 +215,12 @@ export default async function EducationGuardiansPage({
           <button type="submit" className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Search className="h-4 w-4" /> Find students</button>
         </form>
 
-        <form action={createEducationGuardianLink} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="text-sm font-medium text-slate-700 sm:col-span-2">Student
-            <select required name="student_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-              <option value="" disabled>{studentsForPicker?.length ? "Select an active student" : "No matching active students"}</option>
-              {(studentsForPicker ?? []).map((student) => <option key={student.id} value={student.id} data-branch={student.branch_id}>
-                {student.first_name} {student.last_name} · {student.student_number} · {campusNameById.get(student.branch_id) ?? "Campus"}
-              </option>)}
-            </select>
-            {(studentsForPicker?.length ?? 0) === STUDENT_PICKER_SIZE && <span className="mt-1 block text-xs text-slate-500">Showing the first {STUDENT_PICKER_SIZE} matches. Search by name or number to narrow the list.</span>}
-          </label>
-          <label className="text-sm font-medium text-slate-700">Relationship
-            <select required name="relationship" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-              <option value="" disabled>Select relationship</option>
-              {["Mother", "Father", "Guardian", "Grandparent", "Other"].map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-medium text-slate-700">First name
-            <input required name="first_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Last name
-            <input required name="last_name" maxLength={100} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Email
-            <input name="email" type="email" maxLength={254} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Phone
-            <input name="phone" type="tel" maxLength={40} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
-            <input type="checkbox" name="is_primary" className="rounded border-slate-300" />
-            Primary contact for this student
-          </label>
-          <div className="lg:col-span-4">
-            <EducationSubmitButton
-              disabled={!studentsForPicker?.length}
-              pendingLabel="Creating guardian link..."
-              className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Create pending guardian link
-            </EducationSubmitButton>
-          </div>
-        </form>
+        <EducationGuardianLinkForm
+          students={(studentsForPicker ?? []).map((student) => ({
+            ...student,
+            campus_name: campusNameById.get(student.branch_id) ?? "Campus",
+          }))}
+        />
       </>}
     </section>}
 

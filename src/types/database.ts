@@ -8300,6 +8300,10 @@ export interface Database {
         Args: { target_org_id: string };
         Returns: boolean;
       };
+      education_find_auth_user_id_by_email: {
+        Args: { p_email: string };
+        Returns: string | null;
+      };
       education_claim_guardian_account: {
         Args: Record<PropertyKey, never>;
         Returns: number;

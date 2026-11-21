@@ -3,17 +3,13 @@ import Link from "next/link";
 import { educationTeacherPortalSchema, type EducationTeacherPortal } from "@/lib/education/teacher-portal";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
-import { claimEducationTeacherPortalAccount, recordEducationTeacherAttendance, requestEducationTeacherPortalSignIn } from "./actions";
+import { claimEducationTeacherPortalAccount, recordEducationTeacherAttendance, signInToEducationTeacherPortal } from "./actions";
 
 export const dynamic = "force-dynamic";
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function messageFor(params: Record<string, string | string[] | undefined>) {
-  if (params.emailSent === "1") return "If this email belongs to an active teacher record, a secure sign-in link has been sent.";
-  if (params.signin === "expired") return "That sign-in link has expired or could not be verified. Request a new secure link below.";
-  if (params.signin === "invalid") return "Enter a valid email address.";
-  if (params.signin === "configuration") return "Sign-in links are temporarily unavailable. Please contact the school.";
-  if (params.signin === "error") return "The sign-in email could not be sent. Please wait and try again.";
+  if (params.signin === "invalid") return "Email or password is incorrect. If you need access, contact your school administrator for a temporary password.";
   if (params.claim === "linked") return "Your teacher profile is now linked to this account.";
   if (params.claim === "verify-email") return "Verify your account email before linking a teacher profile.";
   if (params.claim === "not-found") return "No active teaching staff profile matches this verified account email.";
@@ -55,16 +51,19 @@ export default async function EducationTeacherPortalPage({
       {message && <p role={params.claim === "error" || params.signin === "error" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
       {!user ? <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <h2 className="text-xl font-semibold">Sign in to your teacher account</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Use the verified email address recorded in your school staff profile.</p>
-        <form action={requestEducationTeacherPortalSignIn} className="mt-5 space-y-3">
+        <p className="mt-2 text-sm leading-6 text-slate-600">Use the email address recorded in your school staff profile and the temporary password provided by your school.</p>
+        <form action={signInToEducationTeacherPortal} className="mt-5 space-y-3">
           <label className="block text-sm font-medium text-slate-700">Email address
             <input type="email" name="email" required maxLength={254} autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
-          <button type="submit" className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Email me a secure sign-in link</button>
+          <label className="block text-sm font-medium text-slate-700">Password
+            <input type="password" name="password" required maxLength={256} autoComplete="current-password" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          </label>
+          <button type="submit" className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Sign in to teacher portal</button>
         </form>
       </section> : portal.length === 0 ? <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <h2 className="text-xl font-semibold">Link your teacher profile</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Your account must use the verified email address recorded on an active teaching staff profile.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Your account must use the email address recorded on an active teaching staff profile. If you do not have a password, contact your school administrator.</p>
         <form action={claimEducationTeacherPortalAccount} className="mt-5">
           <button type="submit" className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Find and link my teacher profile</button>
         </form>

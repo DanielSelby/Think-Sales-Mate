@@ -13,6 +13,7 @@ import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
 import type { PlatformProductSlug } from "@/types/platform-database";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/education-portal", "/student-education-portal", "/teacher-education-portal", "/order/", "/restaurant-order/", "/restaurant-reservation/", "/service-repair/", "/api/restaurant-order/", "/api/system-logo", "/api/cron/product-entitlements", "/api/cron/platform-usage", "/mobile-scan/pair"];
+const EDUCATION_PORTAL_PATHS = new Set(["/education-portal", "/student-education-portal", "/teacher-education-portal"]);
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
@@ -78,7 +79,7 @@ export async function middleware(request: NextRequest) {
 
   const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
   const checksSignedInDestination = pathname === "/login" || pathname === "/signup";
-  if (isPublicPath && !checksSignedInDestination) return response;
+  if (isPublicPath && !checksSignedInDestination && !EDUCATION_PORTAL_PATHS.has(pathname)) return response;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -134,7 +135,11 @@ export async function middleware(request: NextRequest) {
     && pathname !== "/reset-password"
     && !pathname.startsWith("/auth/callback")
   ) {
-    return redirectWithAuthCookies(new URL("/reset-password", request.url));
+    const resetUrl = new URL("/reset-password", request.url);
+    if (EDUCATION_PORTAL_PATHS.has(pathname)) {
+      resetUrl.searchParams.set("next", pathname);
+    }
+    return redirectWithAuthCookies(resetUrl);
   }
 
   if (!appRoute) {

@@ -5,7 +5,9 @@ import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { EducationPortalPasswordManager } from "./education-portal-password-manager";
 import { PortalLinkCard } from "./portal-link-card";
 
 const PORTALS = [
@@ -54,6 +56,11 @@ export default async function EducationPortalLinksPage() {
     }
     return { ...portal, url: new URL(path, origin).toString() };
   });
+  const canManagePortalPasswords = isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  });
 
   return <main className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
     <header>
@@ -65,19 +72,21 @@ export default async function EducationPortalLinksPage() {
     </header>
 
     <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
-      These links are registered for this organization. Users still need to sign in with an email address that matches an active student, guardian, or teaching-staff profile. The links do not grant access by themselves.
+      These are separate sign-in pages for the student, family, and teaching-staff portals. Users sign in with the email on their active school profile and a temporary password issued by the school. Portal access is not the same as system-dashboard access.
     </section>
 
     <section className="grid gap-4 md:grid-cols-2">
       {links.map((portal) => <PortalLinkCard key={portal.type} {...portal} />)}
     </section>
 
+    {canManagePortalPasswords && <EducationPortalPasswordManager />}
+
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="flex items-center gap-2 font-semibold text-slate-950"><Link2 className="h-5 w-5 text-blue-700" />How portal sign-in works</h2>
       <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-700">
-        <li>The user opens their portal link and enters the email address saved on their profile.</li>
-        <li>They receive a secure sign-in link by email; no system username or password is required.</li>
-        <li>After verifying their email, the portal links the matching active profile and shows only information they are authorized to see.</li>
+        <li>The user opens the correct portal link and signs in with the email recorded on their active profile.</li>
+        <li>Issue a unique temporary password when creating the portal account, or generate one above for an existing profile. Share it securely.</li>
+        <li>The user must choose a new password at first sign-in. The portal then shows only information they are authorized to see.</li>
       </ol>
       <Link href={links[0].url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline">
         Preview Student Portal <ExternalLink className="h-4 w-4" />

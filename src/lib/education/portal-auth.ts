@@ -4,6 +4,10 @@ const EDUCATION_PORTAL_PATHS = new Set([
   "/teacher-education-portal",
 ]);
 
+export function getEducationPortalPostLoginPath(next: string | null) {
+  return next && EDUCATION_PORTAL_PATHS.has(next) ? next : "/product-hub";
+}
+
 export function getEducationPortalAuthRedirectTo(siteUrl: string, portalPath: string) {
   if (!EDUCATION_PORTAL_PATHS.has(portalPath)) {
     throw new Error("The requested Think Education portal is not supported.");

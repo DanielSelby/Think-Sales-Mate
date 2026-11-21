@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getEducationPortalPostLoginPath } from "@/lib/education/portal-auth";
 import { completeRequiredPasswordChange } from "./actions";
 
 function LogoMark() {
@@ -94,24 +95,13 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      const supabase = await createClient();
-      const { error: updateError } = await supabase.auth.updateUser({
-        password,
-        data: { must_change_password: false },
-      });
-
-      if (updateError) {
-        setError(updateError.message);
-        setLoading(false);
-        return;
-      }
-
-      const completion = await completeRequiredPasswordChange();
+      const completion = await completeRequiredPasswordChange(password);
       if (completion.error) {
         setError(completion.error);
         setLoading(false);
         return;
       }
+      const supabase = await createClient();
       const { error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {
         setError("Your password was updated. Please sign in again with the new password.");
@@ -121,7 +111,8 @@ export default function ResetPasswordPage() {
 
       setSuccess(true);
       setTimeout(() => {
-        router.push("/product-hub");
+        const next = new URLSearchParams(window.location.search).get("next");
+        router.push(getEducationPortalPostLoginPath(next));
         router.refresh();
       }, 1800);
     } catch (err) {
@@ -168,7 +159,7 @@ export default function ResetPasswordPage() {
               <CheckCircleIcon />
             </div>
             <h1 className="mt-5 text-2xl font-semibold text-[#20251f]">Password updated</h1>
-            <p className="mt-3 text-sm leading-6 text-[#737970]">Taking you to your dashboard…</p>
+            <p className="mt-3 text-sm leading-6 text-[#737970]">Taking you to your portal…</p>
           </div>
         </div>
       </main>
@@ -208,6 +199,7 @@ export default function ResetPasswordPage() {
                   autoComplete="new-password"
                   required
                   minLength={8}
+                  maxLength={128}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 8 characters"

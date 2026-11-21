@@ -10,18 +10,14 @@ import { educationNotificationsSchema } from "@/lib/education/notifications";
 import { setEducationNotificationPreference } from "@/app/education-notifications/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
-import { claimEducationStudentPortalAccount, requestEducationStudentPortalSignIn } from "./actions";
+import { claimEducationStudentPortalAccount, signInToEducationStudentPortal } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function messageFor(params: Record<string, string | string[] | undefined>) {
-  if (params.emailSent === "1") return "If this email can sign in, a secure link has been sent. Check your inbox and spam folder.";
-  if (params.signin === "expired") return "That sign-in link has expired or could not be verified. Request a new secure link below.";
-  if (params.signin === "invalid") return "Enter a valid email address.";
-  if (params.signin === "configuration") return "Sign-in links are temporarily unavailable. Please contact the school.";
-  if (params.signin === "error") return "The sign-in email could not be sent. Please wait a moment and try again.";
+  if (params.signin === "invalid") return "Email or password is incorrect. If you need access, contact your school administrator for a temporary password.";
   if (params.claim === "linked") return "Your student profile is now linked to this account.";
   if (params.claim === "verify-email") return "Verify this account’s email address before linking a student profile.";
   if (params.claim === "already-linked") return "A student profile is already linked to this account for one of the schools.";
@@ -196,13 +192,16 @@ export default async function EducationStudentPortalPage({
 
       {!user ? <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <h2 className="text-xl font-semibold">Sign in to your student account</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Request a secure email link. After signing in, link the active student profile recorded by your school.</p>
-        <form action={requestEducationStudentPortalSignIn} className="mt-5 space-y-3">
+        <p className="mt-2 text-sm leading-6 text-slate-600">Use the email address recorded in your student profile and the temporary password provided by your school.</p>
+        <form action={signInToEducationStudentPortal} className="mt-5 space-y-3">
           <label className="block text-sm font-medium text-slate-700">
             Email address
             <input type="email" name="email" required maxLength={254} autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
-          <button type="submit" className="w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Email me a secure sign-in link</button>
+          <label className="block text-sm font-medium text-slate-700">Password
+            <input type="password" name="password" required maxLength={256} autoComplete="current-password" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+          </label>
+          <button type="submit" className="w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Sign in to student portal</button>
         </form>
       </section> : portal.length === 0 ? <section className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-[1.2fr_0.8fr] md:p-8">
         <div>
@@ -218,24 +217,7 @@ export default async function EducationStudentPortalPage({
         </div>
         <div className="rounded-xl bg-slate-50 p-5">
           <h3 className="font-semibold">Need an account?</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Request a secure sign-in link using the email address your school has on file.</p>
-          <form action={requestEducationStudentPortalSignIn} className="mt-4 space-y-3">
-            <label className="block text-sm font-medium text-slate-700">
-              Email address
-              <input
-                type="email"
-                name="email"
-                required
-                maxLength={254}
-                autoComplete="email"
-                defaultValue={user.email ?? ""}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"
-              />
-            </label>
-            <button type="submit" className="w-full rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-50">
-              Email me a secure sign-in link
-            </button>
-          </form>
+          <p className="mt-2 text-sm leading-6 text-slate-600">If you do not have a password yet, ask your school administrator for a one-time temporary password.</p>
         </div>
       </section> : <div className="grid gap-5 lg:grid-cols-2">
         {portal.map((student) => <article key={`${student.organizationName}-${student.id}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

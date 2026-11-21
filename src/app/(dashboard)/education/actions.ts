@@ -1,6 +1,6 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
@@ -524,12 +524,27 @@ export async function recordEducationFeePayment(formData: FormData) {
   redirect(`${successPath}${successPath.includes("?") ? "&" : "?"}paid=1`);
 }
 
-export async function createEducationGuardianLink(formData: FormData) {
+type EducationPortalCredentialActionResult = {
+  success?: boolean;
+  error?: string;
+  email?: string;
+  temporaryPassword?: string;
+  warning?: string;
+};
+
+export async function createEducationGuardianLink(
+  formData: FormData,
+): Promise<EducationPortalCredentialActionResult> {
   const context = await getCurrentOrgContext();
-  if (!context) redirect("/login");
+  if (!context) return { error: "Session expired. Sign in again." };
+  const canProvisionPortalAccounts = isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  });
   if (!await canTabPermission("education_guardians", "guardians", "directory", "create")
     || !await canTabPermission("education_students", "students", "list", "view")) {
-    throw new Error("Guardian creation requires guardian create and student directory view access.");
+    return { error: "Guardian creation requires guardian create and student directory view access." };
   }
 
   const studentId = String(formData.get("student_id") ?? "");
@@ -542,12 +557,24 @@ export async function createEducationGuardianLink(formData: FormData) {
   if (!studentId || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
     || (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))
     || phone.length > 40 || !relationship || relationship.length > 60) {
-    redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
+    return { error: "Check the student, guardian name, email, phone, and relationship fields." };
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
-  if (!campusIds.length) throw new Error("You need an assigned Think Education campus to create guardian relationships.");
+  if (!campusIds.length) return { error: "You need an assigned Think Education campus to create guardian relationships." };
+  const admin = email && canProvisionPortalAccounts ? createAdminClient() : null;
+  if (admin) {
+    const { data: existingGuardian, error: existingGuardianError } = await admin.from("education_guardians")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .ilike("email", email.replace(/[\\%_]/g, "\\$&"))
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+    if (existingGuardianError) return { error: `Could not check for an existing guardian profile: ${existingGuardianError.message}` };
+    if (existingGuardian) return { error: "A guardian profile already uses this email. Use the existing guardian profile to link another student." };
+  }
   const supabase = await createClient();
   const { data: student, error: studentError } = await supabase.from("education_students")
     .select("id, branch_id")
@@ -556,8 +583,8 @@ export async function createEducationGuardianLink(formData: FormData) {
     .in("branch_id", campusIds)
     .eq("status", "active")
     .maybeSingle();
-  if (studentError) throw new Error(`Could not verify the selected student: ${studentError.message}`);
-  if (!student) redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
+  if (studentError) return { error: `Could not verify the selected student: ${studentError.message}` };
+  if (!student) return { error: "The selected student is not available at your assigned campus." };
 
   const { data: relationshipId, error } = await supabase.rpc("education_create_guardian_link", {
     p_org_id: context.orgId,
@@ -571,14 +598,79 @@ export async function createEducationGuardianLink(formData: FormData) {
     p_is_primary: isPrimary,
   });
   if (error) {
-    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/guardians")}?error=duplicate`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
-    if (error.code === "42501") throw new Error("You are not authorized to create guardian relationships at this campus.");
+    if (error.code === "23505") return { error: "This guardian relationship already exists." };
+    if (error.code === "22023") return { error: "Check the student, guardian name, email, phone, and relationship fields." };
+    if (error.code === "42501") return { error: "You are not authorized to create guardian relationships at this campus." };
     console.error("Could not create Think Education guardian relationship:", error.message);
-    redirect(`${getProductAppPath("think-education", "/guardians")}?error=save`);
+    return { error: "The guardian relationship could not be created. Please try again." };
   }
+
+  let temporaryPassword: string | undefined;
+  if (admin) {
+    const { data: link, error: linkError } = await admin.from("education_student_guardians")
+      .select("guardian_id")
+      .eq("org_id", context.orgId)
+      .eq("id", String(relationshipId))
+      .single();
+    if (linkError || !link) {
+      console.error("Could not find the new Think Education guardian relationship:", linkError?.message);
+      const { error: cleanupError } = await admin.from("education_student_guardians")
+        .delete().eq("org_id", context.orgId).eq("id", String(relationshipId));
+      if (cleanupError) console.error("Could not clean up the new guardian relationship:", cleanupError.message);
+      return { error: "The guardian link could not be prepared for portal access. Please try again." };
+    }
+
+    temporaryPassword = `${randomBytes(20).toString("hex")}Aa1!`;
+    const portalAccount = await setEducationPortalTemporaryPassword({
+      admin,
+      email,
+      fullName: `${firstName} ${lastName}`,
+      password: temporaryPassword,
+      userId: null,
+    });
+    if (!portalAccount.userId) {
+      const { error: relationshipCleanupError } = await admin.from("education_student_guardians")
+        .delete().eq("org_id", context.orgId).eq("id", String(relationshipId));
+      const { error: guardianCleanupError } = await admin.from("education_guardians")
+        .delete().eq("org_id", context.orgId).eq("id", link.guardian_id);
+      if (relationshipCleanupError || guardianCleanupError) {
+        console.error("Could not clean up the guardian link after account creation failed:", relationshipCleanupError?.message ?? guardianCleanupError?.message);
+      }
+      return { error: portalAccount.error ?? "The guardian relationship could not be saved with a portal account. Please try again." };
+    }
+
+    const { data: linkedGuardian, error: guardianUpdateError } = await admin.from("education_guardians")
+      .update({ user_id: portalAccount.userId, updated_at: new Date().toISOString() })
+      .eq("org_id", context.orgId)
+      .eq("id", link.guardian_id)
+      .is("user_id", null)
+      .select("id")
+      .maybeSingle();
+    if (guardianUpdateError || !linkedGuardian) {
+      const { error: authCleanupError } = portalAccount.created
+        ? await admin.auth.admin.deleteUser(portalAccount.userId)
+        : { error: null };
+      const { error: relationshipCleanupError } = await admin.from("education_student_guardians")
+        .delete().eq("org_id", context.orgId).eq("id", String(relationshipId));
+      const { error: guardianCleanupError } = await admin.from("education_guardians")
+        .delete().eq("org_id", context.orgId).eq("id", link.guardian_id);
+      if (authCleanupError || relationshipCleanupError || guardianCleanupError) {
+        console.error("Could not clean up the guardian link after account linking failed:", authCleanupError?.message ?? relationshipCleanupError?.message ?? guardianCleanupError?.message);
+      }
+      if (guardianUpdateError) console.error("Could not link the Think Education guardian account:", guardianUpdateError.message);
+      return { error: "The guardian portal account could not be linked. Please try again." };
+    }
+  }
+
   revalidatePath("/education/guardians");
-  redirect(`${getProductAppPath("think-education", "/guardians")}?created=1&relationship_id=${encodeURIComponent(String(relationshipId))}`);
+  return {
+    success: true,
+    email: email || undefined,
+    temporaryPassword,
+    warning: !email
+      ? "No email was provided, so a guardian portal account was not created."
+      : canProvisionPortalAccounts ? undefined : "Ask an organization owner or super administrator to issue this guardian's portal password.",
+  };
 }
 
 export async function linkEducationGuardianToStudent(formData: FormData) {
@@ -826,6 +918,65 @@ async function removeCreatedEducationAccount(orgId: string, account: CreatedEduc
   return "";
 }
 
+async function setEducationPortalTemporaryPassword({
+  admin,
+  email,
+  fullName,
+  password,
+  userId: linkedUserId,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  email: string;
+  fullName: string;
+  password: string;
+  userId: string | null;
+}): Promise<{ userId?: string; created?: boolean; error?: string }> {
+  let userId = linkedUserId;
+  if (!userId) {
+    const { data: existingUserId, error: lookupError } = await admin.rpc("education_find_auth_user_id_by_email", {
+      p_email: email,
+    });
+    if (lookupError) return { error: `Could not look up the portal account: ${lookupError.message}` };
+    userId = existingUserId;
+  }
+
+  if (!userId) {
+    const { data, error } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName,
+        must_change_password: false,
+        education_portal_user: true,
+      },
+      app_metadata: { must_change_password: true },
+    });
+    if (error || !data.user) {
+      return { error: `Could not create the portal account: ${error?.message ?? "No account was returned."}` };
+    }
+    return { userId: data.user.id, created: true };
+  }
+
+  const { data, error: lookupError } = await admin.auth.admin.getUserById(userId);
+  if (lookupError || !data.user || data.user.email?.trim().toLowerCase() !== email) {
+    return { error: "The linked portal account does not match this record's email." };
+  }
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    password,
+    email_confirm: true,
+    app_metadata: { ...data.user.app_metadata, must_change_password: true },
+    user_metadata: {
+      ...data.user.user_metadata,
+      full_name: data.user.user_metadata.full_name ?? fullName,
+      must_change_password: false,
+      education_portal_user: true,
+    },
+  });
+  if (error) return { error: `Could not set the temporary password: ${error.message}` };
+  return { userId, created: false };
+}
+
 async function createEducationAccountForRecord({
   orgId,
   branchId,
@@ -902,6 +1053,148 @@ async function createEducationAccountForRecord({
     return { error: `Could not assign the account to its campus: ${scopeError.message}.${cleanupMessage}` };
   }
   return { account };
+}
+
+export async function issueEducationPortalTemporaryPassword(
+  formData: FormData,
+): Promise<EducationPortalCredentialActionResult> {
+  const context = await getCurrentOrgContext();
+  if (!context || !isOrganizationSuperAdminMember({
+    role: context.role,
+    userId: context.userId,
+    accessPermissions: context.accessPermissions,
+  })) {
+    return { error: "Only an organization owner or super administrator can issue portal passwords." };
+  }
+
+  const portalType = String(formData.get("portal_type") ?? "");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!["student", "staff", "guardian"].includes(portalType)
+    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    || email.length > 254) {
+    return { error: "Choose a portal and enter a valid email address." };
+  }
+
+  const admin = createAdminClient();
+  const temporaryPassword = `${randomBytes(20).toString("hex")}Aa1!`;
+  let userId: string | null = null;
+
+  if (portalType === "student") {
+    const { data: rows, error } = await admin.from("education_students")
+      .select("id, user_id, branch_id, student_number, first_name, last_name, other_names, phone, email")
+      .eq("org_id", context.orgId).ilike("email", email.replace(/[\\%_]/g, "\\$&"))
+      .eq("status", "active").limit(2);
+    if (error) return { error: `Could not find the student record: ${error.message}` };
+    const record = (rows ?? []).find((row) => row.email?.trim().toLowerCase() === email);
+    if (!record || (rows ?? []).filter((row) => row.email?.trim().toLowerCase() === email).length !== 1) {
+      return { error: "No unique active student with that email was found in this organization." };
+    }
+
+    userId = record.user_id;
+    if (!userId) {
+      const portalAccount = await setEducationPortalTemporaryPassword({
+        admin,
+        email,
+        fullName: [record.first_name, record.other_names, record.last_name].filter(Boolean).join(" "),
+        password: temporaryPassword,
+        userId: null,
+      });
+      if (!portalAccount.userId) return { error: portalAccount.error ?? "Could not create the student portal account." };
+      const { data: linkedRecord, error: linkError } = await admin.from("education_students")
+        .update({ user_id: portalAccount.userId, updated_at: new Date().toISOString() })
+        .eq("org_id", context.orgId).eq("id", record.id).is("user_id", null).select("id").maybeSingle();
+      if (linkError || !linkedRecord) {
+        if (portalAccount.created) {
+          const { error: cleanupError } = await admin.auth.admin.deleteUser(portalAccount.userId);
+          if (cleanupError) console.error("Could not remove the unlinked student portal account:", cleanupError.message);
+        }
+        if (linkError) console.error("Could not link the student portal account:", linkError.message);
+        return { error: "The student account could not be linked. Please try again." };
+      }
+      return { success: true, email, temporaryPassword };
+    }
+  } else if (portalType === "staff") {
+    const { data: rows, error } = await admin.from("education_staff")
+      .select("id, user_id, first_name, last_name, email")
+      .eq("org_id", context.orgId).ilike("email", email.replace(/[\\%_]/g, "\\$&"))
+      .eq("status", "active").eq("staff_category", "teaching").limit(2);
+    if (error) return { error: `Could not find the teaching staff record: ${error.message}` };
+    const record = (rows ?? []).find((row) => row.email?.trim().toLowerCase() === email);
+    if (!record || (rows ?? []).filter((row) => row.email?.trim().toLowerCase() === email).length !== 1) {
+      return { error: "No unique active teaching staff profile with that email was found in this organization." };
+    }
+
+    userId = record.user_id;
+    if (!userId) {
+      const portalAccount = await setEducationPortalTemporaryPassword({
+        admin,
+        email,
+        fullName: `${record.first_name} ${record.last_name}`,
+        password: temporaryPassword,
+        userId: null,
+      });
+      if (!portalAccount.userId) return { error: portalAccount.error ?? "Could not create the teacher portal account." };
+      const { data: linkedRecord, error: linkError } = await admin.from("education_staff")
+        .update({ user_id: portalAccount.userId, updated_at: new Date().toISOString() })
+        .eq("org_id", context.orgId).eq("id", record.id).is("user_id", null).select("id").maybeSingle();
+      if (linkError || !linkedRecord) {
+        if (portalAccount.created) {
+          const { error: cleanupError } = await admin.auth.admin.deleteUser(portalAccount.userId);
+          if (cleanupError) console.error("Could not remove the unlinked teacher portal account:", cleanupError.message);
+        }
+        if (linkError) console.error("Could not link the teacher portal account:", linkError.message);
+        return { error: "The staff account could not be linked. Please try again." };
+      }
+      return { success: true, email, temporaryPassword };
+    }
+  } else {
+    const { data: rows, error } = await admin.from("education_guardians")
+      .select("id, user_id, first_name, last_name, email")
+      .eq("org_id", context.orgId).ilike("email", email.replace(/[\\%_]/g, "\\$&"))
+      .eq("status", "active").limit(2);
+    if (error) return { error: `Could not find the guardian record: ${error.message}` };
+    const record = (rows ?? []).find((row) => row.email?.trim().toLowerCase() === email);
+    if (!record || (rows ?? []).filter((row) => row.email?.trim().toLowerCase() === email).length !== 1) {
+      return { error: "No unique active guardian profile with that email was found in this organization." };
+    }
+
+    userId = record.user_id;
+    if (!userId) {
+      const portalAccount = await setEducationPortalTemporaryPassword({
+        admin,
+        email,
+        fullName: `${record.first_name} ${record.last_name}`,
+        password: temporaryPassword,
+        userId: null,
+      });
+      if (!portalAccount.userId) return { error: portalAccount.error ?? "Could not create the guardian account." };
+      const { data: linkedRecord, error: linkError } = await admin.from("education_guardians")
+        .update({ user_id: portalAccount.userId, updated_at: new Date().toISOString() })
+        .eq("org_id", context.orgId).eq("id", record.id).is("user_id", null).select("id").maybeSingle();
+      if (linkError || !linkedRecord) {
+        if (portalAccount.created) {
+          const { error: cleanupError } = await admin.auth.admin.deleteUser(portalAccount.userId);
+          if (cleanupError) console.error("Could not remove the unlinked guardian portal account:", cleanupError.message);
+        }
+        if (linkError) console.error("Could not link the guardian portal account:", linkError.message);
+        return { error: "The guardian account could not be linked. Please try again." };
+      }
+      return { success: true, email, temporaryPassword };
+    }
+  }
+
+  const portalAccount = await setEducationPortalTemporaryPassword({
+    admin,
+    email,
+    fullName: "Think Education portal user",
+    password: temporaryPassword,
+    userId,
+  });
+  if (!portalAccount.userId) {
+    return { error: portalAccount.error ?? "Could not set the temporary portal password." };
+  }
+
+  return { success: true, email, temporaryPassword };
 }
 
 export async function createEducationStudent(formData: FormData) {
