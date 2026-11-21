@@ -21,7 +21,7 @@ function messageFor(params: Record<string, string | string[] | undefined>) {
   if (params.claim === "linked") return "Your student profile is now linked to this account.";
   if (params.claim === "verify-email") return "Verify this account’s email address before linking a student profile.";
   if (params.claim === "already-linked") return "A student profile is already linked to this account for one of the schools.";
-  if (params.claim === "not-found") return "No active student profile matching this verified account email was found.";
+  if (params.claim === "not-found") return "No linkable student profile was found for this verified email. Ask your school to confirm that the profile is active, its email matches, and the school has portal access.";
   if (params.claim === "error") return "The student profile could not be linked. Please try again or contact the school.";
   return null;
 }

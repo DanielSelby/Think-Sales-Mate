@@ -1078,6 +1078,8 @@ export async function issueEducationPortalTemporaryPassword(
   const admin = createAdminClient();
   const temporaryPassword = `${randomBytes(20).toString("hex")}Aa1!`;
   let userId: string | null = null;
+  let previousStaffUserId: string | null = null;
+  let staffRecordId: string | null = null;
 
   if (portalType === "student") {
     const { data: rows, error } = await admin.from("education_students")
@@ -1124,7 +1126,49 @@ export async function issueEducationPortalTemporaryPassword(
       return { error: "No unique active teaching staff profile with that email was found in this organization." };
     }
 
+    staffRecordId = record.id;
     userId = record.user_id;
+    if (userId) {
+      const { data: linkedAccount, error: linkedAccountError } = await admin.auth.admin.getUserById(userId);
+      if (linkedAccountError || !linkedAccount.user) {
+        return { error: "Could not verify the account linked to this teaching staff profile." };
+      }
+      if (linkedAccount.user.email?.trim().toLowerCase() !== email) {
+        const { data: matchingUserId, error: matchingUserError } = await admin.rpc("education_find_auth_user_id_by_email", {
+          p_email: email,
+        });
+        if (matchingUserError) return { error: `Could not look up the account for this email: ${matchingUserError.message}` };
+        if (!matchingUserId) {
+          return { error: "This staff profile is linked to a different login, and no account exists for the profile email. Correct the staff email or account link before issuing a password." };
+        }
+
+        const { data: otherStaff, error: otherStaffError } = await admin.from("education_staff")
+          .select("id")
+          .eq("org_id", context.orgId)
+          .eq("user_id", matchingUserId)
+          .neq("id", record.id)
+          .maybeSingle();
+        if (otherStaffError) return { error: `Could not verify the account's staff profile link: ${otherStaffError.message}` };
+        if (otherStaff) {
+          return { error: "The account for this email is already linked to another staff profile. Ask an administrator to resolve the duplicate link." };
+        }
+
+        const { data: relinkedStaff, error: relinkError } = await admin.from("education_staff")
+          .update({ user_id: matchingUserId, updated_at: new Date().toISOString() })
+          .eq("org_id", context.orgId)
+          .eq("id", record.id)
+          .eq("user_id", userId)
+          .select("id")
+          .maybeSingle();
+        if (relinkError || !relinkedStaff) {
+          if (relinkError) console.error("Could not reconnect the Think Education staff profile to its email account:", relinkError.message);
+          return { error: "The staff profile could not be connected to the existing account for this email. Please try again." };
+        }
+        previousStaffUserId = userId;
+        userId = matchingUserId;
+      }
+    }
+
     if (!userId) {
       const portalAccount = await setEducationPortalTemporaryPassword({
         admin,
@@ -1191,6 +1235,14 @@ export async function issueEducationPortalTemporaryPassword(
     userId,
   });
   if (!portalAccount.userId) {
+    if (previousStaffUserId && staffRecordId && userId) {
+      const { error: restoreError } = await admin.from("education_staff")
+        .update({ user_id: previousStaffUserId, updated_at: new Date().toISOString() })
+        .eq("org_id", context.orgId)
+        .eq("id", staffRecordId)
+        .eq("user_id", userId);
+      if (restoreError) console.error("Could not restore the previous Think Education staff account link:", restoreError.message);
+    }
     return { error: portalAccount.error ?? "Could not set the temporary portal password." };
   }
 
