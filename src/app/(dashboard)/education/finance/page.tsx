@@ -8,6 +8,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { EducationFormDialog } from "@/components/education/education-form-dialog";
 import { FeePaymentDialog } from "../students/[studentId]/fee-payment-dialog";
 import {
   applyEducationFeeSchedule,
@@ -48,12 +49,31 @@ export default async function EducationFinancePage({
   const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
   const supabase = await createClient();
-  const [{ data: years, error: yearsError }, currencyConfig] = await Promise.all([
+  const [
+    { data: years, error: yearsError },
+    currencyConfig,
+    canCreateCharge,
+    canRecordPayment,
+    canViewPayments,
+    canPrintReceipt,
+    canExportCharges,
+    canEditCharges,
+    canReadStudents,
+    canReadAcademicYears,
+  ] = await Promise.all([
     supabase.from("education_academic_years")
       .select("id, name, status")
       .eq("org_id", context.orgId)
       .order("starts_on", { ascending: false }),
     getOrganizationCurrencyConfig(),
+    canTabPermission("education_finance", "finance", "charges", "create"),
+    canTabPermission("education_finance", "finance", "payments", "create"),
+    canTabPermission("education_finance", "finance", "payments", "view"),
+    canTabPermission("education_finance", "finance", "payments", "print"),
+    canTabPermission("education_finance", "finance", "charges", "export"),
+    canTabPermission("education_finance", "finance", "charges", "edit"),
+    canTabPermission("education_students", "students", "list", "view"),
+    canTabPermission("education_academics", "academics", "calendar", "view"),
   ]);
   if (yearsError) throw new Error(`Could not load academic years for fees: ${yearsError.message}`);
   const academicYears = years ?? [];
@@ -61,25 +81,13 @@ export default async function EducationFinancePage({
   const yearIds = academicYears.map((year) => year.id);
   const selectedYear = yearIds.includes(requestedYear) ? requestedYear : "";
 
-  const [canCreateCharge, canRecordPayment, canViewPayments, canPrintReceipt, canExportCharges, canEditCharges] = await Promise.all([
-    canTabPermission("education_finance", "finance", "charges", "create"),
-    canTabPermission("education_finance", "finance", "payments", "create"),
-    canTabPermission("education_finance", "finance", "payments", "view"),
-    canTabPermission("education_finance", "finance", "payments", "print"),
-    canTabPermission("education_finance", "finance", "charges", "export"),
-    canTabPermission("education_finance", "finance", "charges", "edit"),
-  ]);
-  const [canReadStudents, canReadAcademicYears] = await Promise.all([
-    canTabPermission("education_students", "students", "list", "view"),
-    canTabPermission("education_academics", "academics", "calendar", "view"),
-  ]);
   const canPrepareCharge = canCreateCharge && canReadStudents && canReadAcademicYears;
   const canEditFeeSchedules = canEditCharges && canReadStudents && canReadAcademicYears;
   const canViewStudentStatements = canViewPayments && canReadStudents && canReadAcademicYears;
   const canViewAgingReport = canViewPayments && canReadStudents && canReadAcademicYears;
   const canViewCollectionsReport = canViewPayments && canReadStudents && canReadAcademicYears;
   const canExportFinance = canExportCharges && canViewPayments && canReadStudents && canReadAcademicYears;
-  const [chargesResult, studentsResult] = branchIds.length ? await Promise.all([
+  const [chargesResult, studentsResult, classesResult, schedulesResult] = branchIds.length ? await Promise.all([
     (() => {
       let query = supabase.from("education_fee_charges")
         .select("id, branch_id, student_id, academic_year_id, description, amount, due_on, status, created_at", { count: "exact" })
@@ -97,13 +105,6 @@ export default async function EducationFinancePage({
       .eq("status", "active")
       .order("last_name")
       .order("first_name"),
-  ]) : [
-    { data: [], error: null },
-    { data: [], error: null },
-  ];
-  if (chargesResult.error) throw new Error(`Could not load Think Education fee charges: ${chargesResult.error.message}`);
-  if (studentsResult.error) throw new Error(`Could not load students for fee management: ${studentsResult.error.message}`);
-  const [classesResult, schedulesResult] = branchIds.length ? await Promise.all([
     supabase.from("education_classes")
       .select("id, branch_id, academic_year_id, name")
       .eq("org_id", context.orgId)
@@ -122,7 +123,11 @@ export default async function EducationFinancePage({
   ]) : [
     { data: [], error: null },
     { data: [], error: null },
+    { data: [], error: null },
+    { data: [], error: null },
   ];
+  if (chargesResult.error) throw new Error(`Could not load Think Education fee charges: ${chargesResult.error.message}`);
+  if (studentsResult.error) throw new Error(`Could not load students for fee management: ${studentsResult.error.message}`);
   if (classesResult.error) throw new Error(`Could not load classes for fee schedules: ${classesResult.error.message}`);
   if (schedulesResult.error) throw new Error(`Could not load Think Education fee schedules: ${schedulesResult.error.message}`);
   const charges = chargesResult.data ?? [];
@@ -226,9 +231,40 @@ export default async function EducationFinancePage({
       <p className="mt-1 text-sm text-slate-600">Step 1: create a charge for a student. Step 2: record their payment from the charge or payment list. Outstanding balances update automatically.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createBranchStudents.length > 0 && <a href="#add-charge" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
-          Create student charge
-        </a>}
+        {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createBranchStudents.length > 0 && <EducationFormDialog
+          buttonLabel="Create student charge"
+          title="Create student fee charge"
+          description="Add a fee to one student’s account. Payments can be recorded after the charge is created."
+        >
+          <form action={createEducationFeeCharge} className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-medium text-slate-700">Campus
+              <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{campusNameById.get(createBranchId)}</span>
+              <input type="hidden" name="branch_id" value={createBranchId} />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Academic year
+              <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{yearNameById.get(createYearId)}</span>
+              <input type="hidden" name="academic_year_id" value={createYearId} />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Student
+              <select required name="student_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+                <option value="" disabled>Select a student</option>
+                {createBranchStudents.map((student) => <option key={student.id} value={student.id}>{student.first_name} {student.last_name} · {student.student_number}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-slate-700">Charge description
+              <input required name="description" maxLength={160} placeholder="e.g. Tuition, books, or transport" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Amount ({currencyConfig.symbol})
+              <input required name="amount" type="number" min="0.01" step="0.01" max="9999999999.99" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Due date
+              <input name="due_on" type="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <div className="flex justify-end sm:col-span-2">
+              <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"><Receipt className="h-4 w-4" /> Create charge</button>
+            </div>
+          </form>
+        </EducationFormDialog>}
         {canViewPayments && <Link href={getProductAppPath("think-education", "/finance/payments")} className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100">
           Fee payment list
         </Link>}
@@ -378,9 +414,43 @@ export default async function EducationFinancePage({
     </section>
 
     {canPrepareCharge && <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 p-5">
-        <h2 className="font-semibold text-slate-950">Class fee schedules</h2>
-        <p className="mt-1 text-sm text-slate-500">Create a schedule for an academic year, then post one charge to every currently enrolled active student in that class.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
+        <div>
+          <h2 className="font-semibold text-slate-950">Class fee schedules</h2>
+          <p className="mt-1 text-sm text-slate-500">Create a schedule for an academic year, then post one charge to every currently enrolled active student in that class.</p>
+        </div>
+        {campuses.length > 0 && createBranchId && createYearId && createYearClasses.length > 0 && <EducationFormDialog
+          buttonLabel="Create class schedule"
+          title="Create class fee schedule"
+          description="Create a reusable fee schedule, then post charges to the class when ready."
+        >
+          <form action={createEducationFeeSchedule} className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-medium text-slate-700">Campus
+              <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{campusNameById.get(createBranchId)}</span>
+              <input type="hidden" name="branch_id" value={createBranchId} />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Academic year
+              <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{yearNameById.get(createYearId)}</span>
+              <input type="hidden" name="academic_year_id" value={createYearId} />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Class
+              <select required name="class_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+                <option value="" disabled>Select a class</option>
+                {createYearClasses.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-slate-700">Fee description
+              <input required name="description" maxLength={160} placeholder="e.g. Term tuition" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Amount per student ({currencyConfig.symbol})
+              <input required name="amount" type="number" min="0.01" step="0.01" max="9999999999.99" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Due date
+              <input name="due_on" type="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <div className="flex justify-end sm:col-span-2"><button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Save fee schedule</button></div>
+          </form>
+        </EducationFormDialog>}
       </div>
       {schedules.length > 0 && <div className="divide-y divide-slate-100">
         {schedules.map((schedule) => <div key={schedule.id} className="flex flex-wrap items-center justify-between gap-4 p-4">
@@ -411,68 +481,9 @@ export default async function EducationFinancePage({
           </div>
         </div>)}
       </div>}
-      {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createYearClasses.length > 0 && <div className="border-t border-slate-200 p-5">
-        <h3 className="font-semibold text-slate-950">Create class schedule</h3>
-        <form action={createEducationFeeSchedule} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="text-sm font-medium text-slate-700">Campus
-            <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{campusNameById.get(createBranchId)}</span>
-            <input type="hidden" name="branch_id" value={createBranchId} />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Academic year
-            <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{yearNameById.get(createYearId)}</span>
-            <input type="hidden" name="academic_year_id" value={createYearId} />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Class
-            <select required name="class_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-              <option value="" disabled>Select a class</option>
-              {createYearClasses.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-medium text-slate-700">Fee description
-            <input required name="description" maxLength={160} placeholder="e.g. Term tuition" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Amount per student ({currencyConfig.symbol})
-            <input required name="amount" type="number" min="0.01" step="0.01" max="9999999999.99" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <label className="text-sm font-medium text-slate-700">Due date
-            <input name="due_on" type="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-          </label>
-          <div className="flex items-end"><button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Save fee schedule</button></div>
-        </form>
-      </div>}
       {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createYearClasses.length === 0 && <p className="border-t border-slate-200 p-4 text-sm text-slate-600">Create an active class in the selected academic year to set up a class fee schedule.</p>}
     </section>}
 
-    {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createBranchStudents.length > 0 && <section id="add-charge" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Step 1: Create a student fee charge</h2>
-      <p className="mt-1 text-sm text-slate-500">Select the student, describe any fee (tuition, books, transport, or another charge), and enter the amount. Then use Record payment on that charge or open the Fee payment list. Payments are recorded in an auditable ledger and cannot exceed the balance.</p>
-      <form action={createEducationFeeCharge} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <label className="text-sm font-medium text-slate-700">Campus
-          <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{campusNameById.get(createBranchId)}</span>
-          <input type="hidden" name="branch_id" value={createBranchId} />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Academic year
-          <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal text-slate-700">{yearNameById.get(createYearId)}</span>
-          <input type="hidden" name="academic_year_id" value={createYearId} />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Student
-          <select required name="student_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            <option value="" disabled>Select a student</option>
-            {createBranchStudents.map((student) => <option key={student.id} value={student.id}>{student.first_name} {student.last_name} · {student.student_number}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Charge description
-          <input required name="description" maxLength={160} placeholder="e.g. Tuition, books, or transport" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Amount ({currencyConfig.symbol})
-          <input required name="amount" type="number" min="0.01" step="0.01" max="9999999999.99" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Due date
-          <input name="due_on" type="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
-        </label>
-        <div className="flex items-end"><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"><Receipt className="h-4 w-4" /> Create charge</button></div>
-      </form>
-    </section>}
     {canCreateCharge && !canPrepareCharge && <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
       Student directory view and academic calendar view permissions are required to create charges.
     </p>}

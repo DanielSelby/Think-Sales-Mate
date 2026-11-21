@@ -16,7 +16,8 @@ const periodsCachePath = "/education/accounting/periods";
 const journalsPath = "/accounting/journal-entries";
 const ledgerPath = "/accounting/general-ledger";
 const cashbookPath = "/education/accounting/cashbook";
-const accountingSettingsPath = "/accounting/settings";
+const accountingSettingsPath = getProductAppPath("think-education", "/accounting/settings");
+const accountingSettingsCachePath = "/education/accounting/settings";
 const bankReconciliationPath = "/accounting/bank-reconciliation";
 const accountTypes = ["asset", "liability", "equity", "income", "expense"] as const;
 const cashFlowActivities = ["operating", "investing", "financing"] as const;
@@ -41,7 +42,16 @@ function value(formData: FormData, key: string) {
   return typeof field === "string" ? field.trim() : "";
 }
 
-function accountError(): never {
+function accountError(code?: string, message?: string): never {
+  if (code === "23505") redirect(`${chartPath}?error=account-duplicate`);
+  if (code === "23503" || code === "22023") redirect(`${chartPath}?error=account-parent`);
+  if (code === "23514") redirect(`${chartPath}?error=account-details`);
+  if (code === "42501" && message?.toLowerCase().includes("row-level security")) {
+    redirect(`${chartPath}?error=account-scope`);
+  }
+  if (code === "42501") redirect(`${chartPath}?error=account-permission`);
+  if (code === "42703" || code === "PGRST204") redirect(`${chartPath}?error=account-migration`);
+  if (message) console.error("Could not save Think Education accounting account:", code, message);
   redirect(`${chartPath}?error=account-save`);
 }
 
@@ -221,7 +231,8 @@ export async function saveEducationAccountingAccount(formData: FormData) {
       .eq("id", accountId)
       .select("id")
       .maybeSingle();
-    if (error || !data) accountError();
+    if (error) accountError(error.code, error.message);
+    if (!data) accountError();
   } else {
     const accountType = value(formData, "accountType");
     const branchId = value(formData, "branchId") || null;
@@ -232,6 +243,18 @@ export async function saveEducationAccountingAccount(formData: FormData) {
     if ((branchId && !hasBranchAccess) || (!branchId && !access.hasOrganizationScope)) {
       redirect("/dashboard?accessDenied=think-education.accounting");
     }
+
+    const { data: existingAccount, error: existingAccountError } = await supabase
+      .from("education_accounting_accounts")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("code", code)
+      .maybeSingle();
+    if (existingAccountError) {
+      console.error("Could not check the Think Education account code:", existingAccountError.message);
+      accountError();
+    }
+    if (existingAccount) redirect(`${chartPath}?error=account-duplicate`);
 
     const { error } = await supabase.from("education_accounting_accounts").insert({
       org_id: context.orgId,
@@ -245,7 +268,7 @@ export async function saveEducationAccountingAccount(formData: FormData) {
       is_cash_account: isCashAccount,
       cash_flow_activity: cashFlowActivity,
     });
-    if (error) accountError();
+    if (error) accountError(error.code, error.message);
   }
 
   revalidatePath(chartCachePath);
@@ -393,7 +416,7 @@ export async function saveEducationAccountingSourceMapping(formData: FormData) {
     redirect(`${accountingSettingsPath}?error=${error.code === "42501" ? "permission" : "mapping"}`);
   }
 
-  revalidatePath(accountingSettingsPath);
+  revalidatePath(accountingSettingsCachePath);
   revalidatePath(journalsPath);
   redirect(`${accountingSettingsPath}?saved=1`);
 }
