@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, ClipboardCheck, GraduationCap, Users, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, ChevronDown, GraduationCap, Users, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+
+const APPROVALS_PAGE_SIZE = 500;
 
 export default async function EducationApprovalsPage() {
   const context = await getCurrentOrgContext();
@@ -48,73 +50,181 @@ export default async function EducationApprovalsPage() {
   }
 
   const supabase = await createClient();
-  const zeroCount = Promise.resolve({ count: 0, error: null });
-  const [
-    admissionsResult,
-    expensesResult,
-    leaveResult,
-    transfersResult,
-    libraryResult,
-  ] = await Promise.all([
-    canReviewAdmissions && branchIds.length
-      ? supabase.from("education_admissions").select("id", { count: "exact", head: true })
+  const admissionRows: Array<{
+    id: string;
+    branch_id: string;
+    application_number: string;
+    applicant_first_name: string;
+    applicant_last_name: string;
+    applied_at: string;
+  }> = [];
+  const expenseRows: Array<{
+    id: string;
+    branch_id: string;
+    expense_number: number;
+    category: string;
+    vendor: string | null;
+    description: string;
+    amount: number;
+    expense_date: string;
+    created_at: string;
+  }> = [];
+  const leaveRows: Array<{
+    id: string;
+    branch_id: string;
+    staff_id: string;
+    leave_type: string;
+    starts_on: string;
+    ends_on: string;
+    reason: string;
+    created_at: string;
+  }> = [];
+  const transferRows: Array<{
+    id: string;
+    student_id: string;
+    source_branch_id: string;
+    destination_branch_id: string;
+    effective_on: string;
+    reason: string;
+    created_at: string;
+  }> = [];
+  const loadAdmissions = async () => {
+    if (!canReviewAdmissions || !branchIds.length) return;
+    for (let from = 0; ; from += APPROVALS_PAGE_SIZE) {
+      const { data, error } = await supabase.from("education_admissions")
+        .select("id, branch_id, application_number, applicant_first_name, applicant_last_name, applied_at")
         .eq("org_id", context.orgId).in("branch_id", branchIds).in("status", ["pending", "under_review"])
-      : zeroCount,
-    canReviewExpenses && branchIds.length
-      ? supabase.from("education_expenses").select("id", { count: "exact", head: true })
+        .order("applied_at", { ascending: false }).range(from, from + APPROVALS_PAGE_SIZE - 1);
+      if (error) throw new Error(`Could not load pending admissions: ${error.message}`);
+      const page = data ?? [];
+      admissionRows.push(...page);
+      if (page.length < APPROVALS_PAGE_SIZE) return;
+    }
+  };
+  const loadExpenses = async () => {
+    if (!canReviewExpenses || !branchIds.length) return;
+    for (let from = 0; ; from += APPROVALS_PAGE_SIZE) {
+      const { data, error } = await supabase.from("education_expenses")
+        .select("id, branch_id, expense_number, category, vendor, description, amount, expense_date, created_at")
         .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "pending_approval")
-      : zeroCount,
-    canReviewLeave && branchIds.length
-      ? supabase.from("education_staff_leave_requests").select("id", { count: "exact", head: true })
+        .order("created_at", { ascending: false }).range(from, from + APPROVALS_PAGE_SIZE - 1);
+      if (error) throw new Error(`Could not load pending expenses: ${error.message}`);
+      const page = data ?? [];
+      expenseRows.push(...page);
+      if (page.length < APPROVALS_PAGE_SIZE) return;
+    }
+  };
+  const loadLeave = async () => {
+    if (!canReviewLeave || !branchIds.length) return;
+    for (let from = 0; ; from += APPROVALS_PAGE_SIZE) {
+      const { data, error } = await supabase.from("education_staff_leave_requests")
+        .select("id, branch_id, staff_id, leave_type, starts_on, ends_on, reason, created_at")
         .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "pending")
-      : zeroCount,
-    canReviewTransfers && branchIds.length
-      ? supabase.from("education_student_transfers").select("id", { count: "exact", head: true })
+        .order("created_at", { ascending: false }).range(from, from + APPROVALS_PAGE_SIZE - 1);
+      if (error) throw new Error(`Could not load pending leave requests: ${error.message}`);
+      const page = data ?? [];
+      leaveRows.push(...page);
+      if (page.length < APPROVALS_PAGE_SIZE) return;
+    }
+  };
+  const loadTransfers = async () => {
+    if (!canReviewTransfers || !branchIds.length) return;
+    for (let from = 0; ; from += APPROVALS_PAGE_SIZE) {
+      const { data, error } = await supabase.from("education_student_transfers")
+        .select("id, student_id, source_branch_id, destination_branch_id, effective_on, reason, created_at")
         .eq("org_id", context.orgId).in("source_branch_id", branchIds)
         .in("destination_branch_id", branchIds).eq("status", "pending")
-      : zeroCount,
+        .order("created_at", { ascending: false }).range(from, from + APPROVALS_PAGE_SIZE - 1);
+      if (error) throw new Error(`Could not load pending student transfers: ${error.message}`);
+      const page = data ?? [];
+      transferRows.push(...page);
+      if (page.length < APPROVALS_PAGE_SIZE) return;
+    }
+  };
+  const [libraryResult] = await Promise.all([
     canViewLibrary && branchIds.length
       ? supabase.from("education_library_loans").select("id", { count: "exact", head: true })
         .eq("org_id", context.orgId).in("branch_id", branchIds)
         .is("returned_on", null).lt("due_on", new Date().toISOString().slice(0, 10))
-      : zeroCount,
+      : Promise.resolve({ count: 0, error: null }),
+    loadAdmissions(),
+    loadExpenses(),
+    loadLeave(),
+    loadTransfers(),
   ]);
-  const queryError = admissionsResult.error ?? expensesResult.error ?? leaveResult.error
-    ?? transfersResult.error ?? libraryResult.error;
-  if (queryError) throw new Error(`Could not load Think Education approvals: ${queryError.message}`);
+  if (libraryResult.error) throw new Error(`Could not load overdue library loans: ${libraryResult.error.message}`);
+  const leaveStaffIds = Array.from(new Set(leaveRows.map((row) => row.staff_id)));
+  const transferStudentIds = Array.from(new Set(transferRows.map((row) => row.student_id)));
+  const [
+    { data: leaveStaff, error: leaveStaffError },
+    { data: transferStudents, error: transferStudentsError },
+  ] = await Promise.all([
+    leaveStaffIds.length
+      ? supabase.from("education_staff").select("id, first_name, last_name").eq("org_id", context.orgId).in("id", leaveStaffIds)
+      : { data: [], error: null },
+    transferStudentIds.length
+      ? supabase.from("education_students").select("id, first_name, last_name, student_number")
+        .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", transferStudentIds)
+      : { data: [], error: null },
+  ]);
+  if (leaveStaffError) throw new Error(`Could not load staff names for pending leave requests: ${leaveStaffError.message}`);
+  if (transferStudentsError) throw new Error(`Could not load student names for pending transfers: ${transferStudentsError.message}`);
 
+  const staffById = new Map((leaveStaff ?? []).map((member) => [member.id, `${member.first_name} ${member.last_name}`]));
+  const studentById = new Map((transferStudents ?? []).map((student) => [student.id, `${student.first_name} ${student.last_name} · ${student.student_number}`]));
+  const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const approvals = [
     ...(canReviewAdmissions ? [{
       label: "Admissions awaiting review",
       description: "Review pending and in-review student applications.",
-      count: admissionsResult.count ?? 0,
+      count: admissionRows.length,
       href: "/admissions",
       icon: GraduationCap,
       iconClass: "text-amber-700",
+      items: admissionRows.map((row) => ({
+        id: row.id,
+        title: `${row.applicant_first_name} ${row.applicant_last_name} · ${row.application_number}`,
+        detail: `${campusNameById.get(row.branch_id) ?? "Campus"} · Applied ${row.applied_at.slice(0, 10)}`,
+      })),
     }] : []),
     ...(canReviewExpenses ? [{
       label: "Expenses awaiting approval",
       description: "Review pending campus expense records.",
-      count: expensesResult.count ?? 0,
+      count: expenseRows.length,
       href: "/expenses?status=pending_approval",
       icon: Wallet,
       iconClass: "text-rose-700",
+      items: expenseRows.map((row) => ({
+        id: row.id,
+        title: `${row.expense_number} · ${row.description}`,
+        detail: `${campusNameById.get(row.branch_id) ?? "Campus"} · ${row.category} · ${row.vendor ?? "No vendor"} · ${row.amount} · ${row.expense_date}`,
+      })),
     }] : []),
     ...(canReviewLeave ? [{
       label: "Staff leave awaiting approval",
       description: "Review pending staff leave requests.",
-      count: leaveResult.count ?? 0,
+      count: leaveRows.length,
       href: "/staff/leave?status=pending",
       icon: Users,
       iconClass: "text-violet-700",
+      items: leaveRows.map((row) => ({
+        id: row.id,
+        title: `${staffById.get(row.staff_id) ?? "Staff member"} · ${row.leave_type} leave`,
+        detail: `${campusNameById.get(row.branch_id) ?? "Campus"} · ${row.starts_on} to ${row.ends_on} · ${row.reason}`,
+      })),
     }] : []),
     ...(canReviewTransfers ? [{
       label: "Student transfers awaiting review",
       description: "Review transfers between campuses in your access scope.",
-      count: transfersResult.count ?? 0,
+      count: transferRows.length,
       href: "/transfers",
       icon: ArrowRight,
       iconClass: "text-blue-700",
+      items: transferRows.map((row) => ({
+        id: row.id,
+        title: studentById.get(row.student_id) ?? "Student record unavailable",
+        detail: `${campusNameById.get(row.source_branch_id) ?? "Source campus"} → ${campusNameById.get(row.destination_branch_id) ?? "Destination campus"} · Effective ${row.effective_on} · ${row.reason}`,
+      })),
     }] : []),
   ];
 
@@ -137,18 +247,33 @@ export default async function EducationApprovalsPage() {
 
     {approvals.length > 0 && <section className="space-y-3">
       <h2 className="text-lg font-semibold text-slate-950">Approvals</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {approvals.map(({ label, description, count, href, icon: Icon, iconClass }) => <Link
+      <div className="space-y-3">
+        {approvals.map(({ label, description, count, href, icon: Icon, iconClass, items }) => <details
           key={label}
-          href={getProductAppPath("think-education", href)}
-          className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40"
+          className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
         >
-          <span>
-            <span className="flex items-center gap-2 font-semibold text-slate-950"><Icon className={`h-5 w-5 ${iconClass}`} />{label}</span>
-            <span className="mt-1 block text-sm text-slate-600">{description}</span>
-          </span>
-          <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-lg font-bold tabular-nums text-slate-800">{count.toLocaleString()}</span>
-        </Link>)}
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 transition hover:bg-blue-50/40 [&::-webkit-details-marker]:hidden">
+            <span>
+              <span className="flex items-center gap-2 font-semibold text-slate-950"><Icon className={`h-5 w-5 ${iconClass}`} />{label}</span>
+              <span className="mt-1 block text-sm text-slate-600">{description}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-3">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-lg font-bold tabular-nums text-slate-800">{count.toLocaleString()}</span>
+              <ChevronDown className="h-5 w-5 text-slate-500 transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div className="border-t border-slate-200 p-4">
+            {items.length > 0 ? <ul className="divide-y divide-slate-100">
+              {items.map((item) => <li key={item.id} className="py-3 first:pt-0 last:pb-0">
+                <p className="font-medium text-slate-900">{item.title}</p>
+                <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
+              </li>)}
+            </ul> : <p className="text-sm text-slate-600">There are no items awaiting review in this queue.</p>}
+            <Link href={getProductAppPath("think-education", href)} className="mt-4 inline-flex rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
+              Open {label.toLowerCase()} page
+            </Link>
+          </div>
+        </details>)}
       </div>
     </section>}
 

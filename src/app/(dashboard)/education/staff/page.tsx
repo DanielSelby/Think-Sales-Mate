@@ -96,6 +96,25 @@ export default async function EducationStaffPage({
       }
     }
   }
+  const staffIds = staff.map((member) => member.id);
+  const classNamesByTeacher = new Map<string, string[]>();
+  for (let offset = 0; offset < staffIds.length; offset += 100) {
+    const { data: teacherClasses, error: teacherClassesError } = await supabase.from("education_classes")
+      .select("class_teacher_id, name")
+      .eq("org_id", context.orgId)
+      .in("branch_id", branchIds)
+      .in("class_teacher_id", staffIds.slice(offset, offset + 100))
+      .eq("status", "active")
+      .order("name");
+    if (teacherClassesError) throw new Error(`Could not load staff class assignments: ${teacherClassesError.message}`);
+    for (const classroom of teacherClasses ?? []) {
+      if (!classroom.class_teacher_id) continue;
+      classNamesByTeacher.set(classroom.class_teacher_id, [
+        ...(classNamesByTeacher.get(classroom.class_teacher_id) ?? []),
+        classroom.name,
+      ]);
+    }
+  }
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const csvRows = [
     ["Staff ID", "Name", "Campus", "Category", "Role", "Contact", "Status"],
@@ -206,9 +225,9 @@ export default async function EducationStaffPage({
         <h2 className="mt-3 font-semibold text-slate-900">No staff records match your filters</h2>
         <p className="mt-1 text-sm text-slate-500">Add staff members or adjust the current filters.</p>
       </div> : <div className="overflow-x-auto">
-        <table className="w-full min-w-[800px] text-left text-sm">
+        <table className="w-full min-w-[920px] text-left text-sm">
           <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            <tr><th className="px-4 py-3">Staff ID</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Status</th></tr>
+            <tr><th className="px-4 py-3">Staff ID</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Class(es)</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Status</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {staff.map((member) => <tr key={member.id} className="transition-colors hover:bg-slate-50/80">
@@ -226,6 +245,7 @@ export default async function EducationStaffPage({
               </Link></td>
               <td className="px-4 py-3 capitalize text-slate-600">{member.staff_category.replace("_", " ")}</td>
               <td className="px-4 py-3 text-slate-600">{member.job_title || "—"}</td>
+              <td className="px-4 py-3 text-slate-600">{classNamesByTeacher.get(member.id)?.join(", ") || "—"}</td>
               <td className="px-4 py-3 text-slate-600">{campusNameById.get(member.branch_id) ?? "Campus"}</td>
               <td className="px-4 py-3 text-slate-600">{member.email || "—"}</td>
               <td className="px-4 py-3"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-800">{member.status.replace("_", " ")}</span></td>

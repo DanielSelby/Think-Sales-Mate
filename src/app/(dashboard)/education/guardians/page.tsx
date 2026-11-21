@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizeGuardianSearchValue } from "@/lib/education/guardian-search";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { linkEducationGuardianToStudent, verifyEducationGuardianLink } from "../actions";
+import { GuardianRecordActions } from "./guardian-record-actions";
 import { EducationGuardianLinkForm } from "./education-guardian-link-form";
 import { EducationSubmitButton } from "../submit-button";
 
@@ -23,13 +24,26 @@ export default async function EducationGuardiansPage({
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
 
-  const [canViewGuardians, canCreateGuardian, canVerifyGuardians, canViewStudents, canExportGuardians, canExportStudents] = await Promise.all([
+  const [
+    canViewGuardians,
+    canCreateGuardian,
+    canVerifyGuardians,
+    canViewStudents,
+    canExportGuardians,
+    canExportStudents,
+    canEditGuardian,
+    canDeleteRelationship,
+    canDeleteGuardian,
+  ] = await Promise.all([
     canTabPermission("education_guardians", "guardians", "directory", "view"),
     canTabPermission("education_guardians", "guardians", "directory", "create"),
     canTabPermission("education_guardians", "guardians", "relationships", "edit"),
     canTabPermission("education_students", "students", "list", "view"),
     canTabPermission("education_guardians", "guardians", "directory", "export"),
     canTabPermission("education_students", "students", "list", "export"),
+    canTabPermission("education_guardians", "guardians", "directory", "edit"),
+    canTabPermission("education_guardians", "guardians", "relationships", "delete"),
+    canTabPermission("education_guardians", "guardians", "directory", "delete"),
   ]);
   if (!canViewGuardians || !canViewStudents) {
     redirect("/dashboard?accessDenied=think-education.guardians");
@@ -176,6 +190,8 @@ export default async function EducationGuardiansPage({
           ? "The guardian relationship could not be found."
           : params.error === "save"
             ? "The guardian change could not be saved. Please try again."
+            : params.error === "linked-payment"
+              ? "This guardian has payment history, so the profile cannot be deleted. You can still remove individual student links."
             : null;
 
   return <main className="mx-auto max-w-[1400px] space-y-5 p-4 md:p-6">
@@ -196,6 +212,9 @@ export default async function EducationGuardiansPage({
       {focusedStudent && <> <Link href={`${getProductAppPath("think-education", `/students/${focusedStudent.id}`)}?tab=guardians`} className="font-semibold underline">View linked student</Link></>}
     </p>}
     {params.verified === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Guardian relationship verified and recorded in the audit log.</p>}
+    {params.updated === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Guardian details and student relationship updated.</p>}
+    {params.deleted === "relationship" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Guardian–student link removed. The guardian profile and other links were kept.</p>}
+    {params.deleted === "guardian" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Guardian profile and all linked student relationships deleted.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
     {canCreateGuardian && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -295,6 +314,19 @@ export default async function EducationGuardiansPage({
                 Link student
               </EducationSubmitButton>
             </form>}
+            {guardian && <GuardianRecordActions
+              relationshipId={row.id}
+              guardianId={guardian.id}
+              firstName={guardian.first_name}
+              lastName={guardian.last_name}
+              email={guardian.email}
+              phone={guardian.phone}
+              relationship={row.relationship}
+              isPrimary={row.is_primary}
+              canEdit={canEditGuardian && canVerifyGuardians}
+              canDeleteRelationship={canDeleteRelationship}
+              canDeleteProfile={canDeleteGuardian}
+            />}
           </article>;
         })}
       </div> : <div className="p-8 text-center">

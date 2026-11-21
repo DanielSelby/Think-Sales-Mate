@@ -746,6 +746,102 @@ export async function verifyEducationGuardianLink(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/guardians")}?verified=1`);
 }
 
+export async function saveEducationGuardianRecord(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_guardians", "guardians", "directory", "edit")
+    || !await canTabPermission("education_guardians", "guardians", "relationships", "edit")) {
+    throw new Error("You do not have permission to edit Think Education guardian records.");
+  }
+
+  const relationshipId = String(formData.get("relationship_id") ?? "");
+  const firstName = String(formData.get("first_name") ?? "").trim();
+  const lastName = String(formData.get("last_name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const relationship = String(formData.get("relationship") ?? "").trim();
+  if (!relationshipId || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
+    || email.length > 254 || phone.length > 40 || relationship.length < 1 || relationship.length > 60
+    || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_update_guardian_relationship", {
+    p_org_id: context.orgId,
+    p_relationship_id: relationshipId,
+    p_first_name: firstName,
+    p_last_name: lastName,
+    p_email: email || null,
+    p_phone: phone || null,
+    p_relationship: relationship,
+    p_is_primary: formData.get("is_primary") === "on",
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/guardians")}?error=not-found`);
+    if (error.code === "42501") throw new Error("You are not authorized to edit this guardian relationship.");
+    console.error("Could not save Think Education guardian record:", error.message);
+    redirect(`${getProductAppPath("think-education", "/guardians")}?error=save`);
+  }
+
+  revalidatePath("/education/guardians");
+  revalidatePath("/education/students");
+  redirect(`${getProductAppPath("think-education", "/guardians")}?updated=1&relationship_id=${encodeURIComponent(relationshipId)}`);
+}
+
+export async function deleteEducationGuardianRecord(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const deleteMode = String(formData.get("delete_mode") ?? "");
+  const supabase = await createClient();
+
+  if (deleteMode === "relationship") {
+    if (!await canTabPermission("education_guardians", "guardians", "relationships", "delete")) {
+      throw new Error("You do not have permission to remove Think Education guardian relationships.");
+    }
+    const relationshipId = String(formData.get("relationship_id") ?? "");
+    if (!relationshipId) redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
+    const { error } = await supabase.rpc("education_delete_guardian_relationship", {
+      p_org_id: context.orgId,
+      p_relationship_id: relationshipId,
+    });
+    if (error) {
+      if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/guardians")}?error=not-found`);
+      if (error.code === "42501") throw new Error("You are not authorized to remove this guardian relationship.");
+      console.error("Could not remove Think Education guardian relationship:", error.message);
+      redirect(`${getProductAppPath("think-education", "/guardians")}?error=save`);
+    }
+    revalidatePath("/education/guardians");
+    revalidatePath("/education/students");
+    redirect(`${getProductAppPath("think-education", "/guardians")}?deleted=relationship`);
+  }
+
+  if (deleteMode === "guardian") {
+    if (!await canTabPermission("education_guardians", "guardians", "directory", "delete")) {
+      throw new Error("You do not have permission to delete Think Education guardian profiles.");
+    }
+    const guardianId = String(formData.get("guardian_id") ?? "");
+    if (!guardianId) redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
+    const { error } = await supabase.rpc("education_delete_guardian_profile", {
+      p_org_id: context.orgId,
+      p_guardian_id: guardianId,
+    });
+    if (error) {
+      if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/guardians")}?error=not-found`);
+      if (error.code === "42501") throw new Error("You need delete access to every campus linked to this guardian.");
+      if (error.code === "23503") redirect(`${getProductAppPath("think-education", "/guardians")}?error=linked-payment`);
+      console.error("Could not delete Think Education guardian profile:", error.message);
+      redirect(`${getProductAppPath("think-education", "/guardians")}?error=save`);
+    }
+    revalidatePath("/education/guardians");
+    revalidatePath("/education/students");
+    redirect(`${getProductAppPath("think-education", "/guardians")}?deleted=guardian`);
+  }
+
+  redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
+}
+
 export async function voidEducationFeeCharge(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
@@ -5107,6 +5203,49 @@ export async function cancelEducationTimetableEntry(formData: FormData) {
   }
   revalidatePath("/education/timetables");
   redirect(`${getProductAppPath("think-education", "/timetables")}?cancelled=1`);
+}
+
+export async function enrollEducationStudentInClass(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_students", "students", "list", "edit")) {
+    throw new Error("You do not have permission to enroll Think Education students in a class.");
+  }
+
+  const studentId = String(formData.get("student_id") ?? "");
+  const classId = String(formData.get("class_id") ?? "");
+  if (!studentId || !classId) {
+    redirect(`${getProductAppPath("think-education", `/students/${encodeURIComponent(studentId)}`)}?tab=academic&enrollmentError=invalid`);
+  }
+
+  const supabase = await createClient();
+  const { data: enrollmentId, error } = await supabase.rpc("education_enroll_student_in_class", {
+    p_org_id: context.orgId,
+    p_student_id: studentId,
+    p_class_id: classId,
+  });
+  if (error) {
+    if (error.code === "23505") {
+      redirect(`${getProductAppPath("think-education", `/students/${encodeURIComponent(studentId)}`)}?tab=academic&enrollmentError=exists`);
+    }
+    if (error.code === "P0002") {
+      redirect(`${getProductAppPath("think-education", `/students/${encodeURIComponent(studentId)}`)}?tab=academic&enrollmentError=unavailable`);
+    }
+    if (error.code === "22023") {
+      redirect(`${getProductAppPath("think-education", `/students/${encodeURIComponent(studentId)}`)}?tab=academic&enrollmentError=inactive`);
+    }
+    if (error.code === "42501") {
+      throw new Error("You are not authorized to enroll this student at the selected campus.");
+    }
+    console.error("Could not enroll Think Education student in class:", error.message);
+    redirect(`${getProductAppPath("think-education", `/students/${encodeURIComponent(studentId)}`)}?tab=academic&enrollmentError=save`);
+  }
+  if (!enrollmentId) throw new Error("Student enrollment did not return an enrollment record.");
+
+  revalidatePath(`/education/students/${studentId}`);
+  revalidatePath("/education/students");
+  revalidatePath("/education/promotion");
+  redirect(`${getProductAppPath("think-education", `/students/${encodeURIComponent(studentId)}`)}?tab=academic&enrolled=1`);
 }
 
 export async function promoteEducationStudent(formData: FormData) {

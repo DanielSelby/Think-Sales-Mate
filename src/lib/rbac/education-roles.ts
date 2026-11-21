@@ -22,7 +22,7 @@ export const EDUCATION_ROLE_PRESETS: EducationRolePreset[] = [
       education_dashboard: ["view", "export"],
       education_organization: ["view", "create", "edit", "export"],
       education_students: ["view", "create", "edit", "export", "import"],
-      education_guardians: ["view", "create", "edit", "export", "import"],
+      education_guardians: ["view", "create", "edit", "delete", "export", "import"],
       education_staff: ["view", "create", "edit", "approve", "export", "import"],
       education_reports: ["view", "export"],
       "education_reports.reports.inventory": ["view", "export"],

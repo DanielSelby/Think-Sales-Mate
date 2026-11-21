@@ -3,9 +3,12 @@ import { ArrowLeft, CalendarDays, FileText, GraduationCap, HeartPulse, Users, Wa
 import { StudentConsentForm } from "../student-consent-form";
 import { StudentProfileForm } from "../student-profile-form";
 import { FeePaymentDialog } from "./fee-payment-dialog";
+import { enrollEducationStudentInClass } from "../../actions";
+import { EducationSubmitButton } from "../../submit-button";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
 import type { EducationStudentProfile } from "@/lib/education/student-profile";
+import { EducationRecordSwitcher, type EducationRecordSwitchOption } from "../../record-switcher";
 
 type ProfileTab =
   | "overview" | "personal" | "academic" | "performance" | "exams"
@@ -20,6 +23,11 @@ type EnrollmentRow = {
   class_name: string;
   year_name: string;
   teacher_name: string | null;
+};
+
+type EnrollmentClassOption = {
+  id: string;
+  label: string;
 };
 
 type AttendanceRow = {
@@ -128,6 +136,13 @@ type Props = {
   studentPhotoUrl: string | null;
   fullName: string;
   selectedTab: ProfileTab;
+  recordSwitcher: {
+    recordType: "student";
+    searchPath: string;
+    search: string;
+    tab: string;
+    records: EducationRecordSwitchOption[];
+  };
   permissions: {
     canEditStudent: boolean;
     canViewAcademics: boolean;
@@ -139,6 +154,10 @@ type Props = {
     canViewTransfers: boolean;
   };
   enrollments: EnrollmentRow[];
+  canAssignClass: boolean;
+  enrollmentClasses: EnrollmentClassOption[];
+  enrollmentNotice: string | null;
+  enrollmentNoticeIsError: boolean;
   attendance: AttendanceRow[];
   results: ResultRow[];
   examinations: ExaminationRow[];
@@ -193,7 +212,8 @@ function PermissionMessage() {
 
 export function StudentProfileView(props: Props) {
   const {
-    student, studentPhotoUrl, fullName, selectedTab, permissions, enrollments,
+    student, studentPhotoUrl, fullName, selectedTab, recordSwitcher, permissions, enrollments,
+    canAssignClass, enrollmentClasses, enrollmentNotice, enrollmentNoticeIsError,
     attendance, results, examinations, componentScores, charges, guardians,
     documents, transfers, communications, consentEvents, currencyConfig,
     canRecordFeePayment, paymentRecorded, paymentError,
@@ -318,6 +338,43 @@ export function StudentProfileView(props: Props) {
   function renderAcademic() {
     if (!permissions.canViewAcademics) return <PermissionMessage />;
     return <div className="space-y-5">
+      {enrollmentNotice && <p
+        role={enrollmentNoticeIsError ? "alert" : "status"}
+        className={`rounded-lg border px-4 py-3 text-sm ${
+          enrollmentNoticeIsError
+            ? "border-rose-200 bg-rose-50 text-rose-900"
+            : "border-emerald-200 bg-emerald-50 text-emerald-900"
+        }`}
+      >{enrollmentNotice}</p>}
+      {canAssignClass && <section className={cardClass}>
+        <h2 className={headingClass}>Assign a class</h2>
+        <p className="mt-1 text-sm text-slate-500">Enroll this student in an active class for the current academic year at {student.campusName}.</p>
+        {student.status !== "active"
+          ? <p className="mt-3 text-sm text-amber-800">Only active students can be enrolled.</p>
+          : activeEnrollment
+            ? <p className="mt-3 text-sm text-slate-600">
+              This student is already enrolled in <strong>{activeEnrollment.class_name}</strong> for {activeEnrollment.year_name}. To move them, use{" "}
+              <Link href={getProductAppPath("think-education", "/promotion")} className="font-semibold text-blue-700 hover:underline">Promotion &amp; Graduation</Link>
+              {" "}after completing the academic year.
+            </p>
+            : enrollmentClasses.length > 0
+              ? <form action={enrollEducationStudentInClass} className="mt-4 flex flex-wrap items-end gap-3">
+                <input type="hidden" name="student_id" value={student.id} />
+                <label className="min-w-64 flex-1 text-sm font-medium text-slate-700">Class
+                  <select required name="class_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
+                    <option value="" disabled>Select an active class</option>
+                    {enrollmentClasses.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.label}</option>)}
+                  </select>
+                </label>
+                <EducationSubmitButton
+                  pendingLabel="Enrolling..."
+                  className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                >
+                  Enroll student
+                </EducationSubmitButton>
+              </form>
+              : <p className="mt-3 text-sm text-slate-600">No active classes are available for the current academic year at this campus. Create an active class in Academic Management first.</p>}
+      </section>}
       <section className={cardClass}>
         <h2 className={headingClass}>Academic records</h2>
         <p className="mt-1 text-sm text-slate-500">Enrollment history is taken from the student’s recorded academic-year enrollments.</p>
@@ -539,6 +596,7 @@ export function StudentProfileView(props: Props) {
 
   return <main className="mx-auto w-full max-w-[1500px] space-y-5 p-4 md:p-6 xl:p-8">
     <Link href={getProductAppPath("think-education", "/students")} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:text-blue-900"><ArrowLeft className="h-4 w-4" /> Students</Link>
+    <EducationRecordSwitcher {...recordSwitcher} />
     <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
       <div className="flex flex-wrap items-center gap-4">
         <span role="img" aria-label={`${fullName} photo`} className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-2xl font-semibold text-blue-700" style={studentPhotoUrl ? { backgroundImage: `url(${JSON.stringify(studentPhotoUrl)})` } : undefined}>

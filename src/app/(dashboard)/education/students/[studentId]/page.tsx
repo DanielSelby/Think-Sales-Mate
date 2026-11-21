@@ -7,6 +7,8 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { calculateEducationClassPosition } from "@/lib/education/class-position";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
+import { getProductAppPath } from "@/lib/product-app-routes";
+import { EducationRecordSwitcher } from "../../record-switcher";
 
 const PROFILE_TABS = [
   "overview", "personal", "academic", "performance", "exams", "attendance",
@@ -81,8 +83,30 @@ export default async function EducationStudentProfilePage({ params, searchParams
   const selectedTab = PROFILE_TABS.includes(selectedTabParam as typeof PROFILE_TABS[number])
     ? selectedTabParam as typeof PROFILE_TABS[number]
     : "overview";
+  const switchSearch = firstParam(queryParams.switchSearch).trim().slice(0, 80);
   const canViewFinance = canViewFinanceCharges && canViewFinancePayments;
   const campusName = campuses.find((campus) => campus.id === student.branch_id)?.name ?? "Campus";
+  const safeSwitchSearch = switchSearch.replace(/[^A-Za-z0-9\s_-]/g, "");
+  let switchQuery = supabase.from("education_students")
+    .select("id, student_number, first_name, last_name, other_names, branch_id, status")
+    .eq("org_id", context.orgId)
+    .in("branch_id", campusIds)
+    .order("last_name")
+    .order("first_name")
+    .limit(50);
+  if (safeSwitchSearch) {
+    const pattern = `%${safeSwitchSearch}%`;
+    switchQuery = switchQuery.or(`student_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},other_names.ilike.${pattern}`);
+  } else if (switchSearch) {
+    switchQuery = switchQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+  }
+  const { data: studentSwitchRows, error: studentSwitchError } = await switchQuery;
+  if (studentSwitchError) throw new Error(`Could not load student profile search results: ${studentSwitchError.message}`);
+  const studentSwitchRecords = (studentSwitchRows ?? []).map((row) => ({
+    id: row.id,
+    label: `${row.student_number} · ${[row.first_name, row.other_names, row.last_name].filter(Boolean).join(" ")} · ${campuses.find((campus) => campus.id === row.branch_id)?.name ?? "Campus"} · ${row.status.replaceAll("_", " ")}`,
+    href: `${getProductAppPath("think-education", `/students/${row.id}`)}?tab=${selectedTab}`,
+  }));
   const paymentError = firstParam(queryParams.error) === "invalid" || firstParam(queryParams.error) === "payment"
     ? "Payment must be valid and cannot exceed the remaining balance."
     : firstParam(queryParams.error) === "accounting-mapping"
@@ -205,6 +229,37 @@ export default async function EducationStudentProfilePage({ params, searchParams
     : [{ data: [], error: null }, { data: [], error: null }];
   if (classesError) throw new Error(`Could not load classes for the student profile: ${classesError.message}`);
   if (academicYearsError) throw new Error(`Could not load academic years for the student profile: ${academicYearsError.message}`);
+  const canAssignClass = canEditStudent && canViewAcademics;
+  let activeAcademicYear: { id: string; name: string } | null = null;
+  let availableClassRows: Array<{ id: string; name: string }> = [];
+  if (canAssignClass && student.status === "active" && !activeEnrollmentRow) {
+    const { data: currentYear, error: currentYearError } = await supabase.from("education_academic_years")
+      .select("id, name")
+      .eq("org_id", context.orgId)
+      .eq("status", "active")
+      .order("starts_on", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (currentYearError) throw new Error(`Could not load the active academic year for student enrollment: ${currentYearError.message}`);
+    activeAcademicYear = currentYear;
+    if (currentYear) {
+      if (!enrollmentRows.some((row) => row.academic_year_id === currentYear.id)) {
+        const { data: currentYearClasses, error: currentYearClassesError } = await supabase.from("education_classes")
+          .select("id, name")
+          .eq("org_id", context.orgId)
+          .eq("branch_id", student.branch_id)
+          .eq("academic_year_id", currentYear.id)
+          .eq("status", "active")
+          .order("name");
+        if (currentYearClassesError) throw new Error(`Could not load available classes for student enrollment: ${currentYearClassesError.message}`);
+        availableClassRows = currentYearClasses ?? [];
+      }
+    }
+  }
+  const enrollmentClasses = availableClassRows.map((classroom) => ({
+    id: classroom.id,
+    label: `${classroom.name} · ${activeAcademicYear?.name ?? "Active academic year"}`,
+  }));
   const teacherIds = [...new Set((classes ?? []).map((item) => item.class_teacher_id).filter((id): id is string => Boolean(id)))];
   const { data: teachers, error: teachersError } = teacherIds.length
     ? await supabase.from("education_staff").select("id, first_name, last_name").eq("org_id", context.orgId).in("branch_id", campusIds).in("id", teacherIds)
@@ -225,6 +280,19 @@ export default async function EducationStudentProfilePage({ params, searchParams
       teacher_name: classroom?.class_teacher_id ? teacherById.get(classroom.class_teacher_id) ?? null : null,
     };
   });
+  const enrollmentNotice = firstParam(queryParams.enrolled) === "1"
+    ? "Student enrolled in the selected class."
+    : firstParam(queryParams.enrollmentError) === "invalid"
+      ? "Select an active class for this student."
+      : firstParam(queryParams.enrollmentError) === "exists"
+        ? "This student already has an enrollment record for the active academic year."
+        : firstParam(queryParams.enrollmentError) === "unavailable"
+          ? "The student or class is no longer available at this campus."
+          : firstParam(queryParams.enrollmentError) === "inactive"
+            ? "The student already has an active enrollment, is inactive, or the class is full. Check the current placement and class capacity."
+            : firstParam(queryParams.enrollmentError) === "save"
+              ? "The student could not be enrolled. Please try again."
+              : null;
 
   const attendanceClassIds = [...new Set((attendanceResult.data ?? []).map((row) => row.class_id).filter((id): id is string => Boolean(id)))];
   const { data: attendanceClasses, error: attendanceClassesError } = attendanceClassIds.length
@@ -444,6 +512,13 @@ export default async function EducationStudentProfilePage({ params, searchParams
     studentPhotoUrl={studentPhotoUrl}
     fullName={fullName}
     selectedTab={selectedTab}
+    recordSwitcher={{
+      recordType: "student",
+      searchPath: getProductAppPath("think-education", `/students/${student.id}`),
+      tab: selectedTab,
+      search: switchSearch,
+      records: studentSwitchRecords,
+    }}
     permissions={{
       canEditStudent,
       canViewAcademics,
@@ -455,6 +530,10 @@ export default async function EducationStudentProfilePage({ params, searchParams
       canViewTransfers,
     }}
     enrollments={enrollments}
+    canAssignClass={canAssignClass}
+    enrollmentClasses={enrollmentClasses}
+    enrollmentNotice={enrollmentNotice}
+    enrollmentNoticeIsError={Boolean(firstParam(queryParams.enrollmentError))}
     attendance={attendance}
     results={results}
     examinations={examinations}

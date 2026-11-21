@@ -7,6 +7,8 @@ import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
+import { formatCurrencyAmount } from "@/lib/currency";
 import { createEducationStudent } from "../actions";
 import { EducationRecordModal } from "@/components/education/education-record-modal";
 import { EducationImportModal } from "@/components/education/education-import-modal";
@@ -62,13 +64,14 @@ export default async function EducationStudentsPage({
     branch_id: string;
     status: string;
     created_at: string;
+    photo_path: string | null;
   }> = [];
   if (branchIds.length) {
     let countQuery = supabase.from("education_students").select("id", { count: "exact", head: true })
       .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", status);
     const buildStudentQuery = () => {
       let studentQuery = supabase.from("education_students")
-        .select("id, student_number, first_name, last_name, other_names, branch_id, status, created_at")
+        .select("id, student_number, first_name, last_name, other_names, branch_id, status, created_at, photo_path")
         .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", status)
         .order("last_name").order("first_name").order("id");
       if (search) {
@@ -112,6 +115,120 @@ export default async function EducationStudentsPage({
       if (studentsError) throw new Error(`Could not load Think Education students: ${studentsError.message}`);
       totalCount = count ?? 0;
       students = data ?? [];
+    }
+  }
+
+  const [canViewFinanceCharges, canViewFinancePayments] = await Promise.all([
+    canTabPermission("education_finance", "finance", "charges", "view"),
+    canTabPermission("education_finance", "finance", "payments", "view"),
+  ]);
+  const canViewBalances = canViewFinanceCharges && canViewFinancePayments;
+  const currencyConfig = canViewBalances ? await getOrganizationCurrencyConfig() : null;
+  const studentPhotoUrlById = new Map<string, string>();
+  const studentIdByPhotoPath = new Map(students.flatMap((student) =>
+    student.photo_path ? [[student.photo_path, student.id] as const] : []
+  ));
+  const studentPhotoPaths = [...studentIdByPhotoPath.keys()];
+  for (let offset = 0; offset < studentPhotoPaths.length; offset += 100) {
+    const { data: signedPhotos, error: signedPhotosError } = await supabase.storage
+      .from("education-student-images")
+      .createSignedUrls(studentPhotoPaths.slice(offset, offset + 100), 60 * 60);
+    if (signedPhotosError) {
+      console.error("Could not load Think Education student directory photos:", signedPhotosError.message);
+      throw new Error("Student profile photos could not be loaded.");
+    }
+    for (const photo of signedPhotos ?? []) {
+      const studentId = photo.path ? studentIdByPhotoPath.get(photo.path) : undefined;
+      if (photo.error) {
+        console.error("Could not load a Think Education student directory photo:", photo.error);
+      } else if (studentId && photo.signedUrl) {
+        studentPhotoUrlById.set(studentId, photo.signedUrl);
+      }
+    }
+  }
+
+  const classByEnrollmentStudent = new Map<string, string[]>();
+  const studentIds = students.map((student) => student.id);
+  const enrollmentRows: Array<{ student_id: string; class_id: string }> = [];
+  for (let batchOffset = 0; batchOffset < studentIds.length; batchOffset += 100) {
+    const batch = studentIds.slice(batchOffset, batchOffset + 100);
+    const { data: enrollments, error: enrollmentsError } = await supabase.from("education_student_enrollments")
+      .select("student_id, class_id")
+      .eq("org_id", context.orgId)
+      .in("branch_id", branchIds)
+      .in("student_id", batch)
+      .eq("status", "active")
+      .order("enrolled_on", { ascending: false });
+    if (enrollmentsError) throw new Error(`Could not load student class assignments: ${enrollmentsError.message}`);
+    enrollmentRows.push(...(enrollments ?? []));
+  }
+  const classIds = [...new Set(enrollmentRows.map((enrollment) => enrollment.class_id))];
+  const classNameById = new Map<string, string>();
+  for (let offset = 0; offset < classIds.length; offset += 100) {
+    const { data: classRows, error: classError } = await supabase.from("education_classes")
+      .select("id, name")
+      .eq("org_id", context.orgId)
+      .in("branch_id", branchIds)
+      .in("id", classIds.slice(offset, offset + 100));
+    if (classError) throw new Error(`Could not load student class names: ${classError.message}`);
+    for (const classroom of classRows ?? []) classNameById.set(classroom.id, classroom.name);
+  }
+  for (const enrollment of enrollmentRows) {
+    const className = classNameById.get(enrollment.class_id);
+    if (className) {
+      classByEnrollmentStudent.set(enrollment.student_id, [
+        ...(classByEnrollmentStudent.get(enrollment.student_id) ?? []),
+        className,
+      ]);
+    }
+  }
+
+  const outstandingByStudent = new Map<string, number>();
+  if (canViewBalances && studentIds.length) {
+    const openCharges: Array<{ id: string; student_id: string; amount: number }> = [];
+    for (let batchOffset = 0; batchOffset < studentIds.length; batchOffset += 100) {
+      const batch = studentIds.slice(batchOffset, batchOffset + 100);
+      let offset = 0;
+      while (true) {
+        const { data: charges, error: chargesError } = await supabase.from("education_fee_charges")
+          .select("id, student_id, amount")
+          .eq("org_id", context.orgId)
+          .in("branch_id", branchIds)
+          .in("student_id", batch)
+          .eq("status", "open")
+          .order("id")
+          .range(offset, offset + 999);
+        if (chargesError) throw new Error(`Could not load student fee balances: ${chargesError.message}`);
+        const rows = charges ?? [];
+        openCharges.push(...rows);
+        if (rows.length < 1000) break;
+        offset += rows.length;
+      }
+    }
+    const paidByCharge = new Map<string, number>();
+    const chargeIds = openCharges.map((charge) => charge.id);
+    for (let batchOffset = 0; batchOffset < chargeIds.length; batchOffset += 200) {
+      const batch = chargeIds.slice(batchOffset, batchOffset + 200);
+      let offset = 0;
+      while (true) {
+        const { data: payments, error: paymentsError } = await supabase.from("education_fee_payments")
+          .select("charge_id, amount")
+          .eq("org_id", context.orgId)
+          .in("charge_id", batch)
+          .order("id")
+          .range(offset, offset + 999);
+        if (paymentsError) throw new Error(`Could not load student fee payments: ${paymentsError.message}`);
+        const rows = payments ?? [];
+        for (const payment of rows) {
+          paidByCharge.set(payment.charge_id, (paidByCharge.get(payment.charge_id) ?? 0) + payment.amount);
+        }
+        if (rows.length < 1000) break;
+        offset += rows.length;
+      }
+    }
+    for (const charge of openCharges) {
+      const balance = Math.max(0, charge.amount - (paidByCharge.get(charge.id) ?? 0));
+      outstandingByStudent.set(charge.student_id, (outstandingByStudent.get(charge.student_id) ?? 0) + balance);
     }
   }
 
@@ -228,14 +345,28 @@ export default async function EducationStudentsPage({
         <h2 className="mt-3 font-semibold text-slate-900">No students found</h2>
         <p className="mt-1 text-sm text-slate-500">Try changing the search or filters, or add a student if you have permission.</p>
       </div> : <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            <tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Full name</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Enrolled</th></tr>
+            <tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Full name</th><th className="px-4 py-3">Class</th>{canViewBalances && <th className="px-4 py-3">Outstanding balance</th>}<th className="px-4 py-3">Campus</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Enrolled</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {students.map((student) => <tr key={student.id} className="transition-colors hover:bg-slate-50/80">
               <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800"><Link href={getProductAppPath("think-education", `/students/${student.id}`)} className="hover:underline">{student.student_number}</Link></td>
-              <td className="px-4 py-3 font-medium text-slate-900">{[student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ")}</td>
+              <td className="px-4 py-3 font-medium text-slate-900"><Link href={getProductAppPath("think-education", `/students/${student.id}`)} className="inline-flex items-center gap-3 hover:text-blue-800 hover:underline">
+                <span
+                  role="img"
+                  aria-label={`${student.first_name} ${student.last_name} photo`}
+                  className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-xs font-semibold text-blue-700"
+                  style={studentPhotoUrlById.get(student.id) ? { backgroundImage: `url(${JSON.stringify(studentPhotoUrlById.get(student.id))})` } : undefined}
+                >
+                  {!studentPhotoUrlById.has(student.id) && `${student.first_name[0] ?? ""}${student.last_name[0] ?? ""}`.toUpperCase()}
+                </span>
+                <span>{[student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ")}</span>
+              </Link></td>
+              <td className="px-4 py-3 text-slate-600">{[...new Set(classByEnrollmentStudent.get(student.id) ?? [])].join(", ") || "—"}</td>
+              {canViewBalances && <td className={`whitespace-nowrap px-4 py-3 font-semibold ${(outstandingByStudent.get(student.id) ?? 0) > 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                {currencyConfig ? formatCurrencyAmount(outstandingByStudent.get(student.id) ?? 0, currencyConfig) : "—"}
+              </td>}
               <td className="px-4 py-3 text-slate-600">{branchNameById.get(student.branch_id) ?? "Campus"}</td>
               <td className="px-4 py-3"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-800">{student.status.replace("_", " ")}</span></td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(student.created_at).toLocaleDateString()}</td>

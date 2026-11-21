@@ -6,6 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { EducationRecordSwitcher } from "../../record-switcher";
 import {
   recordEducationStaffEmployment,
   saveEducationStaffContract,
@@ -37,6 +38,7 @@ export default async function EducationStaffProfilePage({
   }
 
   const [{ staffId }, query] = await Promise.all([params, searchParams]);
+  const switchSearch = getParam(query, "switchSearch").trim().slice(0, 80);
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   const supabase = await createClient();
@@ -80,6 +82,27 @@ export default async function EducationStaffProfilePage({
   if (qualificationsResult.error) throw new Error(`Could not load Think Education qualifications: ${qualificationsResult.error.message}`);
   if (contractsResult.error) throw new Error(`Could not load Think Education contracts: ${contractsResult.error.message}`);
   const campusName = campuses.find((campus) => campus.id === staff.branch_id)?.name ?? "Campus";
+  const safeSwitchSearch = switchSearch.replace(/[^A-Za-z0-9\s_-]/g, "");
+  let switchQuery = supabase.from("education_staff")
+    .select("id, staff_number, first_name, last_name, branch_id, staff_category, status")
+    .eq("org_id", context.orgId)
+    .in("branch_id", campusIds)
+    .order("last_name")
+    .order("first_name")
+    .limit(50);
+  if (safeSwitchSearch) {
+    const pattern = `%${safeSwitchSearch}%`;
+    switchQuery = switchQuery.or(`staff_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern}`);
+  } else if (switchSearch) {
+    switchQuery = switchQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+  }
+  const { data: staffSwitchRows, error: staffSwitchError } = await switchQuery;
+  if (staffSwitchError) throw new Error(`Could not load staff profile search results: ${staffSwitchError.message}`);
+  const staffSwitchRecords = (staffSwitchRows ?? []).map((member) => ({
+    id: member.id,
+    label: `${member.staff_number} · ${member.first_name} ${member.last_name} · ${campuses.find((campus) => campus.id === member.branch_id)?.name ?? "Campus"} · ${label(member.status)}`,
+    href: getProductAppPath("think-education", `/staff/${member.id}`),
+  }));
   const { data: departments, error: departmentsError } = canEdit
     ? await supabase.from("education_departments").select("id, name")
       .eq("org_id", context.orgId).eq("is_active", true)
@@ -106,6 +129,12 @@ export default async function EducationStaffProfilePage({
       <Link href={getProductAppPath("think-education", "/staff")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
         <ArrowLeft className="h-4 w-4" /> Staff management
       </Link>
+      <EducationRecordSwitcher
+        recordType="staff"
+        searchPath={getProductAppPath("think-education", `/staff/${staff.id}`)}
+        search={switchSearch}
+        records={staffSwitchRecords}
+      />
         <div className="mt-3 flex items-center gap-4">
           <span
             role="img"

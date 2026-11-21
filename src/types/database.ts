@@ -7677,6 +7677,14 @@ export interface Database {
         };
         Returns: string;
       };
+      education_enroll_student_in_class: {
+        Args: {
+          p_org_id: string;
+          p_student_id: string;
+          p_class_id: string;
+        };
+        Returns: string;
+      };
       education_set_academic_year_status: {
         Args: {
           p_org_id: string;
@@ -7793,6 +7801,33 @@ export interface Database {
           p_relationship: string;
         };
         Returns: string;
+      };
+      education_update_guardian_relationship: {
+        Args: {
+          p_org_id: string;
+          p_relationship_id: string;
+          p_first_name: string;
+          p_last_name: string;
+          p_email: string | null;
+          p_phone: string | null;
+          p_relationship: string;
+          p_is_primary: boolean;
+        };
+        Returns: boolean;
+      };
+      education_delete_guardian_relationship: {
+        Args: {
+          p_org_id: string;
+          p_relationship_id: string;
+        };
+        Returns: boolean;
+      };
+      education_delete_guardian_profile: {
+        Args: {
+          p_org_id: string;
+          p_guardian_id: string;
+        };
+        Returns: boolean;
       };
       education_verify_guardian_link: {
         Args: {
