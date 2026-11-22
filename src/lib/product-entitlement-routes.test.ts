@@ -85,6 +85,15 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/app/think-education/activity")).toEqual(["think-education"]);
     expect(getRequiredProductSlugs("/app/restaurant/inventory")).toEqual(["restaurant"]);
     expect(getRequiredProductSlugs("/app/unknown/inventory")).toEqual([]);
+    for (const product of ["thinksales-erp", "restaurant", "think-service-repairs", "think-education"] as const) {
+      const route = {
+        "thinksales-erp": "/app/thinksales/hrm/attendance/shifts",
+        restaurant: "/app/restaurant/hrm/attendance/shifts",
+        "think-service-repairs": "/app/think-service/hrm/attendance/shifts",
+        "think-education": "/app/think-education/hrm/attendance/shifts",
+      }[product];
+      expect(getRequiredProductSlugs(route)).toEqual([product]);
+    }
   });
 
   it("retains product ownership for namespaced support routes", () => {
@@ -107,6 +116,15 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugs("/accounting/restaurant-ledger")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugs("/expenses/categories")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugs("/approvals")).toEqual(["thinksales-erp", "restaurant"]);
+  });
+
+  it("allows shared HRM attendance in every registered product namespace", () => {
+    expect(getRequiredProductSlugs("/hrm/attendance/shifts")).toEqual([
+      "thinksales-erp",
+      "restaurant",
+      "think-service-repairs",
+      "think-education",
+    ]);
   });
 
   it("requires the ERP product for core ERP routes", () => {
@@ -165,6 +183,9 @@ describe("product route entitlement mapping", () => {
     expect(getRequiredProductSlugsForPermissionModule("cash_closing")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugsForPermissionModule("banking", "banking", "reconciliation")).toEqual(["thinksales-erp", "restaurant"]);
     expect(getRequiredProductSlugsForPermissionModule("unmapped_module")).toEqual(["thinksales-erp"]);
+    expect(getRequiredProductSlugsForPermissionModule("hrm_payroll"))
+      .toEqual(["thinksales-erp", "restaurant", "think-service-repairs", "think-education"]);
+    expect(isOrganizationWidePermissionModule("hrm_payroll")).toBe(false);
   });
 
   it("filters permission matrices by product while excluding organization-wide administration", () => {

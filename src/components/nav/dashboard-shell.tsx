@@ -81,14 +81,14 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   const productNavItems = getProductNavigationItems(NAV_ITEMS, productScope);
   const mobileNav = productScope === "thinksales-erp"
     ? productNavItems
-      .filter((item) => (!enabledModules || enabledModules.includes(item.label))
-        && ["/dashboard", "/pos", "/sales", "/inventory", "/approvals"].includes(item.href))
+      .filter((item) => (item.alwaysVisible || !enabledModules || enabledModules.includes(item.label))
+        && ["/dashboard", "/pos", "/sales", "/inventory", "/approvals", "/hrm", "/hrm/attendance"].includes(item.href))
       .flatMap((item) => {
         const href = getProductScopedHref(pathname, item.href);
         return href ? [{ ...item, href }] : [];
       })
     : productNavItems
-      .filter((item) => !enabledModules || enabledModules.includes(item.label))
+      .filter((item) => item.alwaysVisible || !enabledModules || enabledModules.includes(item.label))
       .flatMap((item) =>
         getVisibleNavigationChildren(item.children, item.label, enabledModules)
           .flatMap((child) => {

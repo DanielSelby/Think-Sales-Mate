@@ -26,6 +26,7 @@ export interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   status: "live" | "soon";
   children?: NavChild[];
+  alwaysVisible?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [

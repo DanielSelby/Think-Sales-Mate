@@ -8,11 +8,11 @@ import {
 import { NAV_ITEMS } from "@/components/nav/navigation";
 
 const navigation = [
-  { label: "Dashboard" },
-  { label: "Think Service & Repairs" },
-  { label: "Think Education" },
-  { label: "Restaurant" },
-  { label: "Sales" },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Think Service & Repairs", href: "/service-center" },
+  { label: "Think Education", href: "/education/dashboard" },
+  { label: "Restaurant", href: "/restaurant" },
+  { label: "Sales", href: "/sales" },
 ];
 
 describe("product navigation", () => {
@@ -48,6 +48,10 @@ describe("product navigation", () => {
     expect(getProductScopedHref("/app/restaurant", "/settings/organization"))
       .toBe("/app/restaurant/settings/organization");
     expect(getProductScopedHref("/app/restaurant", "https://example.com")).toBe("https://example.com");
+    expect(getProductScopedHref("/app/think-education/dashboard", "/hrm/attendance"))
+      .toBe("/app/think-education/hrm/attendance");
+    expect(getProductScopedHref("/app/think-service", "/hrm/attendance"))
+      .toBe("/app/think-service/hrm/attendance");
   });
 
   it("preserves each active product when opening support", () => {
@@ -80,6 +84,24 @@ describe("product navigation", () => {
       .toEqual(["Dashboard", "Sales"]);
   });
 
+  it("adds the shared attendance entry to every non-ThinkSales product navigation", () => {
+    const items = [
+      ...navigation,
+      {
+        label: "HRM & Payroll",
+        href: "/hrm",
+        children: [{ label: "Attendance Management", href: "/hrm/attendance" }],
+      },
+    ];
+    for (const scope of ["restaurant", "think-service-repairs", "think-education"] as const) {
+      expect(getProductNavigationItems(items, scope)[0]).toMatchObject({
+        label: "Attendance Management",
+        href: "/hrm/attendance",
+        alwaysVisible: true,
+      });
+    }
+  });
+
   it("organizes Think Education links beneath one product heading", () => {
     const education = NAV_ITEMS.find((item) => item.label === "Think Education");
     const sections = Array.from(new Set(education?.children?.map((child) => child.section)));
@@ -106,10 +128,10 @@ describe("product navigation", () => {
 
   it("keeps configured child permissions when preparing navigation entries", () => {
     const children = [
-      { label: "Service Jobs" },
-      { label: "Appointments" },
-      { label: "Legacy integration", restaurantIntegration: true },
-      { label: "Products & Access", alwaysVisible: true },
+      { label: "Service Jobs", href: "/service-center/jobs" },
+      { label: "Appointments", href: "/service-center/appointments" },
+      { label: "Legacy integration", href: "/legacy", restaurantIntegration: true },
+      { label: "Products & Access", href: "/settings/products", alwaysVisible: true },
     ];
     expect(getVisibleNavigationChildren(children, "Think Service & Repairs", [
       "__children:Think Service & Repairs",

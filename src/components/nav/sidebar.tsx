@@ -52,6 +52,7 @@ export interface NavItem {
   icon:      React.ComponentType<{ className?: string }>;
   status:    "live" | "soon";
   children?: NavChild[];
+  alwaysVisible?: boolean;
 }
 
 const LEGACY_NAV_ITEMS: NavItem[] = [
@@ -339,8 +340,12 @@ export function Sidebar({
   const productLogoUrl = productLogoUrls?.[productScope] ?? (educationBrand ? null : systemLogoUrl);
   const educationItem = educationBrand ? productNavItems.find((item) => item.label === "Think Education") : null;
   const educationChildren = educationItem && (!enabledModules || enabledModules.includes(educationItem.label))
-    ? getVisibleNavigationChildren(educationItem.children, educationItem.label, enabledModules)
-      .filter((child) => getProductScopedHref(pathname, child.href) !== null)
+    ? [
+      ...getVisibleNavigationChildren(educationItem.children, educationItem.label, enabledModules),
+      ...productNavItems
+        .filter((item) => item.label === "Attendance Management")
+        .map((item) => ({ label: item.label, href: item.href, icon: item.icon })),
+    ].filter((child) => getProductScopedHref(pathname, child.href) !== null)
     : [];
 
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
@@ -440,8 +445,8 @@ export function Sidebar({
             indented={false}
             collapsed={collapsed && !mobileOpen}
           />
-          : productNavItems.filter((item) => !enabledModules || enabledModules.includes(item.label)).map(item => {
-          const Icon     = item.icon;
+          : productNavItems.filter((item) => item.alwaysVisible || !enabledModules || enabledModules.includes(item.label)).map(item => {
+          const Icon     = item.icon ?? CalendarClock;
           const isSoon   = item.status === "soon";
           const childItems = getVisibleNavigationChildren(item.children, item.label, enabledModules)
             .filter((child) => getProductScopedHref(pathname, child.href) !== null);

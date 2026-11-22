@@ -121,6 +121,9 @@ function getLegacyRequiredProductSlugs(pathname: string): PlatformProductSlug[] 
   if (isPathOrChild(pathname, "/education") || isPathOrChild(pathname, "/api/education")) {
     return ["think-education"];
   }
+  if (isPathOrChild(pathname, "/hrm")) {
+    return PRODUCT_APP_ROUTES.map((route) => route.productSlug);
+  }
   if (pathname === "/dashboard") return ["thinksales-erp"];
   if (isPathOrChild(pathname, "/restaurant")) {
     return ["restaurant"];
@@ -169,6 +172,9 @@ export function getRequiredProductSlugsForPermissionModule(
   tab?: string,
 ): PlatformProductSlug[] {
   const moduleKey = module.toLowerCase().replace(/[\s-]+/g, "_");
+  if (moduleKey === "hrm" || moduleKey === "hrm_payroll" || moduleKey === "payroll") {
+    return PRODUCT_APP_ROUTES.map((route) => route.productSlug);
+  }
   if (moduleKey === "banking" && page === "banking" && tab === "reconciliation") {
     return getRequiredProductSlugs("/banking/cash-closing") ?? ["thinksales-erp"];
   }
@@ -178,6 +184,7 @@ export function getRequiredProductSlugsForPermissionModule(
 
 export function isOrganizationWidePermissionModule(module: string): boolean {
   const moduleKey = module.toLowerCase().replace(/[\s-]+/g, "_");
+  if (moduleKey === "hrm" || moduleKey === "hrm_payroll" || moduleKey === "payroll") return false;
   const path = PERMISSION_MODULE_PATHS[moduleKey];
   return Boolean(path && isOrganizationWideRoute(path));
 }

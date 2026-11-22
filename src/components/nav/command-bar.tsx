@@ -68,7 +68,7 @@ function flattenNavItems(
   const result: { id: string; label: string; path: string; icon: any; group: string }[] = [];
   const scope = getProductNavigationScope(pathname);
   for (const item of getProductNavigationItems(items, scope)) {
-    if (enabledModules && !enabledModules.includes(item.label)) continue;
+    if (!item.alwaysVisible && enabledModules && !enabledModules.includes(item.label)) continue;
     const itemPath = getProductScopedHref(pathname, item.href);
     if (itemPath) result.push({
       id: item.href.replace(/\//g, "-").slice(1) || "home",

@@ -6,11 +6,27 @@ import {
   resolveProductAppRoute,
 } from "./product-app-routes";
 import { getRequiredProductSlugs } from "./product-entitlement-routes";
+import { CalendarClock } from "lucide-react";
+import type { ComponentType } from "react";
+import type { PlatformProductSlug } from "@/types/platform-database";
 
-export type ProductNavigationScope = "thinksales-erp" | "restaurant" | "think-service-repairs" | "think-education";
+export type ProductNavigationScope = PlatformProductSlug;
 
-type NavigationItem = { label: string };
-type NavigationChild = { label: string; restaurantIntegration?: boolean; alwaysVisible?: boolean };
+type NavigationChild = {
+  label: string;
+  href: string;
+  icon?: ComponentType<{ className?: string }>;
+  restaurantIntegration?: boolean;
+  alwaysVisible?: boolean;
+};
+type NavigationItem = {
+  label: string;
+  href: string;
+  icon?: ComponentType<{ className?: string }>;
+  status?: "live" | "soon";
+  children?: readonly NavigationChild[];
+  alwaysVisible?: boolean;
+};
 
 function isPathOrChild(pathname: string, path: string) {
   return pathname === path || pathname.startsWith(`${path}/`);
@@ -60,29 +76,44 @@ export function getProductScopedHref(pathname: string, href: string): string | n
   return `${getProductAppPath(currentRoute.productSlug, relativePath)}${url.search}${url.hash}`;
 }
 
-export function getProductNavigationItems<T extends NavigationItem>(
-  items: readonly T[],
+export function getProductNavigationItems(
+  items: readonly NavigationItem[],
   scope: ProductNavigationScope,
-): T[] {
+): NavigationItem[] {
+  let scopedItems: NavigationItem[];
   if (scope === "think-service-repairs") {
-    return items.filter((item) => item.label === "Think Service & Repairs");
+    scopedItems = items.filter((item) => item.label === "Think Service & Repairs");
+  } else if (scope === "restaurant") {
+    scopedItems = items.filter((item) => item.label === "Restaurant");
+  } else if (scope === "think-education") {
+    scopedItems = items.filter((item) => item.label === "Think Education");
+  } else if (scope === "thinksales-erp") {
+    scopedItems = items.filter((item) =>
+      item.label !== "Think Service & Repairs" && item.label !== "Restaurant" && item.label !== "Think Education"
+    );
+    return scopedItems;
+  } else {
+    scopedItems = [];
   }
-  if (scope === "restaurant") {
-    return items.filter((item) => item.label === "Restaurant");
-  }
-  if (scope === "think-education") {
-    return items.filter((item) => item.label === "Think Education");
-  }
-  return items.filter((item) =>
-    item.label !== "Think Service & Repairs" && item.label !== "Restaurant" && item.label !== "Think Education"
-  );
+
+  const attendanceItem = items.find((item) => item.label === "HRM & Payroll")
+    ?.children?.find((child) => child.label === "Attendance Management");
+  if (!attendanceItem) return scopedItems;
+
+  return [{
+    label: attendanceItem.label,
+    href: attendanceItem.href,
+    icon: attendanceItem.icon ?? CalendarClock,
+    status: "live",
+    alwaysVisible: true,
+  }, ...scopedItems];
 }
 
-export function getVisibleNavigationChildren<T extends NavigationChild>(
-  children: readonly T[] | undefined,
+export function getVisibleNavigationChildren(
+  children: readonly NavigationChild[] | undefined,
   parentLabel: string,
   enabledModules?: readonly string[],
-): T[] {
+): NavigationChild[] {
   return (children ?? []).filter((child) =>
     child.alwaysVisible
     || child.restaurantIntegration

@@ -32,6 +32,12 @@ describe("product application routes", () => {
       productSlug: "think-education",
       appPath: "/education/students",
     });
+    for (const namespace of ["thinksales", "restaurant", "think-service", "think-education"]) {
+      expect(resolveProductAppRoute(`/app/${namespace}/hrm/attendance/shifts`)).toMatchObject({
+        kind: "valid",
+        appPath: "/hrm/attendance/shifts",
+      });
+    }
     expect(resolveProductAppRoute("/app/think-education/settings/users")).toEqual({
       kind: "valid",
       productSlug: "think-education",

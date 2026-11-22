@@ -254,7 +254,9 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
 
   const { currentBranch, setBranch, currentCurrency, setCurrency } = useAccountingStore();
   const productItems = getProductNavigationItems(NAV_ITEMS, productScope);
-  const visibleProductItems = productItems.filter((item) => !enabledModules || enabledModules.includes(item.label));
+  const visibleProductItems = productItems.filter((item) =>
+    item.alwaysVisible || !enabledModules || enabledModules.includes(item.label)
+  );
   const thinkSalesPosEnabled = productScope === "thinksales-erp" && visibleProductItems.some((item) => item.label === "POS");
   const restaurantNavigation = productScope === "restaurant"
     ? visibleProductItems.find((item) => item.label === "Restaurant")

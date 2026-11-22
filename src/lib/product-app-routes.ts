@@ -88,6 +88,8 @@ export function isOrganizationWideRoute(pathname: string): boolean {
   }
   return pathname === "/settings"
     || pathname.startsWith("/settings/")
+    || pathname === "/hrm"
+    || pathname.startsWith("/hrm/")
     || pathname === "/subscription-status"
     || pathname.startsWith("/subscription-status/")
     || pathname === "/product-hub"
