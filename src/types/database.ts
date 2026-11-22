@@ -937,6 +937,120 @@ type EducationStudentTransfer = {
   created_at: string;
 };
 
+type AttendanceManagementTable<Row, RequiredInsert extends keyof Row> = {
+  Row: Row;
+  Insert: Pick<Row, RequiredInsert> & Partial<Omit<Row, RequiredInsert>>;
+  Update: Partial<Row>;
+  Relationships: [];
+};
+
+type AttendanceManagementSettings = {
+  org_id: string;
+  work_start_time: string;
+  work_end_time: string;
+  grace_period_minutes: number;
+  late_threshold_minutes: number;
+  standard_daily_hours: number;
+  overtime_threshold_minutes: number;
+  overtime_rate_multiplier: number;
+  geofencing_enabled: boolean;
+  gps_verification_required: boolean;
+  notify_late_arrival: boolean;
+  notify_absence: boolean;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+type AttendanceShift = {
+  id: string;
+  org_id: string;
+  name: string;
+  starts_at: string;
+  ends_at: string;
+  working_days: number[];
+  department: string | null;
+  location_id: string | null;
+  status: "active" | "inactive";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AttendanceShiftAssignment = {
+  id: string;
+  org_id: string;
+  shift_id: string;
+  employee_id: string;
+  location_id: string | null;
+  assignment_date: string;
+  assigned_by: string | null;
+  created_at: string;
+};
+
+type AttendanceCorrectionRequest = {
+  id: string;
+  org_id: string;
+  attendance_record_id: string | null;
+  employee_id: string;
+  location_id: string | null;
+  work_date: string;
+  original_check_in: string | null;
+  requested_check_in: string | null;
+  original_check_out: string | null;
+  requested_check_out: string | null;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  requested_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+};
+
+type AttendanceBreakPolicy = {
+  id: string;
+  org_id: string;
+  name: string;
+  duration_minutes: number;
+  is_paid: boolean;
+  applies_after_hours: number;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AttendanceBreakSession = {
+  id: string;
+  org_id: string;
+  employee_id: string;
+  attendance_record_id: string | null;
+  policy_id: string | null;
+  location_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+type AttendanceOvertimeRequest = {
+  id: string;
+  org_id: string;
+  attendance_record_id: string;
+  employee_id: string;
+  location_id: string | null;
+  requested_hours: number;
+  approved_hours: number | null;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  requested_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -2561,6 +2675,10 @@ export interface Database {
           customer_portal_enabled: boolean;
           customer_portal_slug: string;
           customer_portal_requires_approval: boolean | null;
+          latitude: number | null;
+          longitude: number | null;
+          geofence_radius_meters: number;
+          gps_verification_required: boolean;
           created_by: string;
           created_at: string;
         };
@@ -2582,6 +2700,10 @@ export interface Database {
           customer_portal_enabled?: boolean;
           customer_portal_slug?: string | null;
           customer_portal_requires_approval?: boolean | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          geofence_radius_meters?: number;
+          gps_verification_required?: boolean;
           created_by: string;
           created_at?: string;
         };
@@ -5187,6 +5309,34 @@ export interface Database {
           }
         ];
       };
+      attendance_management_settings: AttendanceManagementTable<
+        AttendanceManagementSettings,
+        "org_id"
+      >;
+      attendance_shifts: AttendanceManagementTable<
+        AttendanceShift,
+        "org_id" | "name" | "starts_at" | "ends_at"
+      >;
+      attendance_shift_assignments: AttendanceManagementTable<
+        AttendanceShiftAssignment,
+        "org_id" | "shift_id" | "employee_id" | "assignment_date"
+      >;
+      attendance_correction_requests: AttendanceManagementTable<
+        AttendanceCorrectionRequest,
+        "org_id" | "employee_id" | "work_date" | "reason" | "requested_by"
+      >;
+      attendance_break_policies: AttendanceManagementTable<
+        AttendanceBreakPolicy,
+        "org_id" | "name" | "duration_minutes"
+      >;
+      attendance_break_sessions: AttendanceManagementTable<
+        AttendanceBreakSession,
+        "org_id" | "employee_id"
+      >;
+      attendance_overtime_requests: AttendanceManagementTable<
+        AttendanceOvertimeRequest,
+        "org_id" | "attendance_record_id" | "employee_id" | "requested_hours" | "reason" | "requested_by"
+      >;
       leave_types: {
         Row: {
           id: string;
@@ -6558,6 +6708,34 @@ export interface Database {
           branch_name: string | null;
           total: number;
         }[];
+      };
+      review_attendance_correction: {
+        Args: {
+          p_request_id: string;
+          p_decision: string;
+          p_decision_note?: string | null;
+        };
+        Returns: undefined;
+      };
+      update_attendance_location_geofence: {
+        Args: {
+          p_org_id: string;
+          p_location_id: string;
+          p_latitude: number | null;
+          p_longitude: number | null;
+          p_radius_meters: number;
+          p_gps_verification_required: boolean;
+        };
+        Returns: undefined;
+      };
+      review_attendance_overtime_request: {
+        Args: {
+          p_request_id: string;
+          p_decision: string;
+          p_approved_hours?: number | null;
+          p_decision_note?: string | null;
+        };
+        Returns: undefined;
       };
       place_customer_portal_order_for_branch: {
         Args: {

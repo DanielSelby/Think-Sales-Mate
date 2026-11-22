@@ -110,6 +110,16 @@ describe("configured tab route access", () => {
       page: "hrm",
       tab: "employees"
     });
+    expect(resolveTabRouteAccess("/hrm/attendance/shifts", new URLSearchParams())).toEqual({
+      module: "hrm_payroll",
+      page: "hrm",
+      tab: "attendance"
+    });
+    expect(resolveTabRouteAccess("/hrm/attendance/records/record-id", new URLSearchParams())).toEqual({
+      module: "hrm_payroll",
+      page: "hrm",
+      tab: "attendance"
+    });
   });
 
   it("resolves selected accounting and CRM tabs from their URL state", () => {

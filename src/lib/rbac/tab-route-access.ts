@@ -21,6 +21,14 @@ const HRM_ROUTE_TABS: Record<string, string> = {
   "/hrm": "employees",
   "/hrm/employees": "employees",
   "/hrm/attendance": "attendance",
+  "/hrm/attendance/shifts": "attendance",
+  "/hrm/attendance/locations": "attendance",
+  "/hrm/attendance/corrections": "attendance",
+  "/hrm/attendance/reports": "attendance",
+  "/hrm/attendance/breaks": "attendance",
+  "/hrm/attendance/calendar": "attendance",
+  "/hrm/attendance/overtime": "attendance",
+  "/hrm/attendance/settings": "attendance",
   "/hrm/leave": "leave_management",
   "/hrm/payroll": "payroll",
   "/hrm/payslips": "payslips",
@@ -102,6 +110,7 @@ export function resolveTabRouteAccess(
 
   if (isPathOrChild(pathname, "/hrm")) {
     let route = HRM_ROUTE_TABS[pathname];
+    if (!route && isPathOrChild(pathname, "/hrm/attendance")) route = "attendance";
     if (!route && isPathOrChild(pathname, "/hrm/payroll")) route = "payroll";
     if (!route && isPathOrChild(pathname, "/hrm/payslips")) route = "payslips";
     if (!route && /^\/hrm\/[^/]+(?:\/edit)?$/.test(pathname)) route = "employees";

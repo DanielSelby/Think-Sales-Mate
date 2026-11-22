@@ -48,11 +48,11 @@ export default async function EducationStaffAttendancePage({
     canTabPermission("education_staff", "staff", "directory", "view"),
   ]);
   const supabase = await createClient();
-  let staff: Array<{ id: string; staff_number: string; first_name: string; last_name: string; branch_id: string }> = [];
+  let staff: Array<{ id: string; staff_number: string; first_name: string; last_name: string; branch_id: string; photo_path: string | null }> = [];
   let totalCount = 0;
   if (branchIds.length) {
     let query = supabase.from("education_staff")
-      .select("id, staff_number, first_name, last_name, branch_id", { count: "exact" })
+      .select("id, staff_number, first_name, last_name, branch_id, photo_path", { count: "exact" })
       .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "active")
       .order("last_name").order("first_name")
       .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
@@ -67,6 +67,29 @@ export default async function EducationStaffAttendancePage({
     if (error) throw new Error(`Could not load staff for Think Education attendance: ${error.message}`);
     staff = data ?? [];
     totalCount = count ?? 0;
+  }
+
+  const staffPhotoUrlById = new Map<string, string>();
+  const staffIdByPhotoPath = new Map(staff.flatMap((member) =>
+    member.photo_path ? [[member.photo_path, member.id] as const] : []
+  ));
+  const staffPhotoPaths = [...staffIdByPhotoPath.keys()];
+  for (let offset = 0; offset < staffPhotoPaths.length; offset += 100) {
+    const { data: signedPhotos, error: signedPhotosError } = await supabase.storage
+      .from("education-staff-images")
+      .createSignedUrls(staffPhotoPaths.slice(offset, offset + 100), 60 * 60);
+    if (signedPhotosError) {
+      console.error("Could not load staff attendance photos:", signedPhotosError.message);
+      throw new Error("Staff attendance photos could not be loaded.");
+    }
+    for (const photo of signedPhotos ?? []) {
+      const staffId = photo.path ? staffIdByPhotoPath.get(photo.path) : undefined;
+      if (photo.error) {
+        console.error("Could not load a staff attendance photo:", photo.error);
+      } else if (staffId && photo.signedUrl) {
+        staffPhotoUrlById.set(staffId, photo.signedUrl);
+      }
+    }
   }
 
   const staffIds = staff.map((member) => member.id);
@@ -150,7 +173,24 @@ export default async function EducationStaffAttendancePage({
               const canSave = record ? canEdit : canCreate || canEdit;
               return <li key={member.id} className="grid gap-3 p-3 md:grid-cols-[minmax(190px,1fr)_minmax(250px,2fr)] md:items-center">
                 <div>
-                  <p className="font-semibold" style={{ color: "var(--theme-text, #111827)" }}>{member.first_name} {member.last_name}</p>
+                  <div className="flex items-center gap-3">
+                    <span
+                      role="img"
+                      aria-label={`${member.first_name} ${member.last_name} photo`}
+                      className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border bg-cover bg-center text-xs font-semibold"
+                      style={{
+                        borderColor: "var(--theme-header-border-light, #dbeafe)",
+                        backgroundColor: "var(--theme-primary-pale, #eff6ff)",
+                        color: "var(--theme-primary, #2563eb)",
+                        ...(staffPhotoUrlById.get(member.id)
+                          ? { backgroundImage: `url(${JSON.stringify(staffPhotoUrlById.get(member.id))})` }
+                          : {}),
+                      }}
+                    >
+                      {!staffPhotoUrlById.has(member.id) && `${member.first_name[0] ?? ""}${member.last_name[0] ?? ""}`.toUpperCase()}
+                    </span>
+                    <p className="font-semibold" style={{ color: "var(--theme-text, #111827)" }}>{member.first_name} {member.last_name}</p>
+                  </div>
                   <p className="mt-1 text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{member.staff_number} · {campusNameById.get(member.branch_id) ?? "Campus"}</p>
                   <p className="mt-1 text-xs capitalize" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{record ? `Currently ${record.status}` : "Not marked"}</p>
                 </div>

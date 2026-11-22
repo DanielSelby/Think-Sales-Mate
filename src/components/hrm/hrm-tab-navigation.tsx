@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   ["Employees", "/hrm/employees", Users],
-  ["Attendance", "/hrm/attendance", CalendarCheck],
+  ["Attendance Management", "/hrm/attendance", CalendarCheck],
   ["Leave Management", "/hrm/leave", ClipboardList],
   ["Payroll", "/hrm/payroll", Wallet],
   ["Payslip Generated", "/hrm/payslips", FileText],
