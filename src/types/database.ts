@@ -976,6 +976,19 @@ type AttendanceShift = {
   updated_at: string;
 };
 
+type AttendanceShiftRotation = {
+  id: string;
+  org_id: string;
+  name: string;
+  location_id: string | null;
+  shift_ids: string[];
+  employee_ids: string[];
+  start_date: string;
+  weeks: number;
+  created_by: string | null;
+  created_at: string;
+};
+
 type AttendanceShiftAssignment = {
   id: string;
   org_id: string;
@@ -5317,6 +5330,10 @@ export interface Database {
         AttendanceShift,
         "org_id" | "name" | "starts_at" | "ends_at"
       >;
+      attendance_shift_rotations: AttendanceManagementTable<
+        AttendanceShiftRotation,
+        "org_id" | "name" | "shift_ids" | "employee_ids" | "start_date"
+      >;
       attendance_shift_assignments: AttendanceManagementTable<
         AttendanceShiftAssignment,
         "org_id" | "shift_id" | "employee_id" | "assignment_date"
@@ -6537,6 +6554,17 @@ export interface Database {
       };
     };
     Functions: {
+      create_attendance_shift_rotation: {
+        Args: {
+          p_org_id: string;
+          p_name: string;
+          p_shift_ids: string[];
+          p_employee_ids: string[];
+          p_start_date: string;
+          p_weeks?: number;
+        };
+        Returns: string;
+      };
       get_restaurant_loyalty_balance: {
         Args: { p_org_id: string; p_customer_id: string };
         Returns: number;

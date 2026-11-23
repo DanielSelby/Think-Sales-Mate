@@ -15,6 +15,7 @@ const INTENT_PERMISSION: Record<string, PermissionAction> = {
   update_shift: "edit",
   delete_shift: "delete",
   assign_shift: "create",
+  create_rotation: "create",
   request_correction: "create",
   review_correction: "approve",
   add_break_policy: "create",
@@ -196,6 +197,29 @@ export async function manageAttendance(formData: FormData): Promise<void> {
         assigned_by: user.id,
       }, { onConflict: "org_id,employee_id,assignment_date" });
       if (error) throw new Error(`Could not assign the shift: ${error.message}`);
+      break;
+    }
+    case "create_rotation": {
+      const shiftIds = Array.from({ length: 7 }, (_, index) =>
+        optionalString(formData, `rotationShift${index + 1}`)
+      ).filter((shiftId): shiftId is string => shiftId !== null);
+      const employeeIds = formData.getAll("rotationEmployeeId").map((value) => {
+        if (typeof value !== "string" || !value.trim()) {
+          throw new Error("Select valid employees for the rotation.");
+        }
+        return value.trim();
+      });
+      if (shiftIds.length < 2) throw new Error("Select at least two shifts in rotation order.");
+      if (employeeIds.length < 1) throw new Error("Select at least one employee for the rotation.");
+      const { error } = await supabase.rpc("create_attendance_shift_rotation", {
+        p_org_id: context.orgId,
+        p_name: requiredString(formData, "rotationName"),
+        p_shift_ids: shiftIds,
+        p_employee_ids: employeeIds,
+        p_start_date: validateDate(requiredString(formData, "rotationStartDate"), "rotation start date"),
+        p_weeks: 12,
+      });
+      if (error) throw new Error(`Could not create the shift rotation: ${error.message}`);
       break;
     }
     case "request_correction": {
