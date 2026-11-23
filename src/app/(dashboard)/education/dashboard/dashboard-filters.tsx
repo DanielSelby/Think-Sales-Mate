@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface DashboardFiltersProps {
@@ -16,12 +16,25 @@ export function DashboardFilters({ action, from, to, branch, campuses }: Dashboa
   const [fromValue, setFromValue] = useState(from);
   const [toValue, setToValue] = useState(to);
   const [branchValue, setBranchValue] = useState(branch);
+  const filterTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (filterTimeout.current) clearTimeout(filterTimeout.current);
+  }, []);
 
   function applyFilters(nextFrom: string, nextTo: string, nextBranch: string) {
     if (!nextFrom || !nextTo || nextFrom > nextTo) return;
     const params = new URLSearchParams({ from: nextFrom, to: nextTo });
     if (nextBranch) params.set("branch", nextBranch);
     router.replace(`${action}?${params.toString()}`, { scroll: false });
+  }
+
+  function scheduleDateFilter(nextFrom: string, nextTo: string) {
+    if (filterTimeout.current) clearTimeout(filterTimeout.current);
+    if (!nextFrom || !nextTo || nextFrom > nextTo) return;
+    filterTimeout.current = setTimeout(() => {
+      applyFilters(nextFrom, nextTo, branchValue);
+    }, 350);
   }
 
   return (
@@ -35,7 +48,7 @@ export function DashboardFilters({ action, from, to, branch, campuses }: Dashboa
             max={toValue}
             onChange={(event) => {
               setFromValue(event.target.value);
-              applyFilters(event.target.value, toValue, branchValue);
+              scheduleDateFilter(event.target.value, toValue);
             }}
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal text-slate-900"
           />
@@ -48,7 +61,7 @@ export function DashboardFilters({ action, from, to, branch, campuses }: Dashboa
             min={fromValue}
             onChange={(event) => {
               setToValue(event.target.value);
-              applyFilters(fromValue, event.target.value, branchValue);
+              scheduleDateFilter(fromValue, event.target.value);
             }}
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal text-slate-900"
           />
@@ -58,6 +71,7 @@ export function DashboardFilters({ action, from, to, branch, campuses }: Dashboa
           <select
             value={branchValue}
             onChange={(event) => {
+              if (filterTimeout.current) clearTimeout(filterTimeout.current);
               setBranchValue(event.target.value);
               applyFilters(fromValue, toValue, event.target.value);
             }}

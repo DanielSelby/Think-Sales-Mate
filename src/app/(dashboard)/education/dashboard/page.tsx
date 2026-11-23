@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { ArrowRight, BookOpen, Building2, CalendarCheck, ClipboardCheck, FileText, GraduationCap, TrendingUp, Users, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { formatCurrencyAmount } from "@/lib/currency";
@@ -10,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { grantOwnEducationOrganizationScope } from "../actions";
 import { DashboardFilters } from "./dashboard-filters";
+import { AttendanceTrendCard, StudentDistributionCard } from "./dashboard-secondary-sections";
 
 type Metric = { label: string; value: number | string | null; icon: typeof Users; tint: string };
 type DashboardParams = Record<string, string | string[] | undefined>;
@@ -83,6 +85,17 @@ export default async function ThinkEducationDashboardPage({
     canTabPermission("education_finance", "finance", "payments", "view"),
     canTabPermission("education_finance", "finance", "charges", "view"),
   ]);
+  const financeSummaryPromise = Promise.all([
+    supabase.rpc("education_get_dashboard_finance_summary", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_from: fromTimestamp,
+      p_to_exclusive: toExclusiveTimestamp,
+      p_include_fees: canReadFeePayments && canReadFeeCharges,
+      p_include_expenses: canViewExpenseRecords,
+    }),
+    getOrganizationCurrencyConfig(),
+  ]);
   const zeroCount = Promise.resolve({ count: 0, error: null });
   const [
     { count: studentCount, error: studentsError },
@@ -90,6 +103,7 @@ export default async function ThinkEducationDashboardPage({
     { count: totalAdmissionCount, error: admissionsError },
     { count: presentCount, error: presentError },
     { count: attendanceCount, error: attendanceError },
+    [financeSummaryResult, currencyConfig],
   ] = await Promise.all([
     canReadStudents && branchIds.length
       ? supabase.from("education_students").select("id", { count: "exact", head: true })
@@ -112,6 +126,7 @@ export default async function ThinkEducationDashboardPage({
       ? supabase.from("education_attendance").select("id", { count: "exact", head: true })
         .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", today)
       : zeroCount,
+    financeSummaryPromise,
   ]);
   const queryError = studentsError ?? staffError ?? admissionsError ?? presentError ?? attendanceError;
   if (queryError) throw new Error(`Could not load Think Education dashboard: ${queryError.message}`);
@@ -122,51 +137,6 @@ export default async function ThinkEducationDashboardPage({
     paidAgainstRangeCharges: 0,
     outstanding: 0,
   }]));
-  const attendanceTrendDates = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(`${today}T00:00:00.000Z`);
-    date.setUTCDate(date.getUTCDate() - (6 - index));
-    return date.toISOString().slice(0, 10);
-  });
-  const [
-    financeSummaryResult,
-    currencyConfig,
-    attendanceTrend,
-    studentDistribution,
-  ] = await Promise.all([
-    supabase.rpc("education_get_dashboard_finance_summary", {
-      p_org_id: context.orgId,
-      p_branch_ids: branchIds,
-      p_from: fromTimestamp,
-      p_to_exclusive: toExclusiveTimestamp,
-      p_include_fees: canReadFeePayments && canReadFeeCharges,
-      p_include_expenses: canViewExpenseRecords,
-    }),
-    getOrganizationCurrencyConfig(),
-    canReadAttendance && branchIds.length
-      ? Promise.all(attendanceTrendDates.map(async (date) => {
-        const [totalResult, presentResult] = await Promise.all([
-          supabase.from("education_attendance").select("id", { count: "exact", head: true })
-            .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", date),
-          supabase.from("education_attendance").select("id", { count: "exact", head: true })
-            .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", date).eq("status", "present"),
-        ]);
-        if (totalResult.error) throw new Error(`Could not load attendance trend for ${date}: ${totalResult.error.message}`);
-        if (presentResult.error) throw new Error(`Could not load present attendance for ${date}: ${presentResult.error.message}`);
-        const total = totalResult.count ?? 0;
-        const present = presentResult.count ?? 0;
-        return { date, total, present, rate: total ? Math.round((present / total) * 100) : null };
-      }))
-      : Promise.resolve([]),
-    canReadStudents
-      ? Promise.all(selectedCampuses.map(async (campus) => {
-        const { count, error } = await supabase.from("education_students")
-          .select("id", { count: "exact", head: true })
-          .eq("org_id", context.orgId).eq("branch_id", campus.id).eq("status", "active");
-        if (error) throw new Error(`Could not load student count for ${campus.name}: ${error.message}`);
-        return { campus, count: count ?? 0 };
-      }))
-      : Promise.resolve([]),
-  ]);
   if (financeSummaryResult.error) {
     throw new Error(`Could not load Think Education dashboard finance summary: ${financeSummaryResult.error.message}`);
   }
@@ -304,56 +274,33 @@ export default async function ThinkEducationDashboardPage({
         </div>}
     </section>}
 
-    <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-slate-950">Attendance trend</h2>
-          <p className="mt-1 text-sm text-slate-500">Daily present rate across your selected campuses for the last seven days.</p>
-        </div>
-        <Link href={getProductAppPath("think-education", "/attendance")} className="text-sm font-semibold text-blue-700">Open attendance</Link>
-      </div>
-      {!canReadAttendance ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include attendance reporting access.</p>
-        : branchIds.length === 0 ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see attendance trends.</p>
-          : attendanceTrend.every((day) => day.total === 0) ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">No attendance has been recorded in the last seven days.</p>
-            : <div className="mt-5 grid grid-cols-7 gap-2 sm:gap-4">
-              {attendanceTrend.map((day) => <div key={day.date} className="flex min-w-0 flex-col items-center gap-2">
-                <span className="text-xs font-semibold tabular-nums text-slate-700">{day.rate === null ? "—" : `${day.rate}%`}</span>
-                <div className="flex h-32 w-full items-end justify-center rounded-lg bg-slate-50 p-2" role="img" aria-label={`${day.date}: ${day.present} present out of ${day.total} marked`}>
-                  <span className="w-full rounded-t-md bg-blue-600" style={{ height: `${day.rate ?? 0}%`, minHeight: day.rate === null ? 0 : "0.375rem" }} />
-                </div>
-                <span className="text-center text-[11px] text-slate-500">{new Date(`${day.date}T12:00:00.000Z`).toLocaleDateString(undefined, { weekday: "short" })}</span>
-              </div>)}
-            </div>}
-    </section>
+    <Suspense fallback={<section aria-label="Attendance trend loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-950">Attendance trend</h2>
+      <p className="mt-1 text-sm text-slate-500">Daily present rate across your selected campuses for the last seven days.</p>
+      <div className="mt-5 h-32 animate-pulse rounded-lg bg-slate-100" />
+    </section>}>
+      <AttendanceTrendCard
+        orgId={context.orgId}
+        branchIds={branchIds}
+        today={today}
+        canReadAttendance={canReadAttendance}
+      />
+    </Suspense>
 
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
-      <article data-education-dashboard-card data-education-student-distribution className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-950">Student distribution by campus</h2>
-            <p className="mt-1 text-sm text-slate-500">Active students in the selected campus scope.</p>
-          </div>
-          <Link href={getProductAppPath("think-education", "/students")} className="shrink-0 text-sm font-semibold text-blue-700">View students</Link>
-        </div>
-        {!canReadStudents ? <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include student reporting access.</p>
-          : campuses.length === 0 ? <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see student distribution.</p>
-            : <ul className="mt-4 divide-y divide-slate-100">
-              {studentDistribution.map(({ campus, count }) => <li key={campus.id} className="flex items-center justify-between gap-3 py-3">
-                <span className="flex min-w-0 items-center gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700"><Building2 className="h-4 w-4" /></span>
-                  <span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-900">{campus.name}</span>
-                    <span className="text-xs text-slate-500">{[campus.code, campus.city, campus.region].filter(Boolean).join(" · ") || "Campus"}</span>
-                    <span className="mt-2 block h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                      <span className="block h-full rounded-full bg-blue-600" style={{ width: `${studentCount ? Math.round((count / studentCount) * 100) : 0}%` }} />
-                    </span>
-                  </span>
-                </span>
-                <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                  {count.toLocaleString()} students
-                </span>
-              </li>)}
-            </ul>}
-      </article>
+      <Suspense fallback={<article aria-label="Student distribution loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-950">Student distribution by campus</h2>
+        <p className="mt-1 text-sm text-slate-500">Active students in the selected campus scope.</p>
+        <div className="mt-5 h-48 animate-pulse rounded-lg bg-slate-100" />
+      </article>}>
+        <StudentDistributionCard
+          orgId={context.orgId}
+          campuses={selectedCampuses}
+          branchIds={branchIds}
+          studentCount={studentCount ?? 0}
+          canReadStudents={canReadStudents}
+        />
+      </Suspense>
 
       <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-slate-950">Quick actions</h2>

@@ -7754,6 +7754,37 @@ export interface Database {
           expenses: number;
         }>;
       };
+      education_get_dashboard_attendance_trend: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_from: string;
+          p_to: string;
+        };
+        Returns: Array<{
+          attendance_date: string;
+          total_count: number;
+          present_count: number;
+        }>;
+      };
+      education_get_dashboard_student_distribution: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+        };
+        Returns: Array<{ branch_id: string; student_count: number }>;
+      };
+      education_get_student_class_position: {
+        Args: {
+          p_org_id: string;
+          p_student_id: string;
+        };
+        Returns: Array<{
+          student_position: number;
+          cohort_size: number;
+          examination_name: string;
+        }>;
+      };
       education_post_accounting_journal: {
         Args: { p_org_id: string; p_journal_id: string };
         Returns: boolean;
