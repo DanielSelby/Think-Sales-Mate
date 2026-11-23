@@ -435,6 +435,7 @@ export function StudentProfileView(props: Props) {
           return <tr key={result.id}><td className="px-3 py-3">{exam?.name ?? "Examination"}</td><td className="px-3 py-3">{[exam?.academic_year_name, exam?.term_name].filter(Boolean).join(" · ") || "—"}</td><td className="px-3 py-3">{result.subject_name}</td><td className="px-3 py-3">{result.score}/{result.maximum_score}</td><td className="px-3 py-3">{((result.score / result.maximum_score) * 100).toFixed(1)}%</td><td className="px-3 py-3 font-semibold">{result.grade ?? "—"}</td></tr>;
         })}</tbody>
       </table> : <EmptyState>No published examination results are available. Draft and unpublished scores are intentionally not shown here.</EmptyState>}
+      {visibleResults.length === 100 && <p className="mt-3 text-xs text-slate-500">Showing the latest 100 published results. Open the results module for complete history.</p>}
       <p className="mt-4 text-xs text-slate-500">Class and subject rankings are not displayed because ranking rules are not configured in the existing records.</p>
       {componentScores.length > 0 && <details className="mt-5">
         <summary className="cursor-pointer text-sm font-semibold text-blue-700">Assessment component scores</summary>
@@ -459,7 +460,7 @@ export function StudentProfileView(props: Props) {
           <thead className={tableHeadClass}><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Note</th></tr></thead>
           <tbody className="divide-y divide-slate-100">{attendance.slice(0, 100).map((row) => <tr key={row.id}><td className="px-3 py-3">{formatDate(row.attendance_date)}</td><td className="px-3 py-3">{row.class_name ?? "—"}</td><td className="px-3 py-3 capitalize">{row.status}</td><td className="px-3 py-3 text-slate-600">{row.note ?? "—"}</td></tr>)}</tbody>
         </table> : <EmptyState>No attendance entries are recorded.</EmptyState>}
-        {attendance.length > 100 && <p className="mt-3 text-xs text-slate-500">Showing the latest 100 attendance entries.</p>}
+        {attendance.length === 100 && <p className="mt-3 text-xs text-slate-500">Showing the latest 100 attendance entries. This limit prevents long histories from slowing profile navigation.</p>}
       </section>
     </div>;
   }
@@ -524,6 +525,7 @@ export function StudentProfileView(props: Props) {
             </tr>;
           })}</tbody>
         </table> : <EmptyState>No fee charges are recorded for this student.</EmptyState>}
+        {charges.length === 100 && <p className="mt-3 text-xs text-slate-500">Showing the latest 100 fee charges. Open the full finance statement for complete history.</p>}
       </section>
     </div>;
   }
@@ -559,6 +561,7 @@ export function StudentProfileView(props: Props) {
           <div className="flex items-center gap-3"><span className="text-xs capitalize text-slate-500">{document.verification_status.replaceAll("_", " ")}</span><Link href={`/api/education/documents/${document.id}/download`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"><FileText className="h-4 w-4" />Download</Link></div>
         </li>)}
       </ul> : <EmptyState>No student documents are available in the document library.</EmptyState>}
+      {documents.length === 100 && <p className="mt-3 text-xs text-slate-500">Showing the latest 100 document metadata records. Open the document library for complete history.</p>}
     </section>;
   }
 

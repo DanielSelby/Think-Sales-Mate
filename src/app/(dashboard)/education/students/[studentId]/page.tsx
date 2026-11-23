@@ -5,8 +5,8 @@ import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
-import { calculateEducationClassPosition } from "@/lib/education/class-position";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
+import { getCurrencyConfig } from "@/lib/currency";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { EducationRecordSwitcher } from "../../record-switcher";
 
@@ -119,6 +119,33 @@ export default async function EducationStudentProfilePage({ params, searchParams
           ? "The payment could not be saved. Please try again."
           : null;
 
+  const needsAcademics = ["overview", "academic", "performance", "exams", "history", "personal"].includes(selectedTab)
+    && canViewAcademics;
+  const needsAttendance = ["overview", "attendance"].includes(selectedTab) && canViewAttendance;
+  const needsResults = ["overview", "performance", "exams"].includes(selectedTab) && canViewResults;
+  const needsFinance = ["overview", "fees"].includes(selectedTab) && canViewFinance;
+  const needsGuardians = ["overview", "guardians"].includes(selectedTab) && canViewGuardians;
+  const needsDocuments = selectedTab === "documents" && canViewDocuments;
+  const needsTransfers = ["history"].includes(selectedTab) && canViewTransfers;
+  const needsAdmission = ["overview", "personal", "history"].includes(selectedTab) && canViewAcademics;
+  const needsConsent = selectedTab === "personal";
+
+  const [{ data: activeEnrollmentRow, error: activeEnrollmentError }, studentPhoto] = await Promise.all([
+    supabase.from("education_student_enrollments")
+      .select("id, class_id, academic_year_id, status, enrolled_on, ended_on")
+      .eq("org_id", context.orgId).eq("student_id", student.id).in("branch_id", campusIds)
+      .eq("status", "active").order("enrolled_on", { ascending: false }).limit(1).maybeSingle(),
+    student.photo_path
+      ? supabase.storage.from("education-student-images").createSignedUrl(student.photo_path, 60 * 60)
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+  if (activeEnrollmentError) throw new Error("The student profile current placement could not be loaded.");
+  if (studentPhoto.error) {
+    console.error("Could not load Think Education student photo:", studentPhoto.error.message);
+    throw new Error("The student photo could not be loaded.");
+  }
+  const studentPhotoUrl = studentPhoto.data?.signedUrl ?? null;
+
   const [
     enrollmentResult,
     attendanceResult,
@@ -131,59 +158,61 @@ export default async function EducationStudentProfilePage({ params, searchParams
     currencyConfig,
     consentResult,
   ] = await Promise.all([
-    canViewAcademics
+    needsAcademics
       ? supabase.from("education_student_enrollments")
         .select("id, class_id, academic_year_id, status, enrolled_on, ended_on")
         .eq("org_id", context.orgId).eq("student_id", student.id).in("branch_id", campusIds)
         .order("enrolled_on", { ascending: false }).limit(200)
       : Promise.resolve({ data: [], error: null }),
-    canViewAttendance
+    needsAttendance
       ? supabase.from("education_attendance")
         .select("id, class_id, attendance_date, status, note")
         .eq("org_id", context.orgId).eq("student_id", student.id).in("branch_id", campusIds)
-        .order("attendance_date", { ascending: false }).limit(1000)
+        .order("attendance_date", { ascending: false }).limit(selectedTab === "overview" ? 30 : 100)
       : Promise.resolve({ data: [], error: null }),
-    canViewResults
+    needsResults
       ? supabase.from("education_results")
         .select("id, examination_id, subject_name, score, maximum_score, grade, status, created_at")
         .eq("org_id", context.orgId).eq("student_id", student.id).in("branch_id", campusIds)
-        .order("created_at", { ascending: false }).limit(500)
+        .eq("status", "published").order("created_at", { ascending: false }).limit(selectedTab === "overview" ? 10 : 100)
       : Promise.resolve({ data: [], error: null }),
-    canViewFinance
+    needsFinance
       ? supabase.from("education_fee_charges")
-        .select("id, description, amount, due_on, status, created_at", { count: "exact" })
+        .select("id, description, amount, due_on, status, created_at")
         .eq("org_id", context.orgId).eq("student_id", student.id).in("branch_id", campusIds)
-        .order("created_at", { ascending: false }).limit(1000)
-      : Promise.resolve({ data: [], error: null, count: 0 }),
-    canViewGuardians
+        .order("created_at", { ascending: false }).limit(selectedTab === "overview" ? 30 : 100)
+      : Promise.resolve({ data: [], error: null }),
+    needsGuardians
       ? supabase.from("education_student_guardians")
         .select("id, guardian_id, relationship, is_primary, status")
         .eq("org_id", context.orgId).eq("student_id", student.id).in("branch_id", campusIds)
         .in("status", ["pending", "verified"])
       : Promise.resolve({ data: [], error: null }),
-    canViewDocuments
+    needsDocuments
       ? supabase.from("education_documents")
         .select("id, title, category, file_name, content_type, file_size, verification_status, created_at")
         .eq("org_id", context.orgId).eq("student_id", student.id).eq("branch_id", student.branch_id)
-        .eq("status", "active").order("created_at", { ascending: false }).limit(500)
+        .eq("status", "active").order("created_at", { ascending: false }).limit(100)
       : Promise.resolve({ data: [], error: null }),
-    canViewTransfers
+    needsTransfers
       ? supabase.from("education_student_transfers")
         .select("id, source_branch_id, destination_branch_id, effective_on, reason, status, created_at")
         .eq("org_id", context.orgId).eq("student_id", student.id)
         .or(`source_branch_id.in.(${campusIds.join(",")}),destination_branch_id.in.(${campusIds.join(",")})`)
         .order("created_at", { ascending: false }).limit(100)
       : Promise.resolve({ data: [], error: null }),
-    canViewAcademics
+    needsAdmission
       ? supabase.from("education_admissions")
         .select("application_number").eq("org_id", context.orgId).eq("enrolled_student_id", student.id)
         .eq("branch_id", student.branch_id).limit(1).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    getOrganizationCurrencyConfig(),
-    supabase.from("education_student_consent_events")
-      .select("id, consent_type, disclosure_version, decision, signer_name, signer_relationship, evidence_note, recorded_at")
-      .eq("org_id", context.orgId).eq("student_id", student.id).eq("branch_id", student.branch_id)
-      .order("recorded_at", { ascending: false }),
+    needsFinance ? getOrganizationCurrencyConfig() : Promise.resolve(null),
+    needsConsent
+      ? supabase.from("education_student_consent_events")
+        .select("id, consent_type, disclosure_version, decision, signer_name, signer_relationship, evidence_note, recorded_at")
+        .eq("org_id", context.orgId).eq("student_id", student.id).eq("branch_id", student.branch_id)
+        .order("recorded_at", { ascending: false }).limit(100)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const queryErrors = [
@@ -203,18 +232,10 @@ export default async function EducationStudentProfilePage({ params, searchParams
       throw new Error(`The student profile ${label} could not be loaded.`);
     }
   }
-  if ((chargesResult.count ?? 0) > 1000) {
-    throw new Error("This student has more than 1,000 fee charges. Open the full finance statement to view complete records.");
-  }
-  if (attendanceResult.data && attendanceResult.data.length === 1000) {
-    throw new Error("This student has more than 1,000 attendance entries. Filter attendance before viewing the complete profile.");
-  }
-  if (documentsResult.data && documentsResult.data.length === 500) {
-    throw new Error("This student has more than 500 active documents. Filter the document library to view all records.");
-  }
-
-  const enrollmentRows = enrollmentResult.data ?? [];
-  const activeEnrollmentRow = enrollmentRows.find((row) => row.status === "active") ?? null;
+  const enrollmentRows = [
+    ...(activeEnrollmentRow ? [activeEnrollmentRow] : []),
+    ...(enrollmentResult.data ?? []).filter((row) => !activeEnrollmentRow || row.id !== activeEnrollmentRow.id),
+  ];
   const classIds = [...new Set(enrollmentRows.map((row) => row.class_id))];
   const academicYearIds = [...new Set(enrollmentRows.map((row) => row.academic_year_id))];
   const [{ data: classes, error: classesError }, { data: academicYears, error: academicYearsError }] = classIds.length || academicYearIds.length
@@ -344,48 +365,27 @@ export default async function EducationStudentProfilePage({ params, searchParams
     ? "Restricted"
     : !activeEnrollmentRow
       ? "No active class"
-      : "No published results";
-  if (latestPublishedExam && activeEnrollmentRow) {
-    const { data: classEnrollments, error: classEnrollmentsError, count: classEnrollmentCount } = await supabase
-      .from("education_student_enrollments")
-      .select("student_id", { count: "exact" })
-      .eq("org_id", context.orgId)
-      .eq("branch_id", student.branch_id)
-      .eq("class_id", activeEnrollmentRow.class_id)
-      .eq("academic_year_id", activeEnrollmentRow.academic_year_id)
-      .eq("status", "active")
-      .order("student_id")
-      .range(0, 4_999);
-    if (classEnrollmentsError) throw new Error(`Could not load the active class roster for ranking: ${classEnrollmentsError.message}`);
-    const classStudentIds = Array.from(new Set((classEnrollments ?? []).map((row) => row.student_id)));
-    if ((classEnrollmentCount ?? 0) <= 5_000 && classStudentIds.includes(student.id)) {
-      const { data: classResults, error: classResultsError, count: classResultCount } = await supabase
-        .from("education_results")
-        .select("student_id, subject_name, score, maximum_score", { count: "exact" })
-        .eq("org_id", context.orgId)
-        .eq("branch_id", student.branch_id)
-        .eq("examination_id", latestPublishedExam.id)
-        .eq("status", "published")
-        .in("student_id", classStudentIds)
-        .order("student_id")
-        .range(0, 9_999);
-      if (classResultsError) throw new Error(`Could not calculate class position: ${classResultsError.message}`);
-      if ((classResultCount ?? 0) <= 10_000) {
-        const calculatedPosition = calculateEducationClassPosition(classResults ?? [], student.id);
-        if (calculatedPosition) {
-          classPosition = {
-            ...calculatedPosition,
-            examinationName: latestPublishedExam.name,
-          };
-          classPositionStatus = "";
-        } else if ((classResults ?? []).some((result) => result.student_id === student.id)) {
-          classPositionStatus = "Not enough comparable results";
-        }
-      } else {
-        classPositionStatus = "Class too large to rank";
-      }
+      : latestPublishedExam
+        ? "Ranking available in academic reports"
+        : "No published results";
+  if (selectedTab === "overview" && canViewResults && canViewAcademics && activeEnrollmentRow) {
+    const { data: positionData, error: positionError } = await supabase.rpc(
+      "education_get_student_class_position",
+      { p_org_id: context.orgId, p_student_id: student.id },
+    );
+    if (positionError) {
+      console.error("Could not load the student class position:", positionError.message);
+      classPositionStatus = "Ranking unavailable";
     } else {
-      classPositionStatus = "Class too large to rank";
+      const positionRow = (positionData ?? []).at(0);
+      if (positionRow?.student_position && positionRow.cohort_size) {
+        classPosition = {
+          position: positionRow.student_position,
+          cohortSize: positionRow.cohort_size,
+          examinationName: positionRow.examination_name,
+        };
+        classPositionStatus = "";
+      }
     }
   }
   const examYearById = new Map((examYears ?? []).map((row) => [row.id, row.name]));
@@ -475,18 +475,6 @@ export default async function EducationStudentProfilePage({ params, searchParams
     }] : [];
   });
 
-  let studentPhotoUrl: string | null = null;
-  if (student.photo_path) {
-    const { data: photo, error: photoError } = await supabase.storage
-      .from("education-student-images")
-      .createSignedUrl(student.photo_path, 60 * 60);
-    if (photoError) {
-      console.error("Could not load Think Education student photo:", photoError.message);
-      throw new Error("The student photo could not be loaded.");
-    }
-    studentPhotoUrl = photo.signedUrl;
-  }
-
   const documents = (documentsResult.data ?? []).map((row) => ({
     id: row.id,
     title: row.title,
@@ -506,6 +494,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     created_at: string;
   }> = [];
   const fullName = [student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ");
+  const profileCurrencyConfig = currencyConfig ?? getCurrencyConfig();
 
   return <StudentProfileView
     student={{ ...student, admissionNumber: admissionResult.data?.application_number ?? null, campusName }}
@@ -544,7 +533,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     transfers={transfersResult.data ?? []}
     communications={communications}
     consentEvents={consentResult.data ?? []}
-    currencyConfig={currencyConfig}
+    currencyConfig={profileCurrencyConfig}
     canRecordFeePayment={canRecordFeePayment}
     paymentRecorded={firstParam(queryParams.paid) === "1"}
     paymentError={paymentError}

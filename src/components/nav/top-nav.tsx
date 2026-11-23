@@ -45,7 +45,7 @@ interface NotificationItem {
   location_id: string | null;
 }
 
-export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, workspaceHubAppearanceLocked = false, organizationUsage, organizationAccessExpiresAt, enabledModules, educationCampuses = [], onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; workspaceHubAppearanceLocked?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; enabledModules?: string[]; educationCampuses?: Array<{ id: string; name: string }>; onOpenMobileSidebar: () => void }) {
+export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: initialUserName, userEmail: initialUserEmail, avatarUrl: initialAvatarUrl, darkStyle: initialDarkStyle = "think-sales", userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, workspaceHubAppearanceLocked = false, organizationUsage: initialOrganizationUsage, organizationAccessExpiresAt, enabledModules, educationCampuses = [], onOpenMobileSidebar }: { userId: string; orgId: string; currency: string; orgName: string; logoUrl?: string | null; userName?: string | null; userEmail: string; avatarUrl?: string | null; darkStyle?: DarkStyleKey; userRole?: string | null; allowedLocationIds?: string[]; canViewAllBranches?: boolean; canChangeTheme?: boolean; workspaceHubAppearanceLocked?: boolean; organizationUsage: OrganizationUsageSummary | null; organizationAccessExpiresAt: string | null; enabledModules?: string[]; educationCampuses?: Array<{ id: string; name: string }>; onOpenMobileSidebar: () => void }) {
   const { activeTheme, setTheme, darkMode, setDarkMode, darkStyle, setDarkStyle, commandBarOpen, setCommandBarOpen, sidebarCollapsed, toggleSidebar } = useAppStore();
   const theme   = THEMES[activeTheme];
   const sidebar = theme.sidebar;
@@ -70,6 +70,7 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
   const [unreadCount,       setUnreadCount]       = useState(0);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [branchOptions,     setBranchOptions]     = useState<Array<{ id: string; name: string }>>([]);
+  const [organizationUsage, setOrganizationUsage] = useState<OrganizationUsageSummary | null>(initialOrganizationUsage);
   const [currencyOptions,   setCurrencyOptions]   = useState<Array<{ code: string; label: string }>>([]);
   const [popupNotification, setPopupNotification] = useState<NotificationItem | null>(null);
   const previousNotificationIds = useRef<Set<string>>(new Set());
@@ -168,36 +169,46 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
         if (!cancelled) console.error("Notifications could not be refreshed:", error);
       }
     };
-    const loadInitialData = async () => {
+    const loadShellContext = async () => {
       try {
-        let notificationQuery = supabase
-          .from("notifications")
-          .select("id, title, message, type, is_read, entity_id, created_at, location_id")
-          .eq("org_id", orgId)
-          .order("created_at", { ascending: false })
-          .limit(20);
-        if (!canViewAllBranches) {
-          const visibleLocations = allowedLocationIds.length
-            ? `,location_id.in.(${allowedLocationIds.join(",")})`
-            : "";
-          notificationQuery = notificationQuery.or(`user_id.eq.${userId}${visibleLocations}`);
-        }
-        const [locationResult, notificationResult] = await Promise.all([
-          productScope === "think-education"
-            ? Promise.resolve({ data: null, error: null })
-            : supabase.from("business_locations").select("id, name").eq("org_id", orgId).eq("is_active", true).order("name"),
-          notificationQuery,
+        const [contextResponse, notificationResponse] = await Promise.all([
+          fetch(`/api/dashboard/shell-context?product=${encodeURIComponent(productScope)}`, {
+            cache: "no-store",
+            headers: { Accept: "application/json" },
+          }),
+          (() => {
+            let query = supabase
+              .from("notifications")
+              .select("id, title, message, type, is_read, entity_id, created_at, location_id")
+              .eq("org_id", orgId)
+              .order("created_at", { ascending: false })
+              .limit(20);
+            if (!canViewAllBranches) {
+              const visibleLocations = allowedLocationIds.length
+                ? `,location_id.in.(${allowedLocationIds.join(",")})`
+                : "";
+              query = query.or(`user_id.eq.${userId}${visibleLocations}`);
+            }
+            return query;
+          })(),
         ]);
-        if (locationResult.error) throw locationResult.error;
-        if (notificationResult.error) throw notificationResult.error;
+        if (!contextResponse.ok) throw new Error(`Shell context could not be loaded (${contextResponse.status}).`);
+        if (notificationResponse.error) throw notificationResponse.error;
         if (cancelled) return;
         setUserName(initialUserName ?? "");
         setAvatarUrl(initialAvatarUrl ?? null);
-        const availableLocations = locationResult.data ?? [];
-        const accessibleLocations = canViewAllBranches
+        const contextData = await contextResponse.json() as {
+          usage: OrganizationUsageSummary | null;
+          campuses: Array<{ id: string; name: string }>;
+          locations: Array<{ id: string; name: string }>;
+        };
+        setOrganizationUsage(contextData.usage);
+        const availableLocations = productScope === "think-education"
+          ? contextData.campuses
+          : contextData.locations;
+        const options = canViewAllBranches
           ? availableLocations
           : availableLocations.filter((location) => allowedLocationIds.includes(location.id));
-        const options = productScope === "think-education" ? educationCampuses : accessibleLocations;
         setBranchOptions(options);
         const productCookie = `master_location_id_${productScope}=`;
         const productCookieValue = document.cookie.split("; ").find((item) => item.startsWith(productCookie))?.slice(productCookie.length);
@@ -219,20 +230,25 @@ export function TopNav({ userId, orgId, currency, orgName, logoUrl, userName: in
           setCurrencyOptions([{ code: currency, label: currency }]);
           useAccountingStore.getState().setCurrency(currency);
         }
-        applyNotifications((notificationResult.data ?? []) as NotificationItem[]);
+        applyNotifications((notificationResponse.data ?? []) as NotificationItem[]);
       } catch (error) {
         if (!cancelled) console.error("Navigation user data could not be loaded:", error);
       }
     };
-    void loadInitialData();
-    const refreshTimer = window.setInterval(() => {
+    void loadShellContext();
+    const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") void loadNotifications();
-    }, 15000);
+    };
+    const refreshTimer = window.setInterval(() => {
+      refreshWhenVisible();
+    }, 30000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       cancelled = true;
       window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [initialUserName, initialAvatarUrl, userId, orgId, currency, allowedLocationKey, allowedLocationIds, canViewAllBranches, pathname, productScope, educationCampuses]);
+  }, [initialUserName, initialAvatarUrl, userId, orgId, currency, allowedLocationKey, canViewAllBranches, productScope]);
 
   const initials = userName
     ? userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)

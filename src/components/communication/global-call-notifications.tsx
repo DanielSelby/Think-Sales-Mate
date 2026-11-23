@@ -126,12 +126,9 @@ export function GlobalCallNotifications({ userId, orgId }: { userId: string; org
       setIncoming((current) => current?.id === candidate.id ? current : { id: candidate.id, type: candidate.call_type, channelId: channel.id, callerName: caller?.full_name || "A team member", ringingStartedAt: candidate.started_at });
     };
     void find();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void find();
-    }, 15000);
     const channel = supabase.channel(`global-call-notifications:${orgId}:${userId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "communication_calls", filter: `org_id=eq.${orgId}` }, () => void find()).subscribe();
-    return () => { disposed = true; window.clearInterval(timer); void supabase.removeChannel(channel); };
+    return () => { disposed = true; void supabase.removeChannel(channel); };
   }, [active, orgId, supabase, userId]);
 
   useEffect(() => {

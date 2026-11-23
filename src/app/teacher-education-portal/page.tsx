@@ -1,8 +1,17 @@
 import { BookOpen, CalendarDays, GraduationCap, Users } from "lucide-react";
-import Link from "next/link";
 import { educationTeacherPortalSchema, type EducationTeacherPortal } from "@/lib/education/teacher-portal";
+import {
+  educationAssignmentsSchema,
+  educationAssignmentSubmissionsSchema,
+  educationAssignmentTargetsSchema,
+  type EducationAssignment,
+  type EducationAssignmentSubmission,
+  type EducationAssignmentTarget,
+} from "@/lib/education/assignments";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
+import { EducationPortalShell } from "@/components/education/education-portal-shell";
+import { TeacherAssignments } from "./teacher-assignments";
 import { claimEducationTeacherPortalAccount, recordEducationTeacherAttendance, signInToEducationTeacherPortal } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +25,11 @@ function messageFor(params: Record<string, string | string[] | undefined>) {
   if (params.claim === "error") return "The teacher profile could not be linked. Please contact the school.";
   if (params.attendance === "saved") return "Attendance saved.";
   if (params.attendance === "error") return "Attendance could not be saved. Check the class assignment and try again.";
+  if (params.assignment === "created") return "Assignment published to the selected students.";
+  if (params.assignment === "graded") return "Submission grade saved.";
+  if (params.assignment === "invalid") return "Check the assignment details and try again.";
+  if (params.assignment === "grade-error") return "The grade could not be saved. Confirm that the submission belongs to one of your classes.";
+  if (params.assignment === "error") return "The assignment could not be saved. Confirm your class access and try again.";
   return null;
 }
 
@@ -27,6 +41,9 @@ export default async function EducationTeacherPortalPage({
   const supabase = await createClient();
   const user = getOptionalAuthUser(await supabase.auth.getUser(), "the teacher portal");
   let portal: EducationTeacherPortal = [];
+  let assignments: EducationAssignment[] = [];
+  let assignmentTargets: EducationAssignmentTarget[] = [];
+  let assignmentSubmissions: EducationAssignmentSubmission[] = [];
   if (user) {
     const { data, error } = await supabase.rpc("education_get_teacher_portal");
     if (error) throw new Error(`Could not load the teacher portal: ${error.message}`);
@@ -36,19 +53,61 @@ export default async function EducationTeacherPortalPage({
       throw new Error("The teacher portal data could not be safely displayed.");
     }
     portal = parsed.data;
+    const orgIds = [...new Set(portal.map((teacher) => teacher.organizationId))];
+    if (orgIds.length) {
+      const { data: assignmentRows, error: assignmentError } = await supabase
+        .from("education_assignments")
+        .select("id, org_id, class_id, title, description, due_on, max_score, status, created_by, created_at, updated_at")
+        .in("org_id", orgIds)
+        .neq("status", "archived")
+        .order("due_on", { ascending: false })
+        .limit(200);
+      if (assignmentError) throw new Error(`Could not load teacher assignments: ${assignmentError.message}`);
+      const parsedAssignments = educationAssignmentsSchema.safeParse(assignmentRows ?? []);
+      if (!parsedAssignments.success) {
+        console.error("Think Education assignments returned unexpected data:", parsedAssignments.error.flatten());
+        throw new Error("Assignment data could not be safely displayed.");
+      }
+      assignments = parsedAssignments.data;
+      const assignmentIds = assignments.map((assignment) => assignment.id);
+      if (assignmentIds.length) {
+        const [targetResult, submissionResult] = await Promise.all([
+          supabase.from("education_assignment_targets")
+            .select("org_id, assignment_id, student_id, created_at")
+            .in("assignment_id", assignmentIds),
+          supabase.from("education_assignment_submissions")
+            .select("id, org_id, assignment_id, student_id, submission_text, submitted_at, score, feedback, graded_by, graded_at, updated_at")
+            .in("assignment_id", assignmentIds)
+            .order("submitted_at", { ascending: false }),
+        ]);
+        if (targetResult.error) throw new Error(`Could not load assignment recipients: ${targetResult.error.message}`);
+        if (submissionResult.error) throw new Error(`Could not load assignment submissions: ${submissionResult.error.message}`);
+        const parsedTargets = educationAssignmentTargetsSchema.safeParse(targetResult.data ?? []);
+        if (!parsedTargets.success) {
+          console.error("Think Education assignment recipients returned unexpected data:", parsedTargets.error.flatten());
+          throw new Error("Assignment recipient data could not be safely displayed.");
+        }
+        const parsedSubmissions = educationAssignmentSubmissionsSchema.safeParse(submissionResult.data ?? []);
+        if (!parsedSubmissions.success) {
+          console.error("Think Education assignment submissions returned unexpected data:", parsedSubmissions.error.flatten());
+          throw new Error("Assignment submission data could not be safely displayed.");
+        }
+        assignmentTargets = parsedTargets.data;
+        assignmentSubmissions = parsedSubmissions.data;
+      }
+    }
   }
   const params = await searchParams;
   const message = messageFor(params);
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
-    <div className="mx-auto max-w-7xl space-y-6">
-      <header className="rounded-2xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-800 p-6 text-white shadow-lg sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-200">Think Education</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">Teacher Portal</h1>
-        <p className="mt-2 max-w-2xl text-sm text-emerald-100">Your classes, timetable, and daily attendance workspace.</p>
-        {user && <p className="mt-4 text-sm text-emerald-100">Signed in as {user.email ?? "your account"}</p>}
-      </header>
-      {message && <p role={params.claim === "error" || params.signin === "error" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
+  return <EducationPortalShell
+    role="teacher"
+    title="Homework & Assignments"
+    activeItem="Homework & Assignments"
+    subtitle="Manage classwork alongside your classes, timetable, and daily attendance."
+    userEmail={user?.email}
+  >
+      {message && <p role={params.claim === "error" || params.signin === "error" || params.assignment === "error" || params.assignment === "grade-error" || params.assignment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
       {!user ? <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <h2 className="text-xl font-semibold">Sign in to your teacher account</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">Use the email address recorded in your school staff profile and the temporary password provided by your school.</p>
@@ -68,6 +127,14 @@ export default async function EducationTeacherPortalPage({
           <button type="submit" className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Find and link my teacher profile</button>
         </form>
       </section> : <div className="space-y-6">
+        <div id="assignments" className="scroll-mt-6">
+          <TeacherAssignments
+            teachers={portal}
+            assignments={assignments}
+            targets={assignmentTargets}
+            submissions={assignmentSubmissions}
+          />
+        </div>
         {portal.map((teacher) => {
           const classes = teacher.classes;
           const studentCount = classes.reduce((total, classroom) => total + classroom.students.length, 0);
@@ -81,16 +148,11 @@ export default async function EducationTeacherPortalPage({
               </div>
             </div>
             <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="flex items-center gap-2 font-semibold"><Users className="h-5 w-5 text-emerald-700" /> My classes</h3><div className="mt-4 space-y-4">{classes.length ? classes.map((classroom) => <article key={classroom.id} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-semibold">{classroom.name}{classroom.levelName ? ` · ${classroom.levelName}` : ""}</h4><p className="text-sm text-slate-500">{classroom.streamName ?? "Class"} · {classroom.students.length} students</p></div><BookOpen className="h-5 w-5 text-emerald-700" /></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{classroom.students.map((student) => <div key={student.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm"><span>{student.firstName} {student.lastName}<span className="ml-1 text-xs text-slate-500">({student.studentNumber})</span></span><form action={recordEducationTeacherAttendance} className="flex items-center gap-1"><input type="hidden" name="org_id" value={teacher.organizationId} /><input type="hidden" name="class_id" value={classroom.id} /><input type="hidden" name="student_id" value={student.id} /><input type="hidden" name="attendance_date" value={new Date().toISOString().slice(0, 10)} /><select name="status" defaultValue={student.attendanceStatus ?? "present"} aria-label={`Attendance for ${student.firstName} ${student.lastName}`} className="rounded border border-slate-300 bg-white px-1.5 py-1 text-xs">{["present", "absent", "late", "excused"].map((status) => <option key={status} value={status}>{status}</option>)}</select><button type="submit" className="rounded bg-emerald-700 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-800">Save</button></form></div>)}</div></article>) : <p className="text-sm text-slate-500">No classes are assigned yet.</p>}</div></section>
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="flex items-center gap-2 font-semibold"><CalendarDays className="h-5 w-5 text-emerald-700" /> Timetable</h3><div className="mt-4 space-y-2">{teacher.timetable.length ? teacher.timetable.map((lesson, index) => <div key={`${lesson.classId}-${lesson.weekday}-${lesson.startsAt}-${index}`} className="rounded-lg bg-slate-50 p-3 text-sm"><p className="font-semibold">{WEEKDAYS[lesson.weekday - 1]} · {lesson.startsAt.slice(0, 5)}–{lesson.endsAt.slice(0, 5)}</p><p className="mt-1 text-slate-700">{lesson.subject} · {lesson.className}</p>{lesson.room && <p className="text-xs text-slate-500">{lesson.room}</p>}</div>) : <p className="text-sm text-slate-500">No timetable entries are assigned yet.</p>}</div></section>
+              <section id="classes" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="flex items-center gap-2 font-semibold"><Users className="h-5 w-5 text-emerald-700" /> My classes</h3><div id="attendance" className="mt-4 scroll-mt-6 space-y-4">{classes.length ? classes.map((classroom) => <article key={classroom.id} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-semibold">{classroom.name}{classroom.levelName ? ` · ${classroom.levelName}` : ""}</h4><p className="text-sm text-slate-500">{classroom.streamName ?? "Class"} · {classroom.students.length} students</p></div><BookOpen className="h-5 w-5 text-emerald-700" /></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{classroom.students.map((student) => <div key={student.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm"><span>{student.firstName} {student.lastName}<span className="ml-1 text-xs text-slate-500">({student.studentNumber})</span></span><form action={recordEducationTeacherAttendance} className="flex items-center gap-1"><input type="hidden" name="org_id" value={teacher.organizationId} /><input type="hidden" name="class_id" value={classroom.id} /><input type="hidden" name="student_id" value={student.id} /><input type="hidden" name="attendance_date" value={new Date().toISOString().slice(0, 10)} /><select name="status" defaultValue={student.attendanceStatus ?? "present"} aria-label={`Attendance for ${student.firstName} ${student.lastName}`} className="rounded border border-slate-300 bg-white px-1.5 py-1 text-xs">{["present", "absent", "late", "excused"].map((status) => <option key={status} value={status}>{status}</option>)}</select><button type="submit" className="rounded bg-emerald-700 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-800">Save</button></form></div>)}</div></article>) : <p className="text-sm text-slate-500">No classes are assigned yet.</p>}</div></section>
+              <section id="timetable" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="flex items-center gap-2 font-semibold"><CalendarDays className="h-5 w-5 text-emerald-700" /> Timetable</h3><div className="mt-4 space-y-2">{teacher.timetable.length ? teacher.timetable.map((lesson, index) => <div key={`${lesson.classId}-${lesson.weekday}-${lesson.startsAt}-${index}`} className="rounded-lg bg-slate-50 p-3 text-sm"><p className="font-semibold">{WEEKDAYS[lesson.weekday - 1]} · {lesson.startsAt.slice(0, 5)}–{lesson.endsAt.slice(0, 5)}</p><p className="mt-1 text-slate-700">{lesson.subject} · {lesson.className}</p>{lesson.room && <p className="text-xs text-slate-500">{lesson.room}</p>}</div>) : <p className="text-sm text-slate-500">No timetable entries are assigned yet.</p>}</div></section>
             </div>
           </section>;
         })}
       </div>}
-      <nav aria-label="Education portals" className="flex justify-center gap-5 text-sm">
-        <Link href="/student-education-portal" className="font-medium text-emerald-700 hover:text-emerald-900">Student Portal</Link>
-        <Link href="/education-portal" className="font-medium text-emerald-700 hover:text-emerald-900">Family Portal</Link>
-      </nav>
-    </div>
-  </main>;
+  </EducationPortalShell>;
 }

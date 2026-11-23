@@ -96,8 +96,9 @@ export function getProductNavigationItems(
     scopedItems = [];
   }
 
-  const attendanceItem = items.find((item) => item.label === "HRM & Payroll")
-    ?.children?.find((child) => child.label === "Attendance Management");
+  const attendanceItem = items.find((item) => item.label === "Attendance Management")
+    ?? items.find((item) => item.label === "HRM & Payroll")
+      ?.children?.find((child) => child.label === "Attendance Management");
   if (!attendanceItem) return scopedItems;
 
   return [{

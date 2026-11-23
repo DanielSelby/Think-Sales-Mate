@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { BookOpen, CalendarDays, GraduationCap, Wallet } from "lucide-react";
 import { z } from "zod";
 import { educationPortalCommunicationsSchema, type EducationPortalCommunication } from "@/lib/education/communications";
@@ -12,6 +11,7 @@ import {
 } from "@/app/education-notifications/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
+import { EducationPortalShell } from "@/components/education/education-portal-shell";
 import {
   claimEducationGuardianPortalAccount,
   signInToEducationGuardianPortal,
@@ -170,16 +170,13 @@ export default async function EducationGuardianPortalPage({
     return formatCurrencyAmount(amount, config);
   };
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
-    <div className="mx-auto max-w-6xl space-y-6">
-      <header className="rounded-2xl bg-gradient-to-br from-blue-950 via-blue-900 to-indigo-800 p-6 text-white shadow-lg sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-200">Think Education</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">Family Portal</h1>
-        <p className="mt-2 max-w-2xl text-sm text-blue-100">
-          A private view of students connected to your verified guardian profile.
-        </p>
-        {user && <p className="mt-4 text-sm text-blue-100">Signed in as {user.email ?? "your account"}</p>}
-      </header>
+  return <EducationPortalShell
+    role="parent"
+    title="Parent Dashboard"
+    activeItem="Dashboard"
+    subtitle="A private view of students connected to your verified guardian profile."
+    userEmail={user?.email}
+  >
 
       {message && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
       {paymentMessage && <p role={params.payment === "review" || params.payment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{paymentMessage}</p>}
@@ -253,7 +250,7 @@ export default async function EducationGuardianPortalPage({
         </ul>
       </section>}
 
-      {announcements.length > 0 && <section className="space-y-3">
+      {announcements.length > 0 && <section id="announcements" className="scroll-mt-6 space-y-3">
         <h2 className="text-xl font-semibold">School announcements</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {announcements.map((announcement) => <article key={`${announcement.id}-${announcement.studentName}`} className="rounded-xl border border-blue-200 bg-white p-4 shadow-sm">
@@ -310,8 +307,8 @@ export default async function EducationGuardianPortalPage({
 
           {organization.children.length === 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             No verified student relationships are available for this guardian profile yet. Please contact the school if you believe this is incorrect.
-          </div> : <div className="grid gap-5 lg:grid-cols-2">
-            {organization.children.map((student) => <article key={`${organization.organizationName}-${student.id}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          </div> : <div id="children" className="grid scroll-mt-6 gap-5 lg:grid-cols-2">
+            {organization.children.map((student, studentIndex) => <article key={`${organization.organizationName}-${student.id}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -324,7 +321,7 @@ export default async function EducationGuardianPortalPage({
               </div>
 
               <div className="grid grid-cols-2 gap-3 p-5">
-                <div className="rounded-xl bg-slate-50 p-3">
+                <div id={studentIndex === 0 ? "attendance" : undefined} className="scroll-mt-6 rounded-xl bg-slate-50 p-3">
                   <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><CalendarDays className="h-4 w-4" /> Attendance, 30 days</div>
                   <p className="mt-2 text-lg font-semibold">{student.attendance.present} present</p>
                   <p className="text-xs text-slate-500">{student.attendance.absent} absent · {student.attendance.late} late · {student.attendance.excused} excused</p>
@@ -337,7 +334,7 @@ export default async function EducationGuardianPortalPage({
               </div>
 
               <div className="space-y-5 px-5 pb-5">
-                <section>
+                <section className="scroll-mt-6">
                   <h4 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4 text-blue-700" /> Weekly timetable</h4>
                   {student.timetable.length ? <ul className="mt-2 divide-y divide-slate-100">
                     {student.timetable.map((entry, index) => <li key={`${entry.weekday}-${entry.startsAt}-${entry.subject}-${index}`} className="flex justify-between gap-3 py-2 text-sm">
@@ -347,7 +344,7 @@ export default async function EducationGuardianPortalPage({
                   </ul> : <p className="mt-2 text-sm text-slate-500">No published weekly timetable is available.</p>}
                 </section>
 
-                <section>
+                <section id={studentIndex === 0 ? "performance" : undefined} className="scroll-mt-6">
                   <h4 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-blue-700" /> Published results</h4>
                   {student.results.length ? <ul className="mt-2 divide-y divide-slate-100">
                     {student.results.map((result, index) => <li key={`${result.examination}-${result.subject}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -357,7 +354,7 @@ export default async function EducationGuardianPortalPage({
                   </ul> : <p className="mt-2 text-sm text-slate-500">No results have been published.</p>}
                 </section>
 
-                <section>
+                <section id={studentIndex === 0 ? "fees" : undefined} className="scroll-mt-6">
                   <h4 className="flex items-center gap-2 text-sm font-semibold"><Wallet className="h-4 w-4 text-blue-700" /> Fee charges</h4>
                   {guardianFeePaymentData.some((fee) => fee.organizationId === organization.organizationId && fee.studentId === student.id) ? <ul className="mt-2 divide-y divide-slate-100">
                     {guardianFeePaymentData.filter((fee) => fee.organizationId === organization.organizationId && fee.studentId === student.id).map((fee) => <li key={fee.chargeId} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
@@ -382,10 +379,5 @@ export default async function EducationGuardianPortalPage({
       <footer className="text-center text-xs text-slate-500">
         Student details are shown only for verified relationships linked to this signed-in account.
       </footer>
-      <nav aria-label="Education portals" className="flex justify-center gap-5 text-sm">
-        <Link href="/student-education-portal" className="font-medium text-blue-700 hover:text-blue-900">Student Portal</Link>
-        <Link href="/teacher-education-portal" className="font-medium text-blue-700 hover:text-blue-900">Staff Portal</Link>
-      </nav>
-    </div>
-  </main>;
+  </EducationPortalShell>;
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { AppLoading } from "@/components/ui/app-loading";
 
 export function NavigationLoading() {
   const pathname = usePathname();
@@ -51,5 +50,13 @@ export function NavigationLoading() {
     };
   }, [pathname, routeKey]);
 
-  return loading ? <AppLoading /> : null;
+  return loading ? (
+    <div
+      className="pointer-events-none fixed inset-x-0 top-0 z-[9998] h-0.5 overflow-hidden bg-blue-100"
+      role="progressbar"
+      aria-label="Loading page"
+    >
+      <span className="block h-full w-2/5 animate-pulse rounded-r-full bg-blue-600" />
+    </div>
+  ) : null;
 }

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getCurrentOrgContext } from "@/lib/organizations/current";
+import { getCurrentOrgContext, OrganizationAccessExpiredError } from "@/lib/organizations/current";
 import { DashboardShell } from "@/components/nav/dashboard-shell";
 import { OrganizationExpiredScreen } from "@/components/organization/organization-access-expiry";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
@@ -14,14 +14,18 @@ import {
   getProductHubBranding,
 } from "@/lib/supabase/platform-admin";
 import { getUserRegistrationApplications } from "@/lib/organizations/registration";
-import { getOrganizationUsageSummary } from "@/lib/organizations/usage-summary";
-import { getAccessibleEducationCampuses } from "@/lib/education/access";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const activeOrgId = (await cookies()).get("active_org_id")?.value;
-  const context = await getCurrentOrgContext(activeOrgId, { allowExpired: true });
+  let context: Awaited<ReturnType<typeof getCurrentOrgContext>>;
+  try {
+    context = await getCurrentOrgContext(activeOrgId);
+  } catch (error) {
+    if (!(error instanceof OrganizationAccessExpiredError)) throw error;
+    context = await getCurrentOrgContext(activeOrgId, { allowExpired: true });
+  }
   if (!context) {
     const { applications } = await getUserRegistrationApplications();
     if (applications.length) redirect("/registration-status");
@@ -40,7 +44,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const roleKey = typeof context.accessPermissions.role_key === "string"
     ? context.accessPermissions.role_key
     : context.role;
-  const [{ data: companyProfile }, { data: profile }, roleThemeResult, platformSettings, organizationUsage, educationAccess] = await Promise.all([
+  const [{ data: companyProfile }, { data: profile }, roleThemeResult, platformSettings] = await Promise.all([
     supabase.from("company_profile").select("logo_url").eq("org_id", context.orgId).maybeSingle(),
     supabase.from("profiles").select("full_name, avatar_url, ui_preferences").eq("id", context.userId).maybeSingle(),
     supabase.from("organization_role_themes").select("theme_key").eq("org_id", context.orgId).eq("role_key", roleKey).maybeSingle(),
@@ -54,11 +58,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       console.error("Platform navigation settings could not be loaded:", error);
       return [undefined, null, "Think Digital Solutions", null, null] as const;
     }),
-    getOrganizationUsageSummary(context.orgId).catch((error: unknown) => {
-      console.error("Organization capacity details could not be loaded:", error);
-      return null;
-    }),
-    getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   const { data: roleTheme, error: roleThemeError } = roleThemeResult;
   let selectedTheme = roleTheme?.theme_key as ThemeKey | null;
@@ -87,7 +86,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       avatarUrl={profile?.avatar_url ?? null}
       darkStyle={darkStyle}
       enabledModules={enabledModules}
-      educationCampuses={educationAccess.campuses.map(({ id, name }) => ({ id, name }))}
+      educationCampuses={[]}
       systemLogoUrl={systemLogoUrl}
       systemName={systemName}
       productLogoUrls={productBranding?.productImageUrls}
@@ -96,7 +95,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       workspaceHubDarkSurfaceStyle={productBranding?.darkSurfaceStyle}
       watermark={watermark}
       organizationAccessExpiresAt={context.organizationAccessExpiresAt}
-      organizationUsage={organizationUsage}
+      organizationUsage={null}
       orgName={context.orgName}
       logoUrl={companyProfile?.logo_url ?? null}
       userName={profile?.full_name ?? null}

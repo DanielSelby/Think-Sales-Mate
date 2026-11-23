@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { BookOpen, CalendarDays, GraduationCap } from "lucide-react";
 import { educationPortalCommunicationsSchema, type EducationPortalCommunication } from "@/lib/education/communications";
 import {
@@ -6,11 +5,21 @@ import {
   setEducationAnnouncementDeliveryPreference,
 } from "@/app/education-notifications/actions";
 import { educationStudentPortalSchema, type EducationStudentPortal } from "@/lib/education/student-portal";
+import {
+  educationAssignmentsSchema,
+  educationAssignmentSubmissionsSchema,
+  educationAssignmentTargetsSchema,
+  type EducationAssignment,
+  type EducationAssignmentSubmission,
+  type EducationAssignmentTarget,
+} from "@/lib/education/assignments";
 import { educationNotificationsSchema } from "@/lib/education/notifications";
 import { setEducationNotificationPreference } from "@/app/education-notifications/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
-import { claimEducationStudentPortalAccount, signInToEducationStudentPortal } from "./actions";
+import { EducationPortalShell } from "@/components/education/education-portal-shell";
+import { StudentAiAssistant } from "./student-ai-assistant";
+import { claimEducationStudentPortalAccount, signInToEducationStudentPortal, submitEducationAssignment } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +32,9 @@ function messageFor(params: Record<string, string | string[] | undefined>) {
   if (params.claim === "already-linked") return "A student profile is already linked to this account for one of the schools.";
   if (params.claim === "not-found") return "No linkable student profile was found for this verified email. Ask your school to confirm that the profile is active, its email matches, and the school has portal access.";
   if (params.claim === "error") return "The student profile could not be linked. Please try again or contact the school.";
+  if (params.assignment === "submitted") return "Your assignment submission was saved.";
+  if (params.assignment === "invalid") return "Check your assignment response and try again.";
+  if (params.assignment === "error") return "Your assignment could not be submitted. Confirm it is assigned to your profile and try again.";
   return null;
 }
 
@@ -35,6 +47,9 @@ export default async function EducationStudentPortalPage({
   const user = getOptionalAuthUser(await supabase.auth.getUser(), "the student portal");
 
   let portal: EducationStudentPortal = [];
+  let assignments: EducationAssignment[] = [];
+  let assignmentTargets: EducationAssignmentTarget[] = [];
+  let assignmentSubmissions: EducationAssignmentSubmission[] = [];
   let announcements: EducationPortalCommunication[] = [];
   let notifications: Awaited<ReturnType<typeof educationNotificationsSchema.parse>> = [];
   let notificationPreferences: Array<{ org_id: string; notification_type: string; in_app_enabled: boolean }> = [];
@@ -53,6 +68,50 @@ export default async function EducationStudentPortalPage({
       throw new Error("The student portal data could not be safely displayed.");
     }
     portal = parsedPortal.data;
+
+    const studentIds = portal.map((student) => student.id);
+    if (studentIds.length) {
+      const { data: assignmentRows, error: assignmentError } = await supabase
+        .from("education_assignments")
+        .select("id, org_id, class_id, title, description, due_on, max_score, status, created_by, created_at, updated_at")
+        .eq("status", "published")
+        .order("due_on", { ascending: true })
+        .limit(200);
+      if (assignmentError) throw new Error(`Could not load student assignments: ${assignmentError.message}`);
+      const parsedAssignments = educationAssignmentsSchema.safeParse(assignmentRows ?? []);
+      if (!parsedAssignments.success) {
+        console.error("Think Education student assignments returned unexpected data:", parsedAssignments.error.flatten());
+        throw new Error("Assignment data could not be safely displayed.");
+      }
+      assignments = parsedAssignments.data;
+      const assignmentIds = assignments.map((assignment) => assignment.id);
+      if (assignmentIds.length) {
+        const [targetResult, submissionResult] = await Promise.all([
+          supabase.from("education_assignment_targets")
+            .select("org_id, assignment_id, student_id, created_at")
+            .in("assignment_id", assignmentIds)
+            .in("student_id", studentIds),
+          supabase.from("education_assignment_submissions")
+            .select("id, org_id, assignment_id, student_id, submission_text, submitted_at, score, feedback, graded_by, graded_at, updated_at")
+            .in("assignment_id", assignmentIds)
+            .in("student_id", studentIds),
+        ]);
+        if (targetResult.error) throw new Error(`Could not load assignment recipients: ${targetResult.error.message}`);
+        if (submissionResult.error) throw new Error(`Could not load assignment submissions: ${submissionResult.error.message}`);
+        const parsedTargets = educationAssignmentTargetsSchema.safeParse(targetResult.data ?? []);
+        if (!parsedTargets.success) {
+          console.error("Think Education assignment recipients returned unexpected data:", parsedTargets.error.flatten());
+          throw new Error("Assignment recipient data could not be safely displayed.");
+        }
+        const parsedSubmissions = educationAssignmentSubmissionsSchema.safeParse(submissionResult.data ?? []);
+        if (!parsedSubmissions.success) {
+          console.error("Think Education assignment submissions returned unexpected data:", parsedSubmissions.error.flatten());
+          throw new Error("Assignment submission data could not be safely displayed.");
+        }
+        assignmentTargets = parsedTargets.data;
+        assignmentSubmissions = parsedSubmissions.data;
+      }
+    }
 
     const { data: communications, error: communicationsError } = await supabase.rpc("education_get_student_communications");
     if (communicationsError) throw new Error(`Could not load student announcements: ${communicationsError.message}`);
@@ -96,18 +155,15 @@ export default async function EducationStudentPortalPage({
   const params = await searchParams;
   const message = messageFor(params);
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
-    <div className="mx-auto max-w-6xl space-y-6">
-      <header className="rounded-2xl bg-gradient-to-br from-indigo-950 via-blue-900 to-cyan-800 p-6 text-white shadow-lg sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-200">Think Education</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">Student Portal</h1>
-        <p className="mt-2 max-w-2xl text-sm text-blue-100">
-          Your timetable, attendance and results released by your school.
-        </p>
-        {user && <p className="mt-4 text-sm text-blue-100">Signed in as {user.email ?? "your account"}</p>}
-      </header>
+  return <EducationPortalShell
+    role="student"
+    title="AI School Assistant"
+    activeItem="AI School Assistant"
+    subtitle="Your schoolwork, timetable, attendance, and published results."
+    userEmail={user?.email}
+  >
 
-      {message && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
+      {message && <p role={params.assignment === "error" || params.assignment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
       {params.preference === "saved" && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Notification preference saved.</p>}
       {params.preference === "denied" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">This preference could not be changed for the selected school.</p>}
       {params.preference === "error" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">The preference could not be saved. Please try again.</p>}
@@ -178,7 +234,7 @@ export default async function EducationStudentPortalPage({
         </ul>
       </section>}
 
-      {announcements.length > 0 && <section className="space-y-3">
+      {announcements.length > 0 && <section id="announcements" className="scroll-mt-6 space-y-3">
         <h2 className="text-xl font-semibold">School announcements</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {announcements.map((announcement) => <article key={announcement.id} className="rounded-xl border border-blue-200 bg-white p-4 shadow-sm">
@@ -219,8 +275,14 @@ export default async function EducationStudentPortalPage({
           <h3 className="font-semibold">Need an account?</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">If you do not have a password yet, ask your school administrator for a one-time temporary password.</p>
         </div>
-      </section> : <div className="grid gap-5 lg:grid-cols-2">
-        {portal.map((student) => <article key={`${student.organizationName}-${student.id}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      </section> : <div className="space-y-6">
+        <div id="assistant" className="scroll-mt-6">
+          <div className="grid gap-4 xl:grid-cols-2">
+            {portal.map((student) => <StudentAiAssistant key={student.id} studentId={student.id} />)}
+          </div>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+        {portal.map((student, studentIndex) => <article key={`${student.organizationName}-${student.id}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <header className="border-b border-slate-100 p-5">
             <p className="text-sm font-medium text-blue-700">{student.organizationName} · {student.campusName}</p>
             <div className="mt-2 flex items-start justify-between gap-3">
@@ -233,7 +295,7 @@ export default async function EducationStudentPortalPage({
           </header>
 
           <div className="grid grid-cols-2 gap-3 p-5">
-            <div className="rounded-xl bg-slate-50 p-3">
+            <div id={studentIndex === 0 ? "attendance" : undefined} className="scroll-mt-6 rounded-xl bg-slate-50 p-3">
               <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><CalendarDays className="h-4 w-4" /> Attendance, 30 days</div>
               <p className="mt-2 text-lg font-semibold">{student.attendance.present} present</p>
               <p className="text-xs text-slate-500">{student.attendance.absent} absent · {student.attendance.late} late · {student.attendance.excused} excused</p>
@@ -246,7 +308,49 @@ export default async function EducationStudentPortalPage({
           </div>
 
           <div className="space-y-5 px-5 pb-5">
-            <section>
+            <section id={studentIndex === 0 ? "assignments" : undefined} className="scroll-mt-6">
+              <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-blue-700" /> Homework & Assignments</h3>
+              {assignments.filter((assignment) => assignmentTargets.some((target) =>
+                target.assignment_id === assignment.id && target.student_id === student.id
+              )).length ? (
+                <ul className="mt-2 space-y-3">
+                  {assignments.filter((assignment) => assignmentTargets.some((target) =>
+                    target.assignment_id === assignment.id && target.student_id === student.id
+                  )).map((assignment) => {
+                    const submission = assignmentSubmissions.find((item) =>
+                      item.assignment_id === assignment.id && item.student_id === student.id
+                    );
+                    return <li key={assignment.id} className="rounded-xl border border-slate-200 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-slate-900">{assignment.title}</p>
+                          {assignment.description && <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-slate-600">{assignment.description}</p>}
+                        </div>
+                        <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Due {new Date(`${assignment.due_on}T00:00:00`).toLocaleDateString()}</span>
+                      </div>
+                      {submission?.graded_at ? (
+                        <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                          <p className="font-semibold">Grade: {submission.score}/{assignment.max_score}</p>
+                          {submission.feedback && <p className="mt-1 whitespace-pre-wrap">{submission.feedback}</p>}
+                        </div>
+                      ) : (
+                        <form action={submitEducationAssignment} className="mt-3 space-y-2">
+                          <input type="hidden" name="assignment_id" value={assignment.id} />
+                          <input type="hidden" name="student_id" value={student.id} />
+                          <label className="block text-xs font-medium text-slate-600">
+                            {submission ? `Update response · Maximum ${assignment.max_score}` : `Your response · Maximum ${assignment.max_score}`}
+                            <textarea name="submission_text" required maxLength={10000} rows={3} defaultValue={submission?.submission_text ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900" />
+                          </label>
+                          {submission && <p className="text-xs text-slate-500">Last submitted {new Date(submission.submitted_at).toLocaleString()}{submission.submitted_at.slice(0, 10) > assignment.due_on ? " · Late" : ""}</p>}
+                          <button type="submit" className="rounded-lg bg-indigo-700 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-800">{submission ? "Update submission" : "Submit assignment"}</button>
+                        </form>
+                      )}
+                    </li>;
+                  })}
+                </ul>
+              ) : <p className="mt-2 text-sm text-slate-500">No assignments have been published for this student.</p>}
+            </section>
+            <section id={studentIndex === 0 ? "timetable" : undefined} className="scroll-mt-6">
               <h3 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4 text-blue-700" /> Weekly timetable</h3>
               {student.timetable.length ? <ul className="mt-2 divide-y divide-slate-100">
                 {student.timetable.map((entry, index) => <li key={`${entry.weekday}-${entry.startsAt}-${entry.subject}-${index}`} className="flex justify-between gap-3 py-2 text-sm">
@@ -255,7 +359,7 @@ export default async function EducationStudentPortalPage({
                 </li>)}
               </ul> : <p className="mt-2 text-sm text-slate-500">No active weekly timetable is available.</p>}
             </section>
-            <section>
+            <section id={studentIndex === 0 ? "results" : undefined} className="scroll-mt-6">
               <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-blue-700" /> Published results</h3>
               {student.results.length ? <ul className="mt-2 divide-y divide-slate-100">
                 {student.results.map((result, index) => <li key={`${result.examination}-${result.subject}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -266,15 +370,11 @@ export default async function EducationStudentPortalPage({
             </section>
           </div>
         </article>)}
+        </div>
       </div>}
 
-      <nav aria-label="Education portals" className="flex justify-center gap-5 text-sm">
-        <Link href="/education-portal" className="font-medium text-blue-700 hover:text-blue-900">Family Portal</Link>
-        <Link href="/teacher-education-portal" className="font-medium text-blue-700 hover:text-blue-900">Staff Portal</Link>
-      </nav>
       <footer className="text-center text-xs text-slate-500">
         Only this signed-in account’s active student profile is shown. Results are visible after publication by the school.
       </footer>
-    </div>
-  </main>;
+  </EducationPortalShell>;
 }

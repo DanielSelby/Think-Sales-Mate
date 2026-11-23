@@ -1,16 +1,14 @@
-import { Loader2 } from "lucide-react";
-
 export default function EducationLoading() {
   return (
-    <main
-      aria-busy="true"
-      aria-live="polite"
-      className="mx-auto flex min-h-[45vh] w-full max-w-[1500px] items-center justify-center p-6"
-    >
-      <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-white px-5 py-4 text-sm font-medium text-slate-700 shadow-sm">
-        <Loader2 className="h-5 w-5 animate-spin text-blue-700" aria-hidden="true" />
-        Loading Think Education…
+    <main aria-busy="true" aria-live="polite" className="mx-auto w-full max-w-[1500px] space-y-4 p-3 md:p-5">
+      <div className="h-8 w-64 animate-pulse rounded-lg bg-slate-200" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="h-24 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
+        ))}
       </div>
+      <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
+      <span className="sr-only">Loading Think Education</span>
     </main>
   );
 }

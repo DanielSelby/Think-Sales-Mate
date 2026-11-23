@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { cookies, headers } from "next/headers";
+import { cache } from "react";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import {
@@ -40,11 +41,11 @@ function roleKeyForMember(role: MemberRole, accessPermissions: Record<string, un
 }
 
 /** Custom member overrides are explicit; otherwise the current role template is authoritative. */
-export async function loadPermissionMatrix(
+export const loadPermissionMatrix = cache(async (
   orgId: string,
   role: MemberRole,
   accessPermissions: Record<string, unknown> = {}
-): Promise<PermissionMatrix> {
+): Promise<PermissionMatrix> => {
   const roleKey = roleKeyForMember(role, accessPermissions);
   if (accessPermissions.permissions_mode === "custom") {
     return normalizePermissionMatrix(accessPermissions.permissions);
@@ -63,7 +64,7 @@ export async function loadPermissionMatrix(
     data !== null && data !== undefined,
     roleKey
   );
-}
+});
 
 async function hasProductAccessForPermissionModule(
   orgId: string,
@@ -114,19 +115,19 @@ async function hasProductAccessForPermissionModule(
   return hasAnyRequiredProductAccess(requiredProducts, readableProducts);
 }
 
-async function getActiveProductSlug(): Promise<PlatformProductSlug | null> {
+const getActiveProductSlug = cache(async (): Promise<PlatformProductSlug | null> => {
   const [requestHeaders, cookieStore] = await Promise.all([headers(), cookies()]);
   const headerSlug = requestHeaders.get("x-active-product-slug");
   if (headerSlug && isPlatformProductSlug(headerSlug)) return headerSlug;
   const cookieSlug = cookieStore.get("active_product_slug")?.value;
   return cookieSlug && isPlatformProductSlug(cookieSlug) ? cookieSlug : null;
-}
+});
 
-async function loadProductPermissionMatrix(
+const loadProductPermissionMatrix = cache(async (
   orgId: string,
   userId: string,
   productSlug: PlatformProductSlug,
-): Promise<PermissionMatrix | null> {
+): Promise<PermissionMatrix | null> => {
   const supabase = await createClient();
   const { data: profile, error: profileError } = await supabase
     .from("organization_member_product_permissions")
@@ -154,7 +155,7 @@ async function loadProductPermissionMatrix(
     hasTemplate = template !== null;
   }
   return resolveMemberPermissionMatrix(profile, templatePermissions, hasTemplate, roleKey);
-}
+});
 
 /** Server-side check using the signed-in user's active organization. */
 export async function canPermission(

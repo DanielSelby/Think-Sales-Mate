@@ -87,11 +87,7 @@ describe("product navigation", () => {
   it("adds the shared attendance entry to every non-ThinkSales product navigation", () => {
     const items = [
       ...navigation,
-      {
-        label: "HRM & Payroll",
-        href: "/hrm",
-        children: [{ label: "Attendance Management", href: "/hrm/attendance" }],
-      },
+      { label: "Attendance Management", href: "/hrm/attendance", status: "live" as const, alwaysVisible: true },
     ];
     for (const scope of ["restaurant", "think-service-repairs", "think-education"] as const) {
       expect(getProductNavigationItems(items, scope)[0]).toMatchObject({
@@ -100,6 +96,9 @@ describe("product navigation", () => {
         alwaysVisible: true,
       });
     }
+    expect(getProductNavigationItems(items, "thinksales-erp")).toContainEqual(
+      expect.objectContaining({ label: "Attendance Management", href: "/hrm/attendance", alwaysVisible: true })
+    );
   });
 
   it("organizes Think Education links beneath one product heading", () => {

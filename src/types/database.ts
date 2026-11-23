@@ -205,6 +205,38 @@ type EducationStudent = {
   created_at: string;
   updated_at: string;
 };
+type EducationAssignment = {
+  id: string;
+  org_id: string;
+  class_id: string;
+  title: string;
+  description: string;
+  due_on: string;
+  max_score: number;
+  status: "draft" | "published" | "archived";
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+type EducationAssignmentTarget = {
+  org_id: string;
+  assignment_id: string;
+  student_id: string;
+  created_at: string;
+};
+type EducationAssignmentSubmission = {
+  id: string;
+  org_id: string;
+  assignment_id: string;
+  student_id: string;
+  submission_text: string;
+  submitted_at: string;
+  score: number | null;
+  feedback: string | null;
+  graded_by: string | null;
+  graded_at: string | null;
+  updated_at: string;
+};
 type EducationGuardian = {
   id: string;
   org_id: string;
@@ -1106,6 +1138,18 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["organizations"]["Row"]>;
         Relationships: [];
       };
+      education_assignments: EducationDatabaseTable<
+        EducationAssignment,
+        "org_id" | "class_id" | "title" | "due_on" | "created_by"
+      >;
+      education_assignment_targets: EducationDatabaseTable<
+        EducationAssignmentTarget,
+        "org_id" | "assignment_id" | "student_id"
+      >;
+      education_assignment_submissions: EducationDatabaseTable<
+        EducationAssignmentSubmission,
+        "org_id" | "assignment_id" | "student_id" | "submission_text"
+      >;
 
      organization_members: {
         Row: {
@@ -8613,6 +8657,30 @@ export interface Database {
       education_get_teacher_portal: {
        Args: Record<PropertyKey, never>;
        Returns: Json;
+      };
+      education_teacher_create_assignment: {
+        Args: {
+          p_org_id: string;
+          p_class_id: string;
+          p_title: string;
+          p_description: string;
+          p_due_on: string;
+          p_max_score: number;
+          p_student_ids: string[];
+        };
+        Returns: string;
+      };
+      education_student_submit_assignment: {
+        Args: { p_assignment_id: string; p_student_id: string; p_submission_text: string };
+        Returns: string;
+      };
+      education_teacher_grade_assignment_submission: {
+        Args: { p_submission_id: string; p_score: number; p_feedback: string };
+        Returns: string;
+      };
+      education_reserve_student_ai_request: {
+        Args: { p_org_id: string; p_user_id: string; p_student_id: string };
+        Returns: boolean;
       };
       education_teacher_record_student_attendance: {
        Args: {

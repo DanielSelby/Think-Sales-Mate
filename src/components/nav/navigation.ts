@@ -32,6 +32,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, status: "live" },
   { label: "Approval Center", href: "/approvals", icon: ClipboardCheck, status: "live" },
+  { label: "Attendance Management", href: "/hrm/attendance", icon: CalendarClock, status: "live", alwaysVisible: true },
   {
     label: "Think Education", href: "/education/dashboard", icon: GraduationCap, status: "live",
     children: [
@@ -203,7 +204,6 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { label: "Dashboard", href: "/hrm", icon: LayoutDashboard },
       { label: "Employees", href: "/hrm/employees", icon: Users2 },
-      { label: "Attendance Management", href: "/hrm/attendance", icon: CalendarClock },
       { label: "Shift Management & Scheduling", href: "/hrm/attendance/shifts", icon: Clock3 },
       { label: "Locations & Geofencing", href: "/hrm/attendance/locations", icon: Building2 },
       { label: "Attendance Corrections & Approvals", href: "/hrm/attendance/corrections", icon: ClipboardCheck },
