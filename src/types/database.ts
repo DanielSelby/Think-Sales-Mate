@@ -7420,6 +7420,65 @@ export interface Database {
           highest_utilization: number | null;
         }>;
       };
+      education_get_fee_aging_page: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_academic_year_id: string | null;
+          p_as_of_date: string;
+          p_limit: number;
+          p_offset: number;
+        };
+        Returns: Array<{
+          student_id: string | null;
+          branch_id: string | null;
+          outstanding_charges: number | null;
+          balance: number | null;
+          not_due: number | null;
+          days_1_to_30: number | null;
+          days_31_to_60: number | null;
+          days_61_to_90: number | null;
+          over_90: number | null;
+          total_count: number;
+          total_balance: number;
+          total_not_due: number;
+          total_days_1_to_30: number;
+          total_days_31_to_60: number;
+          total_days_61_to_90: number;
+          total_over_90: number;
+        }>;
+      };
+      education_get_fee_collections_page: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_from: string;
+          p_to_exclusive: string;
+          p_payment_method: string | null;
+          p_limit: number;
+          p_offset: number;
+        };
+        Returns: Array<{
+          payment_id: string | null;
+          charge_id: string | null;
+          amount: number | null;
+          payment_method: string | null;
+          reference: string | null;
+          created_at: string | null;
+          branch_id: string | null;
+          student_id: string | null;
+          academic_year_id: string | null;
+          description: string | null;
+          charge_amount: number | null;
+          charge_status: string | null;
+          student_number: string | null;
+          first_name: string | null;
+          last_name: string | null;
+          total_count: number;
+          total_collected: number;
+          totals_by_method: Json;
+        }>;
+      };
       refund_restaurant_payment: {
         Args: {
           p_org_id: string;

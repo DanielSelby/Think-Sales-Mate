@@ -18,12 +18,6 @@ function isValidDate(value: string) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-function csvCell(value: unknown) {
-  const text = String(value ?? "");
-  const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
-  return `"${safeText.replace(/"/g, '""')}"`;
-}
-
 export default async function EducationAttendancePage({
   searchParams,
 }: {
@@ -110,21 +104,10 @@ export default async function EducationAttendancePage({
       }
     }
   }
-  const csvRows = [
-    ["Student ID", "Student", "Campus", "Attendance status", "Note", "Date"],
-    ...students.map((student) => {
-      const existing = attendanceByStudent.get(student.id);
-      return [
-        student.student_number,
-        `${student.first_name} ${student.last_name}`.trim(),
-        campuses.find((campus) => campus.id === student.branch_id)?.name ?? "Campus",
-        existing?.status ?? "not_marked",
-        existing?.note ?? "",
-        attendanceDate,
-      ];
-    }),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map(csvCell).join(",")).join("\n"))}`;
+  const exportParams = new URLSearchParams({ date: attendanceDate });
+  if (search) exportParams.set("search", search);
+  if (selectedBranch) exportParams.set("branch", selectedBranch);
+  const csvHref = `/api/education/attendance/export?${exportParams.toString()}`;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const queryForPage = (page: number) => {
     const next = new URLSearchParams({ date: attendanceDate, page: String(page) });
@@ -177,7 +160,7 @@ export default async function EducationAttendancePage({
           <input type="date" name="date" defaultValue={attendanceDate} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal" />
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {canExport && students.length > 0 && <a href={csvHref} download={`education-attendance-${attendanceDate}.csv`} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && totalCount > 0 && <a href={csvHref} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
 
       {campuses.length === 0 ? <div className="p-8 text-center">

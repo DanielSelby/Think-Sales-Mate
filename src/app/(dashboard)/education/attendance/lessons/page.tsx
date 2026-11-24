@@ -167,24 +167,10 @@ export default async function EducationLessonAttendancePage({
     return `${getProductAppPath("think-education", "/attendance/lessons")}?${query.toString()}`;
   };
   if (currentPage > totalPages) redirect(pageHref(totalPages));
-  const csvRows = [
-    ["Student ID", "Student", "Subject", "Class", "Attendance status", "Note", "Date"],
-    ...students.map((student) => {
-      const existing = attendanceByStudent.get(student.id);
-      return [
-        student.student_number,
-        `${student.first_name} ${student.last_name}`.trim(),
-        selectedLesson?.subject_name ?? "",
-        selectedLesson ? classNameById.get(selectedLesson.class_id) ?? "Class" : "",
-        existing?.status ?? "not_marked",
-        existing?.note ?? "",
-        attendanceDate,
-      ];
-    }),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) =>
-    row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")
-  ).join("\n"))}`;
+  const exportParams = new URLSearchParams({ date: attendanceDate });
+  if (selectedBranch) exportParams.set("branch", selectedBranch);
+  if (selectedLesson) exportParams.set("lesson", selectedLesson.id);
+  const csvHref = `/api/education/attendance/lessons/export?${exportParams.toString()}`;
   const errorMessage = params.error === "invalid"
     ? "Check the attendance date, lesson, status, and note."
     : params.error === "lesson"
@@ -223,7 +209,7 @@ export default async function EducationLessonAttendancePage({
           </select>
         </label>
         <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply</button>
-        {canExport && selectedLesson && students.length > 0 && <a href={csvHref} download={`education-lesson-attendance-${attendanceDate}.csv`} className="self-end rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export page CSV</a>}
+        {canExport && selectedLesson && totalCount > 0 && <a href={csvHref} className="self-end rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
     </section>
 

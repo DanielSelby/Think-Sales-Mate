@@ -59,7 +59,7 @@ export function NavigationLoading({
 
   return loading ? (
     <div
-      className="fixed inset-0 z-[9998] grid cursor-wait place-items-center bg-white/90 backdrop-blur-sm"
+      className="pointer-events-none fixed inset-0 z-[9998] grid cursor-wait place-items-center bg-transparent"
       role="status"
       aria-live="polite"
       aria-label={`Loading ${systemName}`}

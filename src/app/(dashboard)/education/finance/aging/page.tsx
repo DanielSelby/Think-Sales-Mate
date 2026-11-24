@@ -9,7 +9,6 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 
-const QUERY_PAGE_SIZE = 500;
 const MAX_CHARGES = 20_000;
 const REPORT_PAGE_SIZE = 50;
 
@@ -98,99 +97,47 @@ export default async function EducationFeeAgingPage({
   const chargeCount = count ?? 0;
   const reportTooLarge = chargeCount > MAX_CHARGES;
 
-  const chargeRows: Array<{
-    id: string;
-    branch_id: string;
-    student_id: string;
-    amount: number;
-    due_on: string | null;
-  }> = [];
-  if (!reportTooLarge) {
-    for (let offset = 0; offset < chargeCount; offset += QUERY_PAGE_SIZE) {
-      let query = supabase.from("education_fee_charges")
-        .select("id, branch_id, student_id, amount, due_on")
-        .eq("org_id", context.orgId)
-        .in("branch_id", branchIds)
-        .eq("status", "open")
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .range(offset, Math.min(offset + QUERY_PAGE_SIZE - 1, chargeCount - 1));
-      if (selectedYear) query = query.eq("academic_year_id", selectedYear);
-      const { data, error } = await query;
-      if (error) throw new Error(`Could not load fee charges for aging: ${error.message}`);
-      chargeRows.push(...(data ?? []));
-    }
-  }
-
-  const paidByCharge = new Map<string, number>();
-  const chargeIds = chargeRows.map((charge) => charge.id);
-  for (let offset = 0; offset < chargeIds.length; offset += 200) {
-    const batch = chargeIds.slice(offset, offset + 200);
-    for (let paymentOffset = 0; ; paymentOffset += QUERY_PAGE_SIZE) {
-      const { data, error } = await supabase.from("education_fee_payments")
-        .select("charge_id, amount")
-        .eq("org_id", context.orgId)
-        .in("charge_id", batch)
-        .order("charge_id")
-        .order("id")
-        .range(paymentOffset, paymentOffset + QUERY_PAGE_SIZE - 1);
-      if (error) throw new Error(`Could not load fee payments for aging: ${error.message}`);
-      for (const payment of data ?? []) {
-        paidByCharge.set(payment.charge_id, (paidByCharge.get(payment.charge_id) ?? 0) + payment.amount);
-      }
-      if ((data ?? []).length < QUERY_PAGE_SIZE) break;
-    }
-  }
-
-  const accountByStudent = new Map<string, AgingAccount>();
-  const bucketTotals: Record<AgingBucket, number> = {
-    notDue: 0,
-    days1To30: 0,
-    days31To60: 0,
-    days61To90: 0,
-    over90: 0,
-  };
   const localToday = new Date();
-  const today = Date.UTC(localToday.getFullYear(), localToday.getMonth(), localToday.getDate());
-  for (const charge of chargeRows) {
-    const balance = Math.max(0, charge.amount - (paidByCharge.get(charge.id) ?? 0));
-    if (balance <= 0) continue;
+  const asOfDate = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, "0")}-${String(localToday.getDate()).padStart(2, "0")}`;
+  const { data: agingRows, error: agingError } = !reportTooLarge && branchIds.length
+    ? await supabase.rpc("education_get_fee_aging_page", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_academic_year_id: selectedYear || null,
+      p_as_of_date: asOfDate,
+      p_limit: REPORT_PAGE_SIZE,
+      p_offset: (currentPage - 1) * REPORT_PAGE_SIZE,
+    })
+    : { data: [], error: null };
+  if (agingError) throw new Error(`Could not aggregate fee aging: ${agingError.message}`);
 
-    let bucket: AgingBucket = "notDue";
-    if (charge.due_on) {
-      const [year, month, day] = charge.due_on.split("-").map(Number);
-      const dueDate = Date.UTC(year, month - 1, day);
-      const daysPastDue = Math.floor((today - dueDate) / 86_400_000);
-      if (daysPastDue > 90) bucket = "over90";
-      else if (daysPastDue > 60) bucket = "days61To90";
-      else if (daysPastDue > 30) bucket = "days31To60";
-      else if (daysPastDue > 0) bucket = "days1To30";
-    }
-
-    const account = accountByStudent.get(charge.student_id) ?? {
-      studentId: charge.student_id,
+  const summary = agingRows?.[0];
+  const accounts: AgingAccount[] = (agingRows ?? []).flatMap((row) => row.student_id && row.branch_id
+    ? [{
+      studentId: row.student_id,
       studentNumber: "",
       firstName: "",
       lastName: "",
-      campusId: charge.branch_id,
-      charges: 0,
-      balance: 0,
-      notDue: 0,
-      days1To30: 0,
-      days31To60: 0,
-      days61To90: 0,
-      over90: 0,
-    };
-    account.charges += 1;
-    account.balance += balance;
-    account[bucket] += balance;
-    bucketTotals[bucket] += balance;
-    accountByStudent.set(charge.student_id, account);
-  }
-
-  const accounts = Array.from(accountByStudent.values());
-  const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0);
-  const totalPages = Math.max(1, Math.ceil(accounts.length / REPORT_PAGE_SIZE));
+      campusId: row.branch_id,
+      charges: Number(row.outstanding_charges ?? 0),
+      balance: Number(row.balance ?? 0),
+      notDue: Number(row.not_due ?? 0),
+      days1To30: Number(row.days_1_to_30 ?? 0),
+      days31To60: Number(row.days_31_to_60 ?? 0),
+      days61To90: Number(row.days_61_to_90 ?? 0),
+      over90: Number(row.over_90 ?? 0),
+    }]
+    : []);
+  const totalBalance = Number(summary?.total_balance ?? 0);
+  const bucketTotals: Record<AgingBucket, number> = {
+    notDue: Number(summary?.total_not_due ?? 0),
+    days1To30: Number(summary?.total_days_1_to_30 ?? 0),
+    days31To60: Number(summary?.total_days_31_to_60 ?? 0),
+    days61To90: Number(summary?.total_days_61_to_90 ?? 0),
+    over90: Number(summary?.total_over_90 ?? 0),
+  };
+  const totalCount = Number(summary?.total_count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / REPORT_PAGE_SIZE));
   const queryForPage = (page: number) => {
     const next = new URLSearchParams();
     if (selectedBranch) next.set("branch", selectedBranch);
@@ -202,6 +149,7 @@ export default async function EducationFeeAgingPage({
   if (currentPage > totalPages) redirect(queryForPage(totalPages));
 
   const studentsToLoad = accounts.map((account) => account.studentId);
+  const accountByStudent = new Map(accounts.map((account) => [account.studentId, account]));
   for (let offset = 0; offset < studentsToLoad.length; offset += 200) {
     const { data, error } = await supabase.from("education_students")
       .select("id, student_number, first_name, last_name")
@@ -219,8 +167,7 @@ export default async function EducationFeeAgingPage({
     }
   }
 
-  accounts.sort((a, b) => b.balance - a.balance || a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
-  const visibleAccounts = accounts.slice((currentPage - 1) * REPORT_PAGE_SIZE, currentPage * REPORT_PAGE_SIZE);
+  const visibleAccounts = accounts;
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
 
@@ -276,7 +223,7 @@ export default async function EducationFeeAgingPage({
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-4">
           <h2 className="font-semibold text-slate-950">Student balances</h2>
-          <p className="mt-1 text-sm text-slate-500">{accounts.length.toLocaleString()} students with an outstanding balance · {formatMoney(totalBalance)} total</p>
+          <p className="mt-1 text-sm text-slate-500">{totalCount.toLocaleString()} students with an outstanding balance · {formatMoney(totalBalance)} total</p>
         </div>
         {visibleAccounts.length ? <div className="divide-y divide-slate-100">
           {visibleAccounts.map((account) => <article key={account.studentId} className="grid gap-3 p-4 md:grid-cols-[minmax(220px,1.5fr)_repeat(5,minmax(110px,1fr))] md:items-center">
@@ -300,8 +247,8 @@ export default async function EducationFeeAgingPage({
           </article>)}
         </div> : <p className="p-8 text-center text-sm text-slate-500">No outstanding student fees match these filters.</p>}
 
-        {accounts.length > REPORT_PAGE_SIZE && <nav aria-label="Fee aging pages" className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
-          <p className="text-slate-500">Showing {Math.min(accounts.length, (currentPage - 1) * REPORT_PAGE_SIZE + 1)}–{Math.min(accounts.length, currentPage * REPORT_PAGE_SIZE)} of {accounts.length} students</p>
+        {totalCount > REPORT_PAGE_SIZE && <nav aria-label="Fee aging pages" className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
+          <p className="text-slate-500">Showing {Math.min(totalCount, (currentPage - 1) * REPORT_PAGE_SIZE + 1)}–{Math.min(totalCount, currentPage * REPORT_PAGE_SIZE)} of {totalCount} students</p>
           <div className="flex gap-2">
             {currentPage > 1 && <Link href={queryForPage(currentPage - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Previous</Link>}
             {currentPage < totalPages && <Link href={queryForPage(currentPage + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Next</Link>}

@@ -4,6 +4,9 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 
+const COPY_BATCH_SIZE = 1000;
+const MAX_CANDIDATE_COPIES = 10_000;
+
 export async function GET(request: NextRequest) {
   const context = await getCurrentOrgContext();
   if (!context) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
@@ -47,11 +50,12 @@ export async function GET(request: NextRequest) {
   if (!bookIds.length) return NextResponse.json({ copies: [] }, { headers: { "Cache-Control": "private, no-store" } });
 
   const availableCopies = [];
-  for (let offset = 0; offset <= 10_000 && availableCopies.length < 50; offset += 250) {
+  for (let offset = 0; offset < MAX_CANDIDATE_COPIES && availableCopies.length < 50; offset += COPY_BATCH_SIZE) {
     const { data: candidateCopies, error: copiesError } = await supabase.from("education_library_copies")
       .select("id, branch_id, book_id, copy_number")
       .eq("org_id", context.orgId).in("branch_id", branchIds).in("book_id", bookIds).eq("status", "available")
-      .order("copy_number").order("id").range(offset, offset + 249);
+      .order("copy_number").order("id")
+      .range(offset, Math.min(offset + COPY_BATCH_SIZE - 1, MAX_CANDIDATE_COPIES - 1));
     if (copiesError) {
       console.error("Could not load matching Think Education library copies:", copiesError.message);
       return NextResponse.json({ error: "Could not search available library copies." }, { status: 500 });
@@ -66,8 +70,8 @@ export async function GET(request: NextRequest) {
     }
     const openCopyIds = new Set((openLoans ?? []).map((loan) => loan.copy_id));
     availableCopies.push(...candidateCopies.filter((copy) => !openCopyIds.has(copy.id)));
-    if (candidateCopies.length < 250) break;
-    if (offset === 10_000 && availableCopies.length < 50) {
+    if (candidateCopies.length < COPY_BATCH_SIZE) break;
+    if (offset + candidateCopies.length >= MAX_CANDIDATE_COPIES && availableCopies.length < 50) {
       return NextResponse.json({ error: "Narrow your search to find available copies." }, { status: 422 });
     }
   }

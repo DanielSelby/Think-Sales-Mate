@@ -7,25 +7,6 @@ import { createClient } from "@/lib/supabase/server";
 const BATCH_SIZE = 1000;
 const MAX_EXPORT_ROWS = 100_000;
 
-async function collectPages<T>(
-  loadPage: (from: number, to: number) => PromiseLike<{
-    data: T[] | null;
-    error: { message: string } | null;
-  }>,
-) {
-  const rows: T[] = [];
-  for (let offset = 0; offset <= MAX_EXPORT_ROWS; offset += BATCH_SIZE) {
-    const { data, error } = await loadPage(offset, offset + BATCH_SIZE - 1);
-    if (error) return { rows, error: error.message, exceededLimit: false };
-    if (offset === MAX_EXPORT_ROWS && data?.length) {
-      return { rows, error: null, exceededLimit: true };
-    }
-    rows.push(...(data ?? []));
-    if ((data?.length ?? 0) < BATCH_SIZE) break;
-  }
-  return { rows, error: null, exceededLimit: false };
-}
-
 function csvCell(value: unknown) {
   const text = String(value ?? "");
   const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
@@ -54,91 +35,101 @@ export async function GET(request: NextRequest) {
   const branchIds = requestedBranch ? [requestedBranch] : campuses.map((campus) => campus.id);
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const supabase = await createClient();
-
-  const routesResult = await collectPages((from, to) => branchIds.length
-    ? supabase.from("education_transport_routes")
-      .select("id, branch_id, vehicle_id, name, driver_name, status")
+  const { count: routeCount, error: countError } = branchIds.length
+    ? await supabase.from("education_transport_routes")
+      .select("id", { count: "exact", head: true })
       .eq("org_id", context.orgId).in("branch_id", branchIds)
-      .order("name").order("id").range(from, to)
-    : Promise.resolve({ data: [], error: null }));
-  if (routesResult.error) {
-    console.error("Could not export Think Education transport routes:", routesResult.error);
+    : { count: 0, error: null };
+  if (countError) {
+    console.error("Could not count Think Education transport routes for export:", countError.message);
     return NextResponse.json({ error: "Could not export transport routes." }, { status: 500 });
   }
-  if (routesResult.exceededLimit) {
+  if ((routeCount ?? 0) > MAX_EXPORT_ROWS) {
     return NextResponse.json({ error: "Transport route export exceeds the 100,000 record limit." }, { status: 413 });
   }
 
-  const routes = routesResult.rows;
-  const routeSummaries = new Map<string, {
-    active_assignment_count: number;
-    vehicle_registration: string;
-    vehicle_status: string;
-    capacity: number;
-  }>();
-  for (let start = 0; start < routes.length; start += 100) {
-    const batch = routes.slice(start, start + 100);
-    const vehicleIds = [...new Set(batch.map((route) => route.vehicle_id))];
-    const { data: vehicles, error: vehiclesError } = await supabase.from("education_transport_vehicles")
-      .select("id, branch_id, registration_number, capacity, status")
-      .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", vehicleIds);
-    if (vehiclesError) {
-      console.error("Could not load vehicles for transport route export:", vehiclesError.message);
-      return NextResponse.json({ error: "Could not export transport vehicles." }, { status: 500 });
-    }
+  const encoder = new TextEncoder();
+  let offset = 0;
+  let finished = !branchIds.length || routeCount === 0;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode([
+        ["Campus", "Route", "Driver", "Vehicle", "Vehicle status", "Route status", "Capacity", "Assigned students", "Available seats", "Utilization %"]
+          .map(csvCell).join(","),
+        "",
+      ].join("\r\n")));
+      if (finished) controller.close();
+    },
+    async pull(controller) {
+      if (finished) return;
+      try {
+        const { data: routes, error: routesError } = await supabase.from("education_transport_routes")
+          .select("id, branch_id, vehicle_id, name, driver_name, status")
+          .eq("org_id", context.orgId).in("branch_id", branchIds)
+          .order("name").order("id")
+          .range(offset, Math.min(offset + BATCH_SIZE - 1, MAX_EXPORT_ROWS - 1));
+        if (routesError) throw new Error(`Could not load transport routes: ${routesError.message}`);
+        if (!routes?.length) {
+          finished = true;
+          controller.close();
+          return;
+        }
 
-    const vehicleById = new Map((vehicles ?? []).map((vehicle) => [vehicle.id, vehicle]));
-    const summaryResult = await supabase.rpc("education_get_transport_dashboard_summary", {
-      p_org_id: context.orgId,
-      p_branch_ids: branchIds,
-      p_route_ids: batch.map((route) => route.id),
-    });
-    if (summaryResult.error) {
-      console.error("Could not load transport assignment totals for export:", summaryResult.error.message);
-      return NextResponse.json({ error: "Could not export transport assignment totals." }, { status: 500 });
-    }
-    const assignmentCountByRoute = new Map((summaryResult.data ?? [])
-      .filter((row) => row.route_id !== null)
-      .map((row) => [row.route_id, Number(row.active_assignment_count)]));
+        const vehicleIds = [...new Set(routes.map((route) => route.vehicle_id))];
+        const [vehiclesResult, summaryResult] = await Promise.all([
+          supabase.from("education_transport_vehicles")
+            .select("id, branch_id, registration_number, capacity, status")
+            .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", vehicleIds),
+          supabase.rpc("education_get_transport_dashboard_summary", {
+            p_org_id: context.orgId,
+            p_branch_ids: branchIds,
+            p_route_ids: routes.map((route) => route.id),
+          }),
+        ]);
+        if (vehiclesResult.error) throw new Error(`Could not load vehicles for transport export: ${vehiclesResult.error.message}`);
+        if (summaryResult.error) throw new Error(`Could not load transport assignments for export: ${summaryResult.error.message}`);
 
-    for (const route of batch) {
-      const vehicle = vehicleById.get(route.vehicle_id);
-      if (!vehicle) continue;
-      routeSummaries.set(route.id, {
-        active_assignment_count: assignmentCountByRoute.get(route.id) ?? 0,
-        vehicle_registration: vehicle.registration_number,
-        vehicle_status: vehicle.status,
-        capacity: vehicle.capacity,
-      });
-    }
-  }
+        const vehicleById = new Map((vehiclesResult.data ?? []).map((vehicle) => [vehicle.id, vehicle]));
+        const assignmentCountByRoute = new Map((summaryResult.data ?? [])
+          .filter((row) => row.route_id !== null)
+          .map((row) => [row.route_id, Number(row.active_assignment_count)]));
+        const lines: string[] = [];
+        for (const route of routes) {
+          const vehicle = vehicleById.get(route.vehicle_id);
+          if (!vehicle) continue;
+          const assignmentCount = assignmentCountByRoute.get(route.id) ?? 0;
+          const availableSeats = Math.max(0, vehicle.capacity - assignmentCount);
+          const utilization = vehicle.capacity > 0
+            ? Math.round((assignmentCount / vehicle.capacity) * 1000) / 10
+            : 0;
+          lines.push([
+            campusNameById.get(route.branch_id) ?? route.branch_id,
+            route.name,
+            route.driver_name,
+            vehicle.registration_number,
+            vehicle.status,
+            route.status,
+            String(vehicle.capacity),
+            String(assignmentCount),
+            String(availableSeats),
+            String(utilization),
+          ].map(csvCell).join(","));
+        }
+        if (lines.length) controller.enqueue(encoder.encode(`${lines.join("\r\n")}\r\n`));
+        offset += routes.length;
+        if (routes.length < BATCH_SIZE || offset >= (routeCount ?? 0)) {
+          finished = true;
+          controller.close();
+        }
+      } catch (error) {
+        console.error("Could not stream Think Education transport export:", error);
+        finished = true;
+        controller.error(error);
+      }
+    },
+  });
 
-  const csvRows = [
-    ["Campus", "Route", "Driver", "Vehicle", "Vehicle status", "Route status", "Capacity", "Assigned students", "Available seats", "Utilization %"],
-    ...routes.flatMap((route) => {
-      const summary = routeSummaries.get(route.id);
-      if (!summary) return [];
-      const availableSeats = Math.max(0, summary.capacity - summary.active_assignment_count);
-      const utilization = summary.capacity > 0
-        ? Math.round((summary.active_assignment_count / summary.capacity) * 1000) / 10
-        : 0;
-      return [[
-        campusNameById.get(route.branch_id) ?? route.branch_id,
-        route.name,
-        route.driver_name,
-        summary.vehicle_registration,
-        summary.vehicle_status,
-        route.status,
-        String(summary.capacity),
-        String(summary.active_assignment_count),
-        String(availableSeats),
-        String(utilization),
-      ]];
-    }),
-  ];
-
-  const csv = csvRows.map((row) => row.map(csvCell).join(",")).join("\r\n");
-  return new NextResponse(csv, {
+  return new NextResponse(stream, {
     headers: {
       "Cache-Control": "private, no-store",
       "Content-Disposition": `attachment; filename="education-transport-routes-${new Date().toISOString().slice(0, 10)}.csv"`,

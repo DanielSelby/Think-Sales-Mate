@@ -15,6 +15,7 @@ import {
 } from "../actions";
 
 const PAGE_SIZE = 50;
+const EXAMINATION_PAGE_SIZE = 50;
 
 type EducationResultRow = {
   id: string;
@@ -66,8 +67,13 @@ export default async function EducationResultsPage({
   const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const requestedStatus = typeof params.status === "string" ? params.status : "";
   const validStatus = ["draft", "submitted", "approved", "published"].includes(requestedStatus) ? requestedStatus : "";
+  const requestedExamSearch = typeof params.exam_search === "string" ? params.exam_search.trim().slice(0, 80) : "";
+  const examSearch = requestedExamSearch.replace(/[^A-Za-z0-9\s_-]/g, "");
+  const requestedExamPage = Number.parseInt(typeof params.exam_page === "string" ? params.exam_page : "1", 10);
+  const examPage = Number.isFinite(requestedExamPage) ? Math.min(1_000_000, Math.max(1, requestedExamPage)) : 1;
   const requestedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10);
   const currentPage = Number.isFinite(requestedPage) ? Math.min(1_000_000, Math.max(1, requestedPage)) : 1;
+  const requestedExam = typeof params.examination === "string" ? params.examination : "";
   const [canCreate, canEdit, canApprove, canPublish, canExport] = await Promise.all([
     canTabPermission("education_results", "results", "gradebook", "create"),
     canTabPermission("education_results", "results", "gradebook", "edit"),
@@ -87,18 +93,55 @@ export default async function EducationResultsPage({
     activeSubjects = data ?? [];
   }
   let exams: Array<{ id: string; branch_id: string; name: string; status: string }> = [];
+  let examCount = 0;
+  let selectedExam: (typeof exams)[number] | null = null;
   if (branchIds.length) {
-    const { data, error } = await supabase.from("education_examinations")
-      .select("id, branch_id, name, status")
+    let examQuery = supabase.from("education_examinations")
+      .select("id, branch_id, name, status", { count: "exact" })
       .eq("org_id", context.orgId).in("branch_id", branchIds)
-      .order("starts_at", { ascending: false });
+      .order("starts_at", { ascending: false }).order("id")
+      .range((examPage - 1) * EXAMINATION_PAGE_SIZE, examPage * EXAMINATION_PAGE_SIZE - 1);
+    if (examSearch) examQuery = examQuery.ilike("name", `%${examSearch}%`);
+    const { data, count, error } = await examQuery;
     if (error) throw new Error(`Could not load examinations for results: ${error.message}`);
     exams = data ?? [];
+    examCount = count ?? 0;
+
+    selectedExam = exams.find((exam) => exam.id === requestedExam) ?? null;
+    if (!selectedExam && requestedExam) {
+      const { data: requested, error: requestedError } = await supabase.from("education_examinations")
+        .select("id, branch_id, name, status")
+        .eq("org_id", context.orgId).in("branch_id", branchIds).eq("id", requestedExam)
+        .maybeSingle();
+      if (requestedError) throw new Error(`Could not verify the selected examination: ${requestedError.message}`);
+      selectedExam = requested ?? null;
+    }
+    if (!selectedExam) {
+      const { data: defaultExams, error: defaultError } = await supabase.from("education_examinations")
+        .select("id, branch_id, name, status")
+        .eq("org_id", context.orgId).in("branch_id", branchIds)
+        .in("status", ["completed", "results_pending"])
+        .order("starts_at", { ascending: false }).order("id")
+        .limit(1);
+      if (defaultError) throw new Error(`Could not select the current results examination: ${defaultError.message}`);
+      selectedExam = defaultExams?.[0] ?? exams[0] ?? null;
+    }
+    if (selectedExam && !exams.some((exam) => exam.id === selectedExam?.id)) {
+      exams = [selectedExam, ...exams];
+    }
   }
-  const requestedExam = typeof params.examination === "string" ? params.examination : "";
-  const selectedExam = exams.find((exam) => exam.id === requestedExam)
-    ?? exams.find((exam) => exam.status === "completed" || exam.status === "results_pending")
-    ?? null;
+  const examPages = Math.max(1, Math.ceil(examCount / EXAMINATION_PAGE_SIZE));
+  const examPageHref = (page: number) => {
+    const next = new URLSearchParams();
+    if (selectedExam) next.set("examination", selectedExam.id);
+    if (requestedExamSearch) next.set("exam_search", requestedExamSearch);
+    if (page > 1) next.set("exam_page", String(page));
+    if (requestedSearch) next.set("search", requestedSearch);
+    if (validStatus) next.set("status", validStatus);
+    if (currentPage > 1) next.set("page", String(currentPage));
+    return `${getProductAppPath("think-education", "/results")}?${next.toString()}`;
+  };
+  if (examPage > examPages) redirect(examPageHref(examPages));
   let results: EducationResultRow[] = [];
   let assessmentComponents: EducationAssessmentComponentRow[] = [];
   if (selectedExam) {
@@ -209,6 +252,8 @@ export default async function EducationResultsPage({
   const resultPageHref = (page: number) => {
     const next = new URLSearchParams();
     if (selectedExam) next.set("examination", selectedExam.id);
+    if (requestedExamSearch) next.set("exam_search", requestedExamSearch);
+    if (examPage > 1) next.set("exam_page", String(examPage));
     if (requestedSearch) next.set("search", requestedSearch);
     if (validStatus) next.set("status", validStatus);
     next.set("page", String(page));
@@ -265,7 +310,10 @@ export default async function EducationResultsPage({
     </section>
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/results")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(220px,1.2fr)_220px_220px_auto]">
+      <form method="get" action={getProductAppPath("think-education", "/results")} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[minmax(200px,1fr)_minmax(200px,1fr)_220px_220px_auto]">
+        <label className="text-sm font-medium text-slate-700">Find examination
+          <input name="exam_search" defaultValue={requestedExamSearch} maxLength={80} placeholder="Search examination names" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        </label>
         <label className="text-sm font-medium text-slate-700">Examination
           <select name="examination" defaultValue={selectedExam?.id ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
             {exams.length === 0 && <option value="">No examinations available</option>}
@@ -287,6 +335,15 @@ export default async function EducationResultsPage({
           <Link href={getProductAppPath("think-education", "/results")} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
         </div>
       </form>
+      {examCount > EXAMINATION_PAGE_SIZE && <nav aria-label="Examination selector pages" className="flex items-center justify-between border-b border-slate-100 px-4 py-3 text-sm">
+        <span className="text-slate-500">
+          Showing {((examPage - 1) * EXAMINATION_PAGE_SIZE) + 1}–{Math.min(examPage * EXAMINATION_PAGE_SIZE, examCount)} of {examCount.toLocaleString()} examinations
+        </span>
+        <div className="flex items-center gap-2">
+          {examPage > 1 && <Link href={examPageHref(examPage - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Previous exams</Link>}
+          {examPage < examPages && <Link href={examPageHref(examPage + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">More exams</Link>}
+        </div>
+      </nav>}
 
       {!selectedExam ? <div className="p-8 text-center">
         <FileText className="mx-auto h-10 w-10 text-slate-300" />

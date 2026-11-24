@@ -10,7 +10,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 
 const PAGE_SIZE = 50;
-const QUERY_PAGE_SIZE = 500;
 const MAX_REPORT_PAYMENTS = 50_000;
 const PAYMENT_METHODS = [
   ["cash", "Cash"],
@@ -23,23 +22,20 @@ const PAYMENT_METHODS = [
 ] as const;
 type PaymentMethod = typeof PAYMENT_METHODS[number][0];
 
-type PaymentRecord = {
+type CollectionRecord = {
   id: string;
   charge_id: string;
   amount: number;
-  payment_method: PaymentMethod;
+  payment_method: string;
   reference: string | null;
   created_at: string;
-};
-
-type ChargeRecord = {
-  id: string;
   branch_id: string;
-  student_id: string;
-  academic_year_id: string;
+  student_id: string | null;
+  academic_year_id: string | null;
   description: string;
-  amount: number;
-  status: "open" | "void";
+  student_number: string | null;
+  first_name: string | null;
+  last_name: string | null;
 };
 
 function isValidDate(value: string): boolean {
@@ -106,83 +102,51 @@ export default async function EducationCollectionsPage({
   ]);
   if (yearsError) throw new Error(`Could not load academic years for collections: ${yearsError.message}`);
 
-  const payments: PaymentRecord[] = [];
-  let paymentCount = 0;
-  let tooManyPayments = false;
-  if (!invalidRange && !rangeTooLong && branchIds.length) {
-    let countQuery = supabase.from("education_fee_payments")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", context.orgId)
-      .gte("created_at", `${from}T00:00:00.000Z`)
-      .lt("created_at", `${shiftDate(to, 1)}T00:00:00.000Z`);
-    if (selectedMethod) countQuery = countQuery.eq("payment_method", selectedMethod);
-    const { count, error } = await countQuery;
-    if (error) throw new Error(`Could not count fee collections: ${error.message}`);
-    paymentCount = count ?? 0;
-    tooManyPayments = paymentCount > MAX_REPORT_PAYMENTS;
+  const { data: collectionRows, error: collectionsError } = !invalidRange && !rangeTooLong && branchIds.length
+    ? await supabase.rpc("education_get_fee_collections_page", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_from: `${from}T00:00:00.000Z`,
+      p_to_exclusive: `${shiftDate(to, 1)}T00:00:00.000Z`,
+      p_payment_method: selectedMethod || null,
+      p_limit: PAGE_SIZE,
+      p_offset: (currentPage - 1) * PAGE_SIZE,
+    })
+    : { data: [], error: null };
+  if (collectionsError) throw new Error(`Could not aggregate fee collections: ${collectionsError.message}`);
 
-    if (!tooManyPayments) {
-      for (let offset = 0; offset < paymentCount; offset += QUERY_PAGE_SIZE) {
-        let query = supabase.from("education_fee_payments")
-          .select("id, charge_id, amount, payment_method, reference, created_at")
-          .eq("org_id", context.orgId)
-          .gte("created_at", `${from}T00:00:00.000Z`)
-          .lt("created_at", `${shiftDate(to, 1)}T00:00:00.000Z`)
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: false })
-          .range(offset, Math.min(offset + QUERY_PAGE_SIZE - 1, paymentCount - 1));
-        if (selectedMethod) query = query.eq("payment_method", selectedMethod);
-        const { data, error: queryError } = await query;
-        if (queryError) throw new Error(`Could not load fee collections: ${queryError.message}`);
-        const batch = (data ?? []) as PaymentRecord[];
-        if (!batch.length) break;
-
-        const chargeIds = Array.from(new Set(batch.map((payment) => payment.charge_id)));
-        const { data: charges, error: chargesError } = await supabase.from("education_fee_charges")
-          .select("id, branch_id, student_id, academic_year_id, description, amount, status")
-          .eq("org_id", context.orgId)
-          .in("branch_id", branchIds)
-          .in("id", chargeIds);
-        if (chargesError) throw new Error(`Could not load charges for fee collections: ${chargesError.message}`);
-        const accessibleChargeIds = new Set((charges ?? []).map((charge) => charge.id));
-        payments.push(...batch.filter((payment) => accessibleChargeIds.has(payment.charge_id)));
-      }
-    }
-  }
-
-  const relevantChargeIds = Array.from(new Set(payments.map((payment) => payment.charge_id)));
-  const chargeById = new Map<string, ChargeRecord>();
-  for (let offset = 0; offset < relevantChargeIds.length; offset += QUERY_PAGE_SIZE) {
-    const { data, error } = await supabase.from("education_fee_charges")
-      .select("id, branch_id, student_id, academic_year_id, description, amount, status")
-      .eq("org_id", context.orgId)
-      .in("branch_id", branchIds)
-      .in("id", relevantChargeIds.slice(offset, offset + QUERY_PAGE_SIZE));
-    if (error) throw new Error(`Could not load collection charge details: ${error.message}`);
-    for (const charge of (data ?? []) as ChargeRecord[]) chargeById.set(charge.id, charge);
-  }
-
-  const relevantStudentIds = Array.from(new Set(
-    Array.from(chargeById.values()).map((charge) => charge.student_id)
-  ));
-  const studentById = new Map<string, { first_name: string; last_name: string; student_number: string }>();
-  for (let offset = 0; offset < relevantStudentIds.length; offset += QUERY_PAGE_SIZE) {
-    const { data, error } = await supabase.from("education_students")
-      .select("id, first_name, last_name, student_number")
-      .eq("org_id", context.orgId)
-      .in("branch_id", branchIds)
-      .in("id", relevantStudentIds.slice(offset, offset + QUERY_PAGE_SIZE));
-    if (error) throw new Error(`Could not load students for fee collections: ${error.message}`);
-    for (const student of data ?? []) studentById.set(student.id, student);
-  }
-
-  const visiblePayments = payments.filter((payment) => chargeById.has(payment.charge_id));
-  const totalCollected = visiblePayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const totalsByMethod = new Map<PaymentMethod, number>();
-  for (const payment of visiblePayments) {
-    totalsByMethod.set(payment.payment_method, (totalsByMethod.get(payment.payment_method) ?? 0) + payment.amount);
-  }
-  const totalPages = Math.max(1, Math.ceil(visiblePayments.length / PAGE_SIZE));
+  const summary = collectionRows?.[0];
+  const paymentCount = Number(summary?.total_count ?? 0);
+  const tooManyPayments = paymentCount > MAX_REPORT_PAYMENTS;
+  const totalCollected = Number(summary?.total_collected ?? 0);
+  const methodTotals = summary?.totals_by_method;
+  const totalsByMethodObject = methodTotals && typeof methodTotals === "object" && !Array.isArray(methodTotals)
+    ? methodTotals
+    : {};
+  const totalsByMethod = new Map<PaymentMethod, number>(PAYMENT_METHODS.map(([method]) => [
+    method,
+    Number(totalsByMethodObject[method] ?? 0),
+  ]));
+  const visiblePayments: CollectionRecord[] = (collectionRows ?? []).flatMap((row) =>
+    row.payment_id && row.charge_id && row.branch_id
+      ? [{
+        id: row.payment_id,
+        charge_id: row.charge_id,
+        amount: Number(row.amount ?? 0),
+        payment_method: row.payment_method ?? "other",
+        reference: row.reference,
+        created_at: row.created_at ?? "",
+        branch_id: row.branch_id,
+        student_id: row.student_id,
+        academic_year_id: row.academic_year_id,
+        description: row.description ?? "",
+        student_number: row.student_number,
+        first_name: row.first_name,
+        last_name: row.last_name,
+      }]
+      : []
+  );
+  const totalPages = Math.max(1, Math.ceil(paymentCount / PAGE_SIZE));
   const queryForPage = (page: number) => {
     const next = new URLSearchParams();
     next.set("from", from);
@@ -193,7 +157,7 @@ export default async function EducationCollectionsPage({
     return `${getProductAppPath("think-education", "/finance/collections")}?${next.toString()}`;
   };
   if (currentPage > totalPages) redirect(queryForPage(totalPages));
-  const visibleRows = visiblePayments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visibleRows = visiblePayments;
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const yearNameById = new Map((academicYears ?? []).map((year) => [year.id, year.name]));
   const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
@@ -244,7 +208,7 @@ export default async function EducationCollectionsPage({
     {!invalidRange && !rangeTooLong && !tooManyPayments && <>
       <section className="grid gap-3 sm:grid-cols-2">
         <article className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div><p className="text-sm text-slate-500">Payments received</p><p className="mt-1 text-2xl font-bold text-slate-950">{visiblePayments.length.toLocaleString()}</p></div>
+          <div><p className="text-sm text-slate-500">Payments received</p><p className="mt-1 text-2xl font-bold text-slate-950">{paymentCount.toLocaleString()}</p></div>
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><CreditCard className="h-5 w-5" /></span>
         </article>
         <article className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -269,14 +233,12 @@ export default async function EducationCollectionsPage({
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         {visibleRows.length ? <div className="divide-y divide-slate-100">
           {visibleRows.map((payment) => {
-            const charge = chargeById.get(payment.charge_id);
-            if (!charge) return null;
-            const student = studentById.get(charge.student_id);
+            const studentName = [payment.first_name, payment.last_name].filter(Boolean).join(" ");
             return <article key={payment.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
-                <p className="font-semibold text-slate-900">{student ? `${student.first_name} ${student.last_name}` : "Student"}{student ? ` · ${student.student_number}` : ""}</p>
-                <p className="mt-1 text-sm text-slate-600">{charge.description} · {yearNameById.get(charge.academic_year_id) ?? "Academic year"}</p>
-                <p className="mt-1 text-xs text-slate-500">{campusNameById.get(charge.branch_id) ?? "Campus"} · {new Date(payment.created_at).toLocaleString()}</p>
+                <p className="font-semibold text-slate-900">{studentName || "Student"}{payment.student_number ? ` · ${payment.student_number}` : ""}</p>
+                <p className="mt-1 text-sm text-slate-600">{payment.description} · {payment.academic_year_id ? yearNameById.get(payment.academic_year_id) ?? "Academic year" : "Academic year"}</p>
+                <p className="mt-1 text-xs text-slate-500">{campusNameById.get(payment.branch_id) ?? "Campus"} · {new Date(payment.created_at).toLocaleString()}</p>
               </div>
               <div className="text-right">
                 <p className="font-semibold text-slate-950">{formatMoney(payment.amount)}</p>
@@ -287,8 +249,8 @@ export default async function EducationCollectionsPage({
           })}
         </div> : <p className="p-8 text-center text-sm text-slate-500">No collections found for the selected period and filters.</p>}
 
-        {visiblePayments.length > PAGE_SIZE && <nav aria-label="Collections pages" className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
-          <p className="text-slate-500">Showing {Math.min(visiblePayments.length, (currentPage - 1) * PAGE_SIZE + 1)}–{Math.min(visiblePayments.length, currentPage * PAGE_SIZE)} of {visiblePayments.length} payments</p>
+        {paymentCount > PAGE_SIZE && <nav aria-label="Collections pages" className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
+          <p className="text-slate-500">Showing {Math.min(paymentCount, (currentPage - 1) * PAGE_SIZE + 1)}–{Math.min(paymentCount, currentPage * PAGE_SIZE)} of {paymentCount} payments</p>
           <div className="flex gap-2">
             {currentPage > 1 && <Link href={queryForPage(currentPage - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Previous</Link>}
             {currentPage < totalPages && <Link href={queryForPage(currentPage + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Next</Link>}

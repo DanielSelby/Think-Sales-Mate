@@ -163,8 +163,11 @@ export default async function EducationLibraryPage({
   const copyCountByBook = new Map<string, number>();
   const availableCountByBook = new Map<string, number>();
   const openCopyIds = new Set<string>();
-  for (let start = 0; canViewCirculation && start < catalogCopies.length; start += 100) {
-    const copyIds = catalogCopies.slice(start, start + 100).map((copy) => copy.id);
+  const availableCatalogCopyIds = catalogCopies
+    .filter((copy) => copy.status === "available")
+    .map((copy) => copy.id);
+  for (let start = 0; canViewCirculation && start < availableCatalogCopyIds.length; start += 1000) {
+    const copyIds = availableCatalogCopyIds.slice(start, start + 1000);
     const { data: openLoans, error: openLoansError } = await supabase.from("education_library_loans")
       .select("copy_id").eq("org_id", context.orgId).in("copy_id", copyIds).is("returned_on", null);
     if (openLoansError) throw new Error(`Could not verify available library copies: ${openLoansError.message}`);
