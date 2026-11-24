@@ -7404,6 +7404,22 @@ export interface Database {
           account_type: BankAccountType;
         }>;
       };
+      education_get_transport_dashboard_summary: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_route_ids: string[];
+        };
+        Returns: Array<{
+          route_id: string | null;
+          active_assignment_count: number;
+          active_route_count: number;
+          assigned_students: number;
+          total_capacity: number;
+          highest_route_name: string | null;
+          highest_utilization: number | null;
+        }>;
+      };
       refund_restaurant_payment: {
         Args: {
           p_org_id: string;
@@ -7785,6 +7801,93 @@ export interface Database {
           examination_name: string;
         }>;
       };
+      education_get_student_outstanding_balances: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_student_ids: string[];
+        };
+        Returns: Array<{ student_id: string; outstanding: number }>;
+      };
+      education_get_open_fee_charge_balances: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_limit: number;
+        };
+        Returns: Array<{
+          id: string;
+          branch_id: string;
+          student_id: string;
+          description: string;
+          amount: number;
+          status: string;
+          created_at: string;
+          paid: number;
+          balance: number;
+        }>;
+      };
+      education_get_examination_results_page: {
+        Args: {
+          p_org_id: string;
+          p_examination_id: string;
+          p_branch_ids: string[];
+          p_status: string | null;
+          p_search: string;
+          p_limit: number;
+          p_offset: number;
+        };
+        Returns: Array<{
+          id: string;
+          student_id: string;
+          subject_id: string | null;
+          subject_name: string;
+          score: number;
+          maximum_score: number;
+          grade: string | null;
+          grade_override: string | null;
+          status: string;
+          student_number: string | null;
+          first_name: string | null;
+          last_name: string | null;
+          total_count: number;
+          draft_count: number;
+          submitted_count: number;
+          approved_count: number;
+          published_count: number;
+          locked_subject_ids: string[];
+        }>;
+      };
+      education_get_examinations_page: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_branch_id: string | null;
+          p_academic_year_id: string | null;
+          p_status: string | null;
+          p_search: string;
+          p_limit: number;
+          p_offset: number;
+        };
+        Returns: Array<{
+          id: string;
+          branch_id: string;
+          academic_year_id: string;
+          term_id: string | null;
+          name: string;
+          examination_type: string;
+          starts_at: string | null;
+          ends_at: string | null;
+          status: string;
+          academic_year_name: string | null;
+          term_name: string | null;
+          campus_name: string | null;
+          total_count: number;
+          scheduled_count: number;
+          in_progress_count: number;
+          results_pending_count: number;
+        }>;
+      };
       education_post_accounting_journal: {
         Args: { p_org_id: string; p_journal_id: string };
         Returns: boolean;
@@ -8035,6 +8138,32 @@ export interface Database {
           p_reference?: string | null;
         };
         Returns: string;
+      };
+      education_get_fee_charges_page: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_academic_year_id: string | null;
+          p_limit: number;
+          p_offset: number;
+        };
+        Returns: Array<{
+          id: string;
+          branch_id: string;
+          student_id: string;
+          academic_year_id: string;
+          description: string;
+          amount: number;
+          due_on: string | null;
+          status: string;
+          created_at: string;
+          student_number: string | null;
+          first_name: string | null;
+          last_name: string | null;
+          paid: number;
+          payment_count: number;
+          total_count: number;
+        }>;
       };
       education_void_unpaid_fee_charge: {
         Args: {

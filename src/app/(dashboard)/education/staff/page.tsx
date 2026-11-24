@@ -13,6 +13,7 @@ import { EducationImportModal } from "@/components/education/education-import-mo
 
 const STAFF_CATEGORIES = ["teaching", "non_teaching"] as const;
 type StaffCategory = (typeof STAFF_CATEGORIES)[number];
+const PAGE_SIZE = 50;
 
 export default async function EducationStaffPage({
   searchParams,
@@ -27,6 +28,8 @@ export default async function EducationStaffPage({
 
   const params = await searchParams;
   const search = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
+  const parsedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10);
+  const currentPage = Number.isFinite(parsedPage) ? Math.min(1_000_000, Math.max(1, parsedPage)) : 1;
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   const requestedCategory = typeof params.category === "string" ? params.category : "";
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -60,22 +63,47 @@ export default async function EducationStaffPage({
     status: string;
     photo_path: string | null;
   }> = [];
+  let staffTotalCount = 0;
+  let teachingStaffCount = 0;
   if (branchIds.length) {
+    const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
     let query = supabase.from("education_staff")
-      .select("id, staff_number, first_name, last_name, branch_id, staff_category, job_title, email, status, photo_path")
+      .select("id, staff_number, first_name, last_name, branch_id, staff_category, job_title, email, status, photo_path", { count: "exact" })
       .eq("org_id", context.orgId).in("branch_id", branchIds);
     if (selectedCategory) query = query.eq("staff_category", selectedCategory);
-    if (search) {
-      const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
-      if (safeSearch) {
-        const pattern = `%${safeSearch}%`;
-        query = query.or(`staff_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`);
-      }
+    if (safeSearch) {
+      const pattern = `%${safeSearch}%`;
+      query = query.or(`staff_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`);
     }
-    const { data, error } = await query.order("last_name").order("first_name");
+    let teachingQuery = supabase.from("education_staff").select("id", { count: "exact", head: true })
+      .eq("org_id", context.orgId).in("branch_id", branchIds).eq("staff_category", "teaching");
+    if (safeSearch) {
+      const pattern = `%${safeSearch}%`;
+      teachingQuery = teachingQuery.or(`staff_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`);
+    }
+    const [{ data, count, error }, teachingCountResult] = await Promise.all([
+      query.order("last_name").order("first_name").order("id")
+        .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1),
+      selectedCategory === "non_teaching"
+        ? Promise.resolve({ count: 0, error: null })
+        : teachingQuery,
+    ]);
     if (error) throw new Error(`Could not load Think Education staff: ${error.message}`);
+    if (teachingCountResult.error) throw new Error(`Could not count Think Education teaching staff: ${teachingCountResult.error.message}`);
     staff = data ?? [];
+    staffTotalCount = count ?? 0;
+    teachingStaffCount = teachingCountResult.count ?? 0;
   }
+  const totalPages = Math.max(1, Math.ceil(staffTotalCount / PAGE_SIZE));
+  const pageHref = (page: number) => {
+    const query = new URLSearchParams();
+    if (search) query.set("search", search);
+    if (selectedBranch) query.set("branch", selectedBranch);
+    if (selectedCategory) query.set("category", selectedCategory);
+    query.set("page", String(page));
+    return `${getProductAppPath("think-education", "/staff")}?${query.toString()}`;
+  };
+  if (currentPage > totalPages) redirect(pageHref(totalPages));
   const staffPhotoUrlById = new Map<string, string>();
   const staffIdByPhotoPath = new Map(staff.flatMap((member) => member.photo_path ? [[member.photo_path, member.id] as const] : []));
   const staffPhotoPaths = [...staffIdByPhotoPath.keys()];
@@ -116,19 +144,11 @@ export default async function EducationStaffPage({
     }
   }
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  const csvRows = [
-    ["Staff ID", "Name", "Campus", "Category", "Role", "Contact", "Status"],
-    ...staff.map((member) => [
-      member.staff_number,
-      `${member.first_name} ${member.last_name}`.trim(),
-      campusNameById.get(member.branch_id) ?? member.branch_id,
-      member.staff_category.replace("_", " "),
-      member.job_title || "—",
-      member.email || "—",
-      member.status.replace("_", " "),
-    ]),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+  const exportParams = new URLSearchParams();
+  if (search) exportParams.set("search", search);
+  if (selectedBranch) exportParams.set("branch", selectedBranch);
+  if (selectedCategory) exportParams.set("category", selectedCategory);
+  const exportHref = `/api/education/staff/export?${exportParams.toString()}`;
   const errorMessage = params.error === "duplicate"
     ? "That staff number is already in use in this organization."
     : params.error === "invalid"
@@ -189,8 +209,8 @@ export default async function EducationStaffPage({
 
     <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
-        { label: "Staff in results", value: staff.length.toLocaleString(), icon: Users },
-        { label: "Teaching in results", value: staff.filter((member) => member.staff_category === "teaching").length.toLocaleString(), icon: BriefcaseBusiness },
+        { label: "Staff in results", value: staffTotalCount.toLocaleString(), icon: Users },
+        { label: "Teaching in results", value: teachingStaffCount.toLocaleString(), icon: BriefcaseBusiness },
         { label: "Campuses in your access", value: campuses.length.toLocaleString(), icon: Users },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value}</p></div>
@@ -214,7 +234,7 @@ export default async function EducationStaffPage({
           {STAFF_CATEGORIES.map((category) => <option key={category} value={category}>{category.replace("_", " ")}</option>)}
         </select>
         <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {canExport && staff.length > 0 && <a href={csvHref} download={`education-staff-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && staffTotalCount > 0 && <a href={exportHref} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
       {campuses.length === 0 ? <div className="p-8 text-center">
         <Users className="mx-auto h-10 w-10 text-slate-300" />
@@ -253,6 +273,14 @@ export default async function EducationStaffPage({
           </tbody>
         </table>
       </div>}
+      {staffTotalCount > 0 && <nav aria-label="Staff pages" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm">
+        <p className="text-slate-600">Showing {(currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, staffTotalCount)} of {staffTotalCount.toLocaleString()} staff</p>
+        <div className="flex items-center gap-2">
+          <Link aria-disabled={currentPage === 1} href={pageHref(Math.max(1, currentPage - 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${currentPage === 1 ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Previous</Link>
+          <span className="text-slate-600">Page {currentPage} of {totalPages}</span>
+          <Link aria-disabled={currentPage === totalPages} href={pageHref(Math.min(totalPages, currentPage + 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${currentPage === totalPages ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Next</Link>
+        </div>
+      </nav>}
     </section>
 
   </main>;

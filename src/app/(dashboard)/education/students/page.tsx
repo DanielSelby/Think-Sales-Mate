@@ -16,6 +16,7 @@ import { StudentFilters } from "./student-filters";
 
 const PAGE_SIZE_OPTIONS = ["10", "50", "100", "all"] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
+const ALL_STUDENTS_LIMIT = 250;
 const STUDENT_STATUSES = ["active", "on_hold", "graduated", "transferred", "withdrawn", "archived"] as const;
 
 export default async function EducationStudentsPage({
@@ -95,16 +96,14 @@ export default async function EducationStudentsPage({
     }
 
     if (pageSize === "all") {
-      const { count, error: countError } = await countQuery;
+      const [{ count, error: countError }, { data, error: studentsError }] = await Promise.all([
+        countQuery,
+        buildStudentQuery().range(0, ALL_STUDENTS_LIMIT - 1),
+      ]);
       if (countError) throw new Error(`Could not count Think Education students: ${countError.message}`);
+      if (studentsError) throw new Error(`Could not load Think Education students: ${studentsError.message}`);
       totalCount = count ?? 0;
-      const batchSize = 1000;
-      for (let offset = 0; offset < totalCount; offset += batchSize) {
-        const { data, error: studentsError } = await buildStudentQuery()
-          .range(offset, Math.min(offset + batchSize - 1, totalCount - 1));
-        if (studentsError) throw new Error(`Could not load Think Education students: ${studentsError.message}`);
-        students.push(...(data ?? []));
-      }
+      students = data ?? [];
     } else {
       const numericPageSize = Number(pageSize);
       const [{ count, error: countError }, { data, error: studentsError }] = await Promise.all([
@@ -185,67 +184,29 @@ export default async function EducationStudentsPage({
 
   const outstandingByStudent = new Map<string, number>();
   if (canViewBalances && studentIds.length) {
-    const openCharges: Array<{ id: string; student_id: string; amount: number }> = [];
-    for (let batchOffset = 0; batchOffset < studentIds.length; batchOffset += 100) {
-      const batch = studentIds.slice(batchOffset, batchOffset + 100);
-      let offset = 0;
-      while (true) {
-        const { data: charges, error: chargesError } = await supabase.from("education_fee_charges")
-          .select("id, student_id, amount")
-          .eq("org_id", context.orgId)
-          .in("branch_id", branchIds)
-          .in("student_id", batch)
-          .eq("status", "open")
-          .order("id")
-          .range(offset, offset + 999);
-        if (chargesError) throw new Error(`Could not load student fee balances: ${chargesError.message}`);
-        const rows = charges ?? [];
-        openCharges.push(...rows);
-        if (rows.length < 1000) break;
-        offset += rows.length;
-      }
-    }
-    const paidByCharge = new Map<string, number>();
-    const chargeIds = openCharges.map((charge) => charge.id);
-    for (let batchOffset = 0; batchOffset < chargeIds.length; batchOffset += 200) {
-      const batch = chargeIds.slice(batchOffset, batchOffset + 200);
-      let offset = 0;
-      while (true) {
-        const { data: payments, error: paymentsError } = await supabase.from("education_fee_payments")
-          .select("charge_id, amount")
-          .eq("org_id", context.orgId)
-          .in("charge_id", batch)
-          .order("id")
-          .range(offset, offset + 999);
-        if (paymentsError) throw new Error(`Could not load student fee payments: ${paymentsError.message}`);
-        const rows = payments ?? [];
-        for (const payment of rows) {
-          paidByCharge.set(payment.charge_id, (paidByCharge.get(payment.charge_id) ?? 0) + payment.amount);
-        }
-        if (rows.length < 1000) break;
-        offset += rows.length;
-      }
-    }
-    for (const charge of openCharges) {
-      const balance = Math.max(0, charge.amount - (paidByCharge.get(charge.id) ?? 0));
-      outstandingByStudent.set(charge.student_id, (outstandingByStudent.get(charge.student_id) ?? 0) + balance);
+    const { data: balances, error: balancesError } = await supabase.rpc(
+      "education_get_student_outstanding_balances",
+      {
+        p_org_id: context.orgId,
+        p_branch_ids: branchIds,
+        p_student_ids: studentIds,
+      },
+    );
+    if (balancesError) throw new Error(`Could not load student fee balances: ${balancesError.message}`);
+    for (const balance of balances ?? []) {
+      outstandingByStudent.set(balance.student_id, Number(balance.outstanding));
     }
   }
 
-  const numericPageSize = pageSize === "all" ? totalCount : Number(pageSize);
+  const numericPageSize = pageSize === "all" ? Math.min(totalCount, ALL_STUDENTS_LIMIT) : Number(pageSize);
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(totalCount / numericPageSize));
   const branchNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  const csvRows = [
-    ["Student ID", "Full name", "Campus", "Status", "Enrolled"],
-    ...students.map((student) => [
-      student.student_number,
-      [student.first_name, student.other_names, student.last_name].filter(Boolean).join(" "),
-      branchNameById.get(student.branch_id) ?? student.branch_id,
-      student.status.replace("_", " "),
-      new Date(student.created_at).toISOString(),
-    ]),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+  const exportParams = new URLSearchParams();
+  if (search) exportParams.set("search", search);
+  if (status !== "active") exportParams.set("status", status);
+  if (selectedBranch) exportParams.set("branch", selectedBranch);
+  const exportQuery = exportParams.toString();
+  const csvHref = `${getProductAppPath("think-education", "/students/export")}${exportQuery ? `?${exportQuery}` : ""}`;
   const queryForPage = (page: number) => {
     const next = new URLSearchParams();
     if (search) next.set("search", search);
@@ -335,6 +296,10 @@ export default async function EducationStudentsPage({
         csvHref={csvHref}
         exportFilename={`education-students-${new Date().toISOString().slice(0, 10)}.csv`}
       />
+
+      {pageSize === "all" && totalCount > students.length && <p role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Showing the first {students.length.toLocaleString()} of {totalCount.toLocaleString()} matching students. Export CSV downloads the complete filtered result.
+      </p>}
 
       {campuses.length === 0 ? <div className="p-8 text-center">
         <GraduationCap className="mx-auto h-10 w-10 text-slate-300" />

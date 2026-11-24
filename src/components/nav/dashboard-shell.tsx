@@ -130,7 +130,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
 
   return (
     <SessionTimeout>
-      <NavigationLoading />
+      <NavigationLoading logoUrl={systemLogoUrl} systemName={systemName} />
       <AutoSubmitGetFilters />
       {!isStandaloneSupportPage && <GlobalCallNotifications userId={userId} orgId={orgId} />}
       {!isStandaloneSupportPage && <OrganizationExpiryWarning expiryDate={organizationAccessExpiresAt ?? null} />}

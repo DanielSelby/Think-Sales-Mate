@@ -18,7 +18,16 @@ type ExaminationRow = {
   starts_at: string | null;
   ends_at: string | null;
   status: string;
+  academic_year_name: string | null;
+  term_name: string | null;
+  campus_name: string | null;
+  total_count: number;
+  scheduled_count: number;
+  in_progress_count: number;
+  results_pending_count: number;
 };
+
+const PAGE_SIZE = 50;
 
 const NEXT_STATUS: Record<string, Array<{ status: string; label: string }>> = {
   draft: [{ status: "scheduled", label: "Schedule" }, { status: "cancelled", label: "Cancel" }],
@@ -41,6 +50,12 @@ export default async function EducationExaminationsPage({
   const params = await searchParams;
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const branchIds = campuses.map((campus) => campus.id);
+  const requestedBranch = typeof params.branch === "string" ? params.branch : "";
+  const requestedYear = typeof params.year === "string" ? params.year : "";
+  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
+  const requestedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10);
+  const currentPage = Number.isFinite(requestedPage) ? Math.min(1_000_000, Math.max(1, requestedPage)) : 1;
   const [canCreate, canEdit, canPublish, canExport] = await Promise.all([
     canTabPermission("education_examinations", "examinations", "schedule", "create"),
     canTabPermission("education_examinations", "examinations", "schedule", "edit"),
@@ -48,66 +63,66 @@ export default async function EducationExaminationsPage({
     canTabPermission("education_examinations", "examinations", "schedule", "export"),
   ]);
   const supabase = await createClient();
-  const [{ data: years, error: yearsError }, { data: terms, error: termsError }, examinationsResult] = await Promise.all([
+  const [{ data: years, error: yearsError }, { data: terms, error: termsError }] = await Promise.all([
     supabase.from("education_academic_years")
       .select("id, name")
       .eq("org_id", context.orgId).order("starts_on", { ascending: false }),
     supabase.from("education_academic_terms")
       .select("id, academic_year_id, name")
       .eq("org_id", context.orgId).order("sequence_number"),
-    branchIds.length
-      ? supabase.from("education_examinations")
-        .select("id, branch_id, academic_year_id, term_id, name, examination_type, starts_at, ends_at, status")
-        .eq("org_id", context.orgId).in("branch_id", branchIds)
-        .order("starts_at", { ascending: false })
-      : Promise.resolve({ data: [] as ExaminationRow[], error: null }),
   ]);
   if (yearsError) throw new Error(`Could not load academic years for examinations: ${yearsError.message}`);
   if (termsError) throw new Error(`Could not load academic terms for examinations: ${termsError.message}`);
-  if (examinationsResult.error) throw new Error(`Could not load Think Education examinations: ${examinationsResult.error.message}`);
   const academicYears = years ?? [];
   const academicTerms = terms ?? [];
-  const examinations: ExaminationRow[] = examinationsResult.data ?? [];
-  const requestedBranch = typeof params.branch === "string" ? params.branch : "";
-  const requestedYear = typeof params.year === "string" ? params.year : "";
-  const requestedStatus = typeof params.status === "string" ? params.status : "";
-  const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const selectedBranch = branchIds.includes(requestedBranch) ? requestedBranch : "";
   const selectedYear = academicYears.some((year) => year.id === requestedYear) ? requestedYear : "";
   const selectedStatus = ["draft", "scheduled", "in_progress", "completed", "results_pending", "published", "cancelled"].includes(requestedStatus)
     ? requestedStatus
     : "";
-  const yearNameById = new Map(academicYears.map((year) => [year.id, year.name]));
-  const termNameById = new Map(academicTerms.map((term) => [term.id, term.name]));
-  const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  const filteredExaminations = examinations.filter((exam) => {
-    if (selectedBranch && exam.branch_id !== selectedBranch) return false;
-    if (selectedYear && exam.academic_year_id !== selectedYear) return false;
-    if (selectedStatus && exam.status !== selectedStatus) return false;
-    if (!requestedSearch) return true;
-    const haystack = [
-      exam.name,
-      exam.examination_type,
-      yearNameById.get(exam.academic_year_id) ?? "",
-      campusNameById.get(exam.branch_id) ?? "",
-      exam.term_id ? termNameById.get(exam.term_id) ?? "" : "",
-    ].join(" ").toLowerCase();
-    return haystack.includes(requestedSearch.toLowerCase());
-  });
-  const csvRows = [
-    ["Examination", "Type", "Academic year", "Term", "Campus", "Start", "End", "Status"],
-    ...filteredExaminations.map((exam) => [
-      exam.name,
-      exam.examination_type.replace("_", " "),
-      yearNameById.get(exam.academic_year_id) ?? exam.academic_year_id,
-      exam.term_id ? termNameById.get(exam.term_id) ?? exam.term_id : "",
-      campusNameById.get(exam.branch_id) ?? exam.branch_id,
-      exam.starts_at ? new Date(exam.starts_at).toISOString() : "",
-      exam.ends_at ? new Date(exam.ends_at).toISOString() : "",
-      exam.status.replace("_", " "),
-    ]),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+  const examinationsResult = branchIds.length
+    ? await supabase.rpc("education_get_examinations_page", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_branch_id: selectedBranch || null,
+      p_academic_year_id: selectedYear || null,
+      p_status: selectedStatus || null,
+      p_search: requestedSearch,
+      p_limit: PAGE_SIZE,
+      p_offset: (currentPage - 1) * PAGE_SIZE,
+    })
+    : { data: [], error: null };
+  if (examinationsResult.error) throw new Error(`Could not load Think Education examinations: ${examinationsResult.error.message}`);
+  const examinations: ExaminationRow[] = examinationsResult.data ?? [];
+  const totalCount = examinations[0]?.total_count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  if (currentPage > 1 && examinations.length === 0) {
+    const firstPage = new URLSearchParams();
+    if (requestedSearch) firstPage.set("search", requestedSearch);
+    if (selectedBranch) firstPage.set("branch", selectedBranch);
+    if (selectedYear) firstPage.set("year", selectedYear);
+    if (selectedStatus) firstPage.set("status", selectedStatus);
+    redirect(`${getProductAppPath("think-education", "/examinations")}?${firstPage.toString()}`);
+  }
+  const filteredExaminations = examinations;
+  const scheduledCount = examinations[0]?.scheduled_count ?? 0;
+  const inProgressCount = examinations[0]?.in_progress_count ?? 0;
+  const resultsPendingCount = examinations[0]?.results_pending_count ?? 0;
+  const exportParams = new URLSearchParams();
+  if (requestedSearch) exportParams.set("search", requestedSearch);
+  if (selectedBranch) exportParams.set("branch", selectedBranch);
+  if (selectedYear) exportParams.set("year", selectedYear);
+  if (selectedStatus) exportParams.set("status", selectedStatus);
+  const csvHref = `${getProductAppPath("think-education", "/examinations/export")}?${exportParams.toString()}`;
+  const queryForPage = (page: number) => {
+    const next = new URLSearchParams();
+    if (requestedSearch) next.set("search", requestedSearch);
+    if (selectedBranch) next.set("branch", selectedBranch);
+    if (selectedYear) next.set("year", selectedYear);
+    if (selectedStatus) next.set("status", selectedStatus);
+    next.set("page", String(page));
+    return `${getProductAppPath("think-education", "/examinations")}?${next.toString()}`;
+  };
   const errorMessage = params.error === "duplicate"
     ? "That examination already exists."
     : params.error === "invalid"
@@ -134,9 +149,9 @@ export default async function EducationExaminationsPage({
 
     <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
-        { label: "Examinations", value: filteredExaminations.length, icon: ClipboardCheck },
-        { label: "Upcoming / scheduled", value: filteredExaminations.filter((exam) => exam.status === "scheduled").length, icon: CalendarDays },
-        { label: "In progress", value: filteredExaminations.filter((exam) => exam.status === "in_progress").length, icon: ClipboardCheck },
+        { label: "Examinations", value: totalCount, icon: ClipboardCheck },
+        { label: "Upcoming / scheduled", value: scheduledCount, icon: CalendarDays },
+        { label: "In progress", value: inProgressCount, icon: ClipboardCheck },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
@@ -149,7 +164,7 @@ export default async function EducationExaminationsPage({
         <p className="mt-1 text-sm text-slate-600">Create a draft, schedule the sitting, then send completed examinations to results for review and publication.</p>
       </div>
       <p className="mt-3 shrink-0 text-sm font-medium text-blue-900 md:mt-0">
-        {filteredExaminations.filter((exam) => exam.status === "results_pending").length.toLocaleString()} awaiting results
+          {resultsPendingCount.toLocaleString()} awaiting results
       </p>
     </section>
 
@@ -177,7 +192,7 @@ export default async function EducationExaminationsPage({
       </label>
       <div className="flex items-end gap-2">
         <button type="submit" className="w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Apply filters</button>
-        {canExport && filteredExaminations.length > 0 && <a href={csvHref} download={`education-examinations-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && totalCount > 0 && <a href={csvHref} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
         <Link href={getProductAppPath("think-education", "/examinations")} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
       </div>
     </form>
@@ -197,8 +212,8 @@ export default async function EducationExaminationsPage({
           <tbody className="divide-y divide-slate-100">{filteredExaminations.map((exam) => <tr key={exam.id} className="align-top transition-colors hover:bg-slate-50/70">
             <td className="px-4 py-3 font-semibold text-slate-900">{exam.name}</td>
             <td className="px-4 py-3 capitalize text-slate-600">{exam.examination_type.replace("_", " ")}</td>
-            <td className="px-4 py-3 text-slate-600">{yearNameById.get(exam.academic_year_id) ?? "Academic year"}{exam.term_id && termNameById.has(exam.term_id) ? ` · ${termNameById.get(exam.term_id)}` : ""}</td>
-            <td className="px-4 py-3 text-slate-600">{campusNameById.get(exam.branch_id) ?? "Campus"}</td>
+            <td className="px-4 py-3 text-slate-600">{exam.academic_year_name ?? "Academic year"}{exam.term_name ? ` · ${exam.term_name}` : ""}</td>
+            <td className="px-4 py-3 text-slate-600">{exam.campus_name ?? "Campus"}</td>
             <td className="px-4 py-3 text-slate-600">{exam.starts_at ? new Date(exam.starts_at).toLocaleString() : "Not set"}{exam.ends_at ? ` – ${new Date(exam.ends_at).toLocaleString()}` : ""}</td>
             <td className="px-4 py-3">
               <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{exam.status.replace("_", " ")}</span>
@@ -216,6 +231,14 @@ export default async function EducationExaminationsPage({
           </tr>)}</tbody>
         </table>
       </div>}
+      {totalCount > 0 && <footer className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
+        <span className="text-slate-500">Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()}</span>
+        <div className="flex items-center gap-2">
+          {currentPage > 1 && <Link href={queryForPage(currentPage - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Previous</Link>}
+          <span className="text-slate-600">{currentPage} / {totalPages}</span>
+          {currentPage < totalPages && <Link href={queryForPage(currentPage + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Next</Link>}
+        </div>
+      </footer>}
     </section>
 
     {canCreate && academicYears.length > 0 && campuses.length > 0 && <section id="schedule-exam" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

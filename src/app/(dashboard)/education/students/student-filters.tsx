@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
@@ -34,6 +34,11 @@ export function StudentFilters({
   const [branch, setBranch] = useState(initialBranch);
   const [status, setStatus] = useState(initialStatus);
   const [pageSize, setPageSize] = useState(initialPageSize);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+  }, []);
 
   function applyFilters(nextSearch: string, nextBranch: string, nextStatus: string, nextPageSize: string) {
     const params = new URLSearchParams();
@@ -47,20 +52,26 @@ export function StudentFilters({
 
   function updateSearch(value: string) {
     setSearch(value);
-    applyFilters(value, branch, status, pageSize);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => {
+      applyFilters(value, branch, status, pageSize);
+    }, 350);
   }
 
   function updateBranch(value: string) {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
     setBranch(value);
     applyFilters(search, value, status, pageSize);
   }
 
   function updateStatus(value: string) {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
     setStatus(value);
     applyFilters(search, branch, value, pageSize);
   }
 
   function updatePageSize(value: string) {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
     setPageSize(value);
     applyFilters(search, branch, status, value);
   }
@@ -71,6 +82,7 @@ export function StudentFilters({
       action={action}
       onSubmit={(event) => {
         event.preventDefault();
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
         applyFilters(search, branch, status, pageSize);
       }}
       className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_140px_auto] md:p-5"
@@ -117,10 +129,10 @@ export function StudentFilters({
         <option value="10">10 rows</option>
         <option value="50">50 rows</option>
         <option value="100">100 rows</option>
-        <option value="all">All rows</option>
+        <option value="all">All rows (up to 250)</option>
       </select>
       {canExport && <a href={csvHref} download={exportFilename} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
-      <p className="text-xs text-slate-500 md:col-span-full">Results update automatically as you type or change a filter.</p>
+      <p className="text-xs text-slate-500 md:col-span-full">Search updates after you pause typing. The all-rows view is capped; use Export CSV for the complete filtered result.</p>
     </form>
   );
 }

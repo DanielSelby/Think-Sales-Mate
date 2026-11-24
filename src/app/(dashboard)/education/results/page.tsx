@@ -14,6 +14,8 @@ import {
   updateEducationResultStatus,
 } from "../actions";
 
+const PAGE_SIZE = 50;
+
 type EducationResultRow = {
   id: string;
   student_id: string;
@@ -24,6 +26,15 @@ type EducationResultRow = {
   grade: string | null;
   grade_override: string | null;
   status: string;
+  student_number: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  total_count: number;
+  draft_count: number;
+  submitted_count: number;
+  approved_count: number;
+  published_count: number;
+  locked_subject_ids: string[];
 };
 type EducationAssessmentComponentRow = {
   id: string;
@@ -55,6 +66,8 @@ export default async function EducationResultsPage({
   const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const requestedStatus = typeof params.status === "string" ? params.status : "";
   const validStatus = ["draft", "submitted", "approved", "published"].includes(requestedStatus) ? requestedStatus : "";
+  const requestedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10);
+  const currentPage = Number.isFinite(requestedPage) ? Math.min(1_000_000, Math.max(1, requestedPage)) : 1;
   const [canCreate, canEdit, canApprove, canPublish, canExport] = await Promise.all([
     canTabPermission("education_results", "results", "gradebook", "create"),
     canTabPermission("education_results", "results", "gradebook", "edit"),
@@ -93,10 +106,15 @@ export default async function EducationResultsPage({
       { data: resultData, error: resultError },
       { data: componentData, error: componentError },
     ] = await Promise.all([
-      supabase.from("education_results")
-        .select("id, student_id, subject_id, subject_name, score, maximum_score, grade, grade_override, status")
-        .eq("org_id", context.orgId).eq("examination_id", selectedExam.id)
-        .order("subject_name"),
+      supabase.rpc("education_get_examination_results_page", {
+        p_org_id: context.orgId,
+        p_examination_id: selectedExam.id,
+        p_branch_ids: branchIds,
+        p_status: validStatus || null,
+        p_search: requestedSearch,
+        p_limit: PAGE_SIZE,
+        p_offset: (currentPage - 1) * PAGE_SIZE,
+      }),
       supabase.from("education_assessment_components")
         .select("id, subject_id, name, weight_percentage, maximum_score")
         .eq("org_id", context.orgId)
@@ -108,6 +126,28 @@ export default async function EducationResultsPage({
     if (componentError) throw new Error(`Could not load Think Education assessment components: ${componentError.message}`);
     results = resultData ?? [];
     assessmentComponents = componentData ?? [];
+  }
+  if (selectedExam && currentPage > 1 && results.length === 0) {
+    const firstPage = new URLSearchParams({ examination: selectedExam.id });
+    if (requestedSearch) firstPage.set("search", requestedSearch);
+    if (validStatus) firstPage.set("status", validStatus);
+    redirect(`${getProductAppPath("think-education", "/results")}?${firstPage.toString()}`);
+  }
+  let metadataRow = results[0];
+  let lockedSubjectIds = metadataRow?.locked_subject_ids ?? [];
+  if (selectedExam && lockedSubjectIds.length === 0 && currentPage === 1) {
+    const { data, error } = await supabase.rpc("education_get_examination_results_page", {
+      p_org_id: context.orgId,
+      p_examination_id: selectedExam.id,
+      p_branch_ids: branchIds,
+      p_status: null,
+      p_search: "",
+      p_limit: 1,
+      p_offset: 0,
+    });
+    if (error) throw new Error(`Could not load locked Think Education result subjects: ${error.message}`);
+    metadataRow = data?.[0] ?? metadataRow;
+    lockedSubjectIds = metadataRow?.locked_subject_ids ?? [];
   }
   const resultIds = results.map((result) => result.id);
   let componentScoreRows: EducationResultComponentScoreRow[] = [];
@@ -146,47 +186,34 @@ export default async function EducationResultsPage({
     });
     componentScoresByResult.set(score.result_id, resultScores);
   }
-  const studentIds = Array.from(new Set(results.map((result) => result.student_id)));
-  const studentNameById = new Map<string, { number: string; name: string }>();
-  if (studentIds.length) {
-    const { data, error } = await supabase.from("education_students")
-      .select("id, student_number, first_name, last_name")
-      .eq("org_id", context.orgId).in("id", studentIds);
-    if (error) throw new Error(`Could not load students for Think Education results: ${error.message}`);
-    for (const student of data ?? []) studentNameById.set(student.id, {
-      number: student.student_number,
-      name: `${student.first_name} ${student.last_name}`,
-    });
-  }
-  const filteredResults = results.filter((result) => {
-    if (validStatus && result.status !== validStatus) return false;
-    if (!requestedSearch) return true;
-    const student = studentNameById.get(result.student_id);
-    const haystack = [
-      student?.number ?? "",
-      student?.name ?? "",
-      result.subject_name,
-      result.grade ?? "",
-      result.status,
-    ].join(" ").toLowerCase();
-    return haystack.includes(requestedSearch.toLowerCase());
-  });
-  const csvRows = [
-    ["Student number", "Student", "Subject", "Score", "Maximum score", "Grade", "Status"],
-    ...filteredResults.map((result) => {
-      const student = studentNameById.get(result.student_id);
-      return [
-        student?.number ?? "",
-        student?.name ?? "",
-        result.subject_name,
-        String(result.score),
-        String(result.maximum_score),
-        result.grade ?? "",
-        result.status,
-      ];
-    }),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+  const filteredResults = results;
+  const filteredResultCount = results[0]?.total_count ?? 0;
+  const statusCounts = {
+    draft: metadataRow?.draft_count ?? 0,
+    submitted: metadataRow?.submitted_count ?? 0,
+    approved: metadataRow?.approved_count ?? 0,
+    published: metadataRow?.published_count ?? 0,
+  };
+  const workflowStatusEntries = [
+    ["Draft", "draft"],
+    ["Submitted", "submitted"],
+    ["Approved", "approved"],
+    ["Published", "published"],
+  ] as const;
+  const exportParams = new URLSearchParams();
+  if (selectedExam) exportParams.set("examination", selectedExam.id);
+  if (requestedSearch) exportParams.set("search", requestedSearch);
+  if (validStatus) exportParams.set("status", validStatus);
+  const csvHref = `${getProductAppPath("think-education", "/results/export")}?${exportParams.toString()}`;
+  const totalPages = Math.max(1, Math.ceil(filteredResultCount / PAGE_SIZE));
+  const resultPageHref = (page: number) => {
+    const next = new URLSearchParams();
+    if (selectedExam) next.set("examination", selectedExam.id);
+    if (requestedSearch) next.set("search", requestedSearch);
+    if (validStatus) next.set("status", validStatus);
+    next.set("page", String(page));
+    return `${getProductAppPath("think-education", "/results")}?${next.toString()}`;
+  };
   const canEnterResults = Boolean(selectedExam && ["completed", "results_pending"].includes(selectedExam.status) && canCreate);
   const errorMessage = params.error === "duplicate"
     ? "A result for that student and subject already exists for this examination."
@@ -218,9 +245,9 @@ export default async function EducationResultsPage({
 
     <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
-        { label: "Results in selected exam", value: filteredResults.length, icon: FileText },
-        { label: "Awaiting approval", value: filteredResults.filter((result) => result.status === "submitted").length, icon: Trophy },
-        { label: "Published", value: filteredResults.filter((result) => result.status === "published").length, icon: Trophy },
+        { label: "Results in selected exam", value: statusCounts.draft + statusCounts.submitted + statusCounts.approved + statusCounts.published, icon: FileText },
+        { label: "Awaiting approval", value: statusCounts.submitted, icon: Trophy },
+        { label: "Published", value: statusCounts.published, icon: Trophy },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
@@ -231,13 +258,8 @@ export default async function EducationResultsPage({
       <h2 className="text-sm font-semibold text-slate-900">Gradebook workflow</h2>
       <p className="mt-1 text-sm text-slate-600">Enter scores after an examination is completed, submit grades for approval, and publish approved results.</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {[
-          ["Draft", "draft"],
-          ["Submitted", "submitted"],
-          ["Approved", "approved"],
-          ["Published", "published"],
-        ].map(([label, status]) => <span key={status} className="inline-flex items-center gap-2 rounded-full border border-white bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700">
-          {label}<span className="font-bold tabular-nums text-blue-800">{filteredResults.filter((result) => result.status === status).length.toLocaleString()}</span>
+        {workflowStatusEntries.map(([label, status]) => <span key={status} className="inline-flex items-center gap-2 rounded-full border border-white bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700">
+          {label}<span className="font-bold tabular-nums text-blue-800">{statusCounts[status].toLocaleString()}</span>
         </span>)}
       </div>
     </section>
@@ -261,7 +283,7 @@ export default async function EducationResultsPage({
         </label>
         <div className="flex items-end gap-2">
           <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-          {canExport && filteredResults.length > 0 && <a href={csvHref} download={`education-results-${selectedExam?.name ?? "exam"}-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+          {canExport && filteredResultCount > 0 && <a href={csvHref} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
           <Link href={getProductAppPath("think-education", "/results")} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</Link>
         </div>
       </form>
@@ -278,7 +300,8 @@ export default async function EducationResultsPage({
         <table className="w-full min-w-[850px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Student number</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Grade</th><th className="px-4 py-3">Status / actions</th></tr></thead>
           <tbody className="divide-y divide-slate-100">{filteredResults.map((result) => {
-            const student = studentNameById.get(result.student_id);
+            const studentNumber = result.student_number ?? "—";
+            const studentName = [result.first_name, result.last_name].filter(Boolean).join(" ") || "Student";
             const resultComponents = result.subject_id ? componentsBySubject.get(result.subject_id) ?? [] : [];
             const resultComponentScores = componentScoresByResult.get(result.id) ?? [];
             const editorComponents = resultComponents.map((component) => ({
@@ -294,8 +317,8 @@ export default async function EducationResultsPage({
               : result.status === "submitted" ? canEdit && canApprove
                 : result.status === "approved" ? canEdit && canPublish : false;
             return <tr key={result.id} className="transition-colors hover:bg-slate-50/70">
-              <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{student?.number ?? "—"}</td>
-              <td className="px-4 py-3 font-medium text-slate-900">{student?.name ?? "Student"}</td>
+              <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-800">{studentNumber}</td>
+              <td className="px-4 py-3 font-medium text-slate-900">{studentName}</td>
               <td className="px-4 py-3 text-slate-700">{result.subject_name}</td>
               <td className="px-4 py-3 text-slate-700">
                 {resultComponents.length
@@ -332,6 +355,14 @@ export default async function EducationResultsPage({
           })}</tbody>
         </table>
       </div>}
+      {filteredResultCount > 0 && <footer className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
+        <span className="text-slate-500">Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredResultCount)} of {filteredResultCount.toLocaleString()}</span>
+        <div className="flex items-center gap-2">
+          {currentPage > 1 && <Link href={resultPageHref(currentPage - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Previous</Link>}
+          <span className="text-slate-600">{currentPage} / {totalPages}</span>
+          {currentPage < totalPages && <Link href={resultPageHref(currentPage + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Next</Link>}
+        </div>
+      </footer>}
     </section>
 
     {canEnterResults && activeSubjects.length === 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -342,7 +373,7 @@ export default async function EducationResultsPage({
       examinationId={selectedExam.id}
       subjects={activeSubjects}
       components={assessmentComponents}
-      lockedSubjectIds={results.flatMap((result) => result.subject_id ? [result.subject_id] : [])}
+      lockedSubjectIds={lockedSubjectIds}
     />}
 
     {canEnterResults && selectedExam && activeSubjects.length > 0 && <AssessmentResultEntryForm

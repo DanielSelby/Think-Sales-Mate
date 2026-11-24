@@ -2,11 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Bus, Route as RouteIcon, UserRound } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
-import { summarizeEducationTransportRoutes } from "@/lib/education/transport-report";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { EducationTransportVehiclePicker } from "./education-transport-vehicle-picker";
 import {
   assignEducationStudentTransport,
   createEducationTransportRoute,
@@ -16,7 +16,7 @@ import {
   setEducationTransportVehicleStatus,
 } from "../actions";
 
-const DATA_LIMIT = 1000;
+const PAGE_SIZE = 50;
 
 const VEHICLE_STATUS_LABELS = {
   active: "Active",
@@ -56,6 +56,13 @@ export default async function EducationTransportPage({
 
   const params = await searchParams;
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
+  const parsePage = (key: string) => {
+    const parsed = Number.parseInt(typeof params[key] === "string" ? params[key] as string : "1", 10);
+    return Number.isFinite(parsed) ? Math.min(1_000_000, Math.max(1, parsed)) : 1;
+  };
+  const vehiclesPage = parsePage("vehicles_page");
+  const routesPage = parsePage("routes_page");
+  const assignmentsPage = parsePage("assignments_page");
   const campusIds = campuses.map((campus) => campus.id);
   const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
@@ -63,23 +70,26 @@ export default async function EducationTransportPage({
   const supabase = await createClient();
 
   const [vehiclesResult, routesResult, assignmentsResult] = branchIds.length ? await Promise.all([
-    canViewFleet || canViewAssignments
+    canViewFleet
       ? supabase.from("education_transport_vehicles")
         .select("id, branch_id, registration_number, make_model, capacity, status", { count: "exact" })
         .eq("org_id", context.orgId).in("branch_id", branchIds)
-        .order("registration_number").range(0, DATA_LIMIT - 1)
+        .order("registration_number").order("id")
+        .range((vehiclesPage - 1) * PAGE_SIZE, vehiclesPage * PAGE_SIZE - 1)
       : Promise.resolve({ data: [], count: 0, error: null }),
     canViewFleet || canViewAssignments
       ? supabase.from("education_transport_routes")
         .select("id, branch_id, vehicle_id, name, driver_name, driver_phone, stops, status", { count: "exact" })
         .eq("org_id", context.orgId).in("branch_id", branchIds)
-        .order("name").range(0, DATA_LIMIT - 1)
+        .order("name").order("id")
+        .range((routesPage - 1) * PAGE_SIZE, routesPage * PAGE_SIZE - 1)
       : Promise.resolve({ data: [], count: 0, error: null }),
     canViewAssignments
       ? supabase.from("education_transport_assignments")
         .select("id, branch_id, route_id, student_id, pickup_stop, dropoff_stop, starts_on, status", { count: "exact" })
         .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "active")
-        .order("created_at", { ascending: false }).range(0, DATA_LIMIT - 1)
+        .order("created_at", { ascending: false }).order("id", { ascending: false })
+        .range((assignmentsPage - 1) * PAGE_SIZE, assignmentsPage * PAGE_SIZE - 1)
       : Promise.resolve({ data: [], count: 0, error: null }),
   ]) : [
     { data: [], count: 0, error: null },
@@ -90,66 +100,74 @@ export default async function EducationTransportPage({
   if (vehiclesResult.error) throw new Error(`Could not load transport vehicles: ${vehiclesResult.error.message}`);
   if (routesResult.error) throw new Error(`Could not load transport routes: ${routesResult.error.message}`);
   if (assignmentsResult.error) throw new Error(`Could not load student transport assignments: ${assignmentsResult.error.message}`);
-  if ((vehiclesResult.count ?? 0) > DATA_LIMIT || (routesResult.count ?? 0) > DATA_LIMIT
-    || (assignmentsResult.count ?? 0) > DATA_LIMIT) {
-    throw new Error("Transport results exceed 1,000 records. Filter to one campus to view the data.");
-  }
-
-  const vehicles = vehiclesResult.data ?? [];
+  const fleetVehicles = vehiclesResult.data ?? [];
   const routes = routesResult.data ?? [];
   const assignments = assignmentsResult.data ?? [];
+  const vehicleTotalCount = vehiclesResult.count ?? 0;
+  const routeTotalCount = routesResult.count ?? 0;
+  const assignmentTotalCount = assignmentsResult.count ?? 0;
+  const vehiclePages = Math.max(1, Math.ceil(vehicleTotalCount / PAGE_SIZE));
+  const routePages = Math.max(1, Math.ceil(routeTotalCount / PAGE_SIZE));
+  const assignmentPages = Math.max(1, Math.ceil(assignmentTotalCount / PAGE_SIZE));
+  const pageHref = (key: "vehicles_page" | "routes_page" | "assignments_page", page: number) => {
+    const query = new URLSearchParams();
+    if (selectedBranch) query.set("branch", selectedBranch);
+    query.set("vehicles_page", String(key === "vehicles_page" ? page : vehiclesPage));
+    query.set("routes_page", String(key === "routes_page" ? page : routesPage));
+    query.set("assignments_page", String(key === "assignments_page" ? page : assignmentsPage));
+    return `${getProductAppPath("think-education", "/transport")}?${query.toString()}`;
+  };
+  if (vehiclesPage > vehiclePages) redirect(pageHref("vehicles_page", vehiclePages));
+  if (routesPage > routePages) redirect(pageHref("routes_page", routePages));
+  if (assignmentsPage > assignmentPages) redirect(pageHref("assignments_page", assignmentPages));
+
+  const routeVehicleIds = [...new Set(routes.map((route) => route.vehicle_id))];
+  const { data: routeVehicles, error: routeVehiclesError } = canViewFleet && routeVehicleIds.length
+    ? await supabase.from("education_transport_vehicles")
+      .select("id, branch_id, registration_number, make_model, capacity, status")
+      .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", routeVehicleIds)
+    : { data: [], error: null };
+  if (routeVehiclesError) throw new Error(`Could not load vehicles for transport routes: ${routeVehiclesError.message}`);
+  const vehicles = [...new Map([...fleetVehicles, ...(routeVehicles ?? [])].map((vehicle) => [vehicle.id, vehicle])).values()];
+
+  const assignmentRouteIds = [...new Set(assignments.map((assignment) => assignment.route_id))];
+  const missingAssignmentRouteIds = assignmentRouteIds.filter((routeId) => !routes.some((route) => route.id === routeId));
+  const { data: assignmentRoutes, error: assignmentRoutesError } = canViewAssignments && missingAssignmentRouteIds.length
+    ? await supabase.from("education_transport_routes")
+      .select("id, branch_id, vehicle_id, name, driver_name, driver_phone, stops, status")
+      .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", missingAssignmentRouteIds)
+    : { data: [], error: null };
+  if (assignmentRoutesError) throw new Error(`Could not load routes for transport assignments: ${assignmentRoutesError.message}`);
+  const routeById = new Map([...routes, ...(assignmentRoutes ?? [])].map((route) => [route.id, route]));
   const studentIds = [...new Set(assignments.map((assignment) => assignment.student_id))];
   const { data: students, error: studentsError } = studentIds.length && canViewStudents
     ? await supabase.from("education_students").select("id, student_number, first_name, last_name")
-      .eq("org_id", context.orgId).in("id", studentIds)
+      .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", studentIds)
     : { data: [], error: null };
   if (studentsError) throw new Error(`Could not load transport student details: ${studentsError.message}`);
 
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
-  const routeById = new Map(routes.map((route) => [route.id, route]));
   const studentById = new Map((students ?? []).map((student) => [student.id, student]));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  const assignmentCountByRoute = new Map<string, number>();
-  for (const assignment of assignments) {
-    assignmentCountByRoute.set(assignment.route_id, (assignmentCountByRoute.get(assignment.route_id) ?? 0) + 1);
-  }
-  const activeRoutes = routes.filter((route) => {
-    const vehicle = vehicleById.get(route.vehicle_id);
-    return route.status === "active" && vehicle?.status === "active";
-  });
-  const routeSummaries = summarizeEducationTransportRoutes(routes, vehicles, assignments);
-  const activeRouteSummaries = routeSummaries.filter((summary) => summary.route_status === "active" && summary.vehicle_status === "active");
-  const activeRouteCount = activeRouteSummaries.length;
-  const assignedStudents = routeSummaries.reduce((total, summary) => total + summary.active_assignment_count, 0);
-  const transportCapacity = routeSummaries.reduce((total, summary) => total + summary.capacity, 0);
+  const { data: summaryRows, error: summaryError } = branchIds.length
+    ? await supabase.rpc("education_get_transport_dashboard_summary", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_route_ids: routes.map((route) => route.id),
+    })
+    : { data: [], error: null };
+  if (summaryError) throw new Error(`Could not load transport dashboard summary: ${summaryError.message}`);
+  const summary = summaryRows?.[0];
+  const assignmentCountByRoute = new Map((summaryRows ?? [])
+    .filter((row): row is typeof row & { route_id: string } => row.route_id !== null)
+    .map((row) => [row.route_id, Number(row.active_assignment_count)]));
+  const activeRouteCount = canViewFleet ? Number(summary?.active_route_count ?? 0) : 0;
+  const assignedStudents = canViewAssignments ? Number(summary?.assigned_students ?? 0) : 0;
+  const transportCapacity = canViewFleet ? Number(summary?.total_capacity ?? 0) : 0;
   const transportUtilization = transportCapacity > 0 ? Math.round((assignedStudents / transportCapacity) * 1000) / 10 : 0;
-  const highestUtilizationRoute = routeSummaries.reduce<null | { route_name: string; utilization: number }>((current, summary) => {
-    const utilization = summary.capacity > 0 ? summary.utilization_percentage : 0;
-    if (!current || utilization > current.utilization) {
-      return { route_name: summary.route_name, utilization };
-    }
-    return current;
-  }, null);
-  const csvRows = [
-    ["Campus", "Route", "Driver", "Vehicle", "Vehicle status", "Route status", "Capacity", "Assigned students", "Available seats", "Utilization %"],
-    ...routeSummaries.map((summary) => {
-      const route = routeById.get(summary.route_id);
-      return [
-        campusNameById.get(summary.branch_id) ?? summary.branch_id,
-        summary.route_name,
-        route?.driver_name ?? "",
-        summary.vehicle_registration,
-        summary.vehicle_status,
-        summary.route_status,
-        String(summary.capacity),
-        String(summary.active_assignment_count),
-        String(summary.available_seats),
-        `${summary.utilization_percentage}`,
-      ];
-    }),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
-
+  const highestUtilizationRoute = canViewFleet && canViewAssignments && summary?.highest_route_name
+    ? { route_name: summary.highest_route_name, utilization: Number(summary.highest_utilization ?? 0) }
+    : null;
   const errorMessage = params.error === "invalid"
     ? "Check the campus, vehicle capacity, route details, and stop order."
     : params.error === "duplicate-vehicle"
@@ -199,26 +217,26 @@ export default async function EducationTransportPage({
         </select>
       </label>
       <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply campus filter</button>
-      {canExportTransport && routeSummaries.length > 0 && <a href={csvHref} download={`education-transport-routes-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      {canExportTransport && routeTotalCount > 0 && <a href={`/api/education/transport/routes/export?${new URLSearchParams(selectedBranch ? { branch: selectedBranch } : {})}`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export all routes CSV</a>}
     </form>
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      {canViewFleet && <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm text-slate-500">Active routes</p>
         <p className="mt-1 text-2xl font-bold text-slate-950">{activeRouteCount.toLocaleString()}</p>
-      </article>
-      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      </article>}
+      {canViewAssignments && <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm text-slate-500">Assigned students</p>
         <p className="mt-1 text-2xl font-bold text-slate-950">{assignedStudents.toLocaleString()}</p>
-      </article>
-      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      </article>}
+      {canViewFleet && <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm text-slate-500">Seats in routes</p>
         <p className="mt-1 text-2xl font-bold text-slate-950">{transportCapacity.toLocaleString()}</p>
-      </article>
-      <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      </article>}
+      {canViewFleet && canViewAssignments && <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm text-slate-500">Avg utilization</p>
         <p className="mt-1 text-2xl font-bold text-slate-950">{transportCapacity > 0 ? `${transportUtilization}%` : "—"}</p>
-      </article>
+      </article>}
     </section>
 
     {highestUtilizationRoute && <p className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
@@ -256,12 +274,7 @@ export default async function EducationTransportPage({
             <label className="text-sm font-medium text-slate-700">Campus
               <span className="mt-1 block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal">{campusNameById.get(routeCreationBranchId) ?? "Select campus using the campus filter above"}</span>
             </label>
-            <label className="text-sm font-medium text-slate-700">Vehicle
-              <select required name="vehicle_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-                <option value="" disabled>Select vehicle</option>
-                {vehicles.filter((vehicle) => vehicle.status === "active" && vehicle.branch_id === routeCreationBranchId).map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.registration_number} · {vehicle.capacity} seats</option>)}
-              </select>
-            </label>
+            <EducationTransportVehiclePicker branchId={routeCreationBranchId} />
             <label className="text-sm font-medium text-slate-700">Route name
               <input required name="name" maxLength={100} placeholder="North campus route" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
             </label>
@@ -274,7 +287,7 @@ export default async function EducationTransportPage({
             <label className="text-sm font-medium text-slate-700 sm:col-span-2">Ordered stops
               <textarea required name="stops" rows={4} maxLength={4000} placeholder={"Main Gate\nMarket Square\nSchool"} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
             </label>
-            <div className="sm:col-span-2"><button disabled={!vehicles.some((vehicle) => vehicle.status === "active" && vehicle.branch_id === routeCreationBranchId)} type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white enabled:hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">Create route</button></div>
+            <div className="sm:col-span-2"><button disabled={!routeCreationBranchId} type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white enabled:hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">Create route</button></div>
           </form>}
         </section>
       </div>}
@@ -283,10 +296,10 @@ export default async function EducationTransportPage({
         <div className="flex items-center gap-2 border-b border-slate-100 p-4">
           <Bus className="h-5 w-5 text-blue-700" />
           <h2 className="font-semibold text-slate-950">Fleet</h2>
-          <span className="text-sm text-slate-500">{vehicles.length} vehicles</span>
+          <span className="text-sm text-slate-500">{vehicleTotalCount.toLocaleString()} vehicles</span>
         </div>
-        {vehicles.length ? <div className="divide-y divide-slate-100">
-          {vehicles.map((vehicle) => <article key={vehicle.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+        {fleetVehicles.length ? <div className="divide-y divide-slate-100">
+          {fleetVehicles.map((vehicle) => <article key={vehicle.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div>
               <p className="font-semibold text-slate-950">{vehicle.registration_number} · {vehicle.make_model}</p>
               <p className="mt-1 text-sm text-slate-500">{campusNameById.get(vehicle.branch_id)} · Capacity {vehicle.capacity}</p>
@@ -304,13 +317,21 @@ export default async function EducationTransportPage({
             </div>
           </article>)}
         </div> : <p className="p-6 text-center text-sm text-slate-500">No vehicles have been added to the fleet.</p>}
+        {vehicleTotalCount > 0 && <nav aria-label="Fleet pages" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+          <p className="text-slate-600">Showing {(vehiclesPage - 1) * PAGE_SIZE + 1}-{Math.min(vehiclesPage * PAGE_SIZE, vehicleTotalCount)} of {vehicleTotalCount.toLocaleString()} vehicles</p>
+          <div className="flex items-center gap-2">
+            <Link aria-disabled={vehiclesPage === 1} href={pageHref("vehicles_page", Math.max(1, vehiclesPage - 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${vehiclesPage === 1 ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Previous</Link>
+            <span className="text-slate-600">Page {vehiclesPage} of {vehiclePages}</span>
+            <Link aria-disabled={vehiclesPage === vehiclePages} href={pageHref("vehicles_page", Math.min(vehiclePages, vehiclesPage + 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${vehiclesPage === vehiclePages ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Next</Link>
+          </div>
+        </nav>}
       </section>
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-2 border-b border-slate-100 p-4">
           <RouteIcon className="h-5 w-5 text-blue-700" />
           <h2 className="font-semibold text-slate-950">Routes</h2>
-          <span className="text-sm text-slate-500">{routes.length} routes</span>
+          <span className="text-sm text-slate-500">{routeTotalCount.toLocaleString()} routes</span>
         </div>
         {routes.length ? <div className="divide-y divide-slate-100">
           {routes.map((route) => {
@@ -360,6 +381,14 @@ export default async function EducationTransportPage({
             </article>;
           })}
         </div> : <p className="p-6 text-center text-sm text-slate-500">No routes have been created yet.</p>}
+        {routeTotalCount > 0 && <nav aria-label="Transport route pages" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+          <p className="text-slate-600">Showing {(routesPage - 1) * PAGE_SIZE + 1}-{Math.min(routesPage * PAGE_SIZE, routeTotalCount)} of {routeTotalCount.toLocaleString()} routes</p>
+          <div className="flex items-center gap-2">
+            <Link aria-disabled={routesPage === 1} href={pageHref("routes_page", Math.max(1, routesPage - 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${routesPage === 1 ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Previous</Link>
+            <span className="text-slate-600">Page {routesPage} of {routePages}</span>
+            <Link aria-disabled={routesPage === routePages} href={pageHref("routes_page", Math.min(routePages, routesPage + 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${routesPage === routePages ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Next</Link>
+          </div>
+        </nav>}
       </section>
     </section>}
 
@@ -367,7 +396,7 @@ export default async function EducationTransportPage({
       <div className="flex items-center gap-2 border-b border-slate-100 p-4">
         <UserRound className="h-5 w-5 text-blue-700" />
         <h2 className="font-semibold text-slate-950">Active student assignments</h2>
-        <span className="text-sm text-slate-500">{assignments.length}</span>
+        <span className="text-sm text-slate-500">{assignmentTotalCount.toLocaleString()}</span>
       </div>
       {assignments.length ? <div className="divide-y divide-slate-100">
         {assignments.map((assignment) => {
@@ -386,6 +415,14 @@ export default async function EducationTransportPage({
           </article>;
         })}
       </div> : <p className="p-6 text-center text-sm text-slate-500">No active student transport assignments in these campuses.</p>}
+      {assignmentTotalCount > 0 && <nav aria-label="Transport assignment pages" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+        <p className="text-slate-600">Showing {(assignmentsPage - 1) * PAGE_SIZE + 1}-{Math.min(assignmentsPage * PAGE_SIZE, assignmentTotalCount)} of {assignmentTotalCount.toLocaleString()} assignments</p>
+        <div className="flex items-center gap-2">
+          <Link aria-disabled={assignmentsPage === 1} href={pageHref("assignments_page", Math.max(1, assignmentsPage - 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${assignmentsPage === 1 ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Previous</Link>
+          <span className="text-slate-600">Page {assignmentsPage} of {assignmentPages}</span>
+          <Link aria-disabled={assignmentsPage === assignmentPages} href={pageHref("assignments_page", Math.min(assignmentPages, assignmentsPage + 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${assignmentsPage === assignmentPages ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Next</Link>
+        </div>
+      </nav>}
     </section>}
   </main>;
 }

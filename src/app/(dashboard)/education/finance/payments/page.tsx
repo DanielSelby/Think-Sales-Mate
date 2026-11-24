@@ -46,12 +46,19 @@ export default async function EducationFeePaymentsPage({
   ]);
   const canPrintReceipts = canPrint && canViewStudents && canViewAcademicYears;
   const [{ data: openCharges, error: chargesError }, { data: payments, count: paymentCount, error: paymentsError }, currencyConfig] = await Promise.all([
-    branchIds.length ? supabase.from("education_fee_charges").select("id, branch_id, student_id, description, amount, status, created_at").eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "open").order("created_at", { ascending: false }).limit(1000) : Promise.resolve({ data: [], error: null }),
+    branchIds.length
+      ? supabase.rpc("education_get_open_fee_charge_balances", {
+        p_org_id: context.orgId,
+        p_branch_ids: branchIds,
+        p_limit: 1000,
+      })
+      : Promise.resolve({ data: [], error: null }),
     branchIds.length
       ? supabase.from("education_fee_payments")
         .select("id, charge_id, amount, payment_method, reference, created_at", { count: "exact" })
         .eq("org_id", context.orgId)
         .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
         .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1)
       : Promise.resolve({ data: [], count: 0, error: null }),
     getOrganizationCurrencyConfig(),
@@ -83,18 +90,11 @@ export default async function EducationFeePaymentsPage({
     : { data: [], error: null };
   if (studentsError) throw new Error(`Could not load students for fee payments: ${studentsError.message}`);
 
-  const paidByCharge = new Map<string, number>();
-  const openChargeIds = currentOpenCharges.map((charge) => charge.id);
-  const { data: openChargePayments, error: openChargePaymentsError } = openChargeIds.length
-    ? await supabase.from("education_fee_payments").select("charge_id, amount").eq("org_id", context.orgId).in("charge_id", openChargeIds)
-    : { data: [], error: null };
-  if (openChargePaymentsError) throw new Error(`Could not calculate outstanding fee balances: ${openChargePaymentsError.message}`);
-  for (const payment of openChargePayments ?? []) paidByCharge.set(payment.charge_id, (paidByCharge.get(payment.charge_id) ?? 0) + payment.amount);
   const chargeById = new Map((chargeRows ?? []).map((charge) => [charge.id, charge]));
   const studentById = new Map((students ?? []).map((student) => [student.id, student]));
   const payableCharges = currentOpenCharges.flatMap((charge) => {
     const student = studentById.get(charge.student_id);
-    const balance = Math.max(0, charge.amount - (paidByCharge.get(charge.id) ?? 0));
+    const balance = Number(charge.balance);
     return balance > 0 && student ? [{
       id: charge.id,
       studentId: student.id,

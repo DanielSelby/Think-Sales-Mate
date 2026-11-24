@@ -1,9 +1,16 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-export function NavigationLoading() {
+export function NavigationLoading({
+  logoUrl,
+  systemName = "Think Digital Solutions",
+}: {
+  logoUrl?: string | null;
+  systemName?: string;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const routeKey = `${pathname}?${searchParams.toString()}`;
@@ -52,11 +59,26 @@ export function NavigationLoading() {
 
   return loading ? (
     <div
-      className="pointer-events-none fixed inset-x-0 top-0 z-[9998] h-0.5 overflow-hidden bg-blue-100"
-      role="progressbar"
-      aria-label="Loading page"
+      className="fixed inset-0 z-[9998] grid cursor-wait place-items-center bg-white/90 backdrop-blur-sm"
+      role="status"
+      aria-live="polite"
+      aria-label={`Loading ${systemName}`}
     >
-      <span className="block h-full w-2/5 animate-pulse rounded-r-full bg-blue-600" />
+      <div className="flex flex-col items-center gap-5">
+        <div className="relative grid h-24 w-24 place-items-center">
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 rounded-full border-4 border-blue-100 border-t-blue-700 motion-reduce:animate-none animate-spin"
+          />
+          {logoUrl
+            ? <Image src={logoUrl} alt={systemName} width={64} height={64} unoptimized className="h-14 w-14 rounded-xl object-contain" />
+            : <span aria-hidden="true" className="text-xl font-extrabold tracking-tight text-blue-800">TDS</span>}
+        </div>
+        <div className="text-center">
+          <p className="text-base font-semibold text-slate-900">{systemName}</p>
+          <p className="mt-1 text-sm text-slate-500">Loading...</p>
+        </div>
+      </div>
     </div>
   ) : null;
 }

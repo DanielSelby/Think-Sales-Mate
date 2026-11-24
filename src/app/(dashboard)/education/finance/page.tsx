@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { EducationFormDialog } from "@/components/education/education-form-dialog";
 import { FeePaymentDialog } from "../students/[studentId]/fee-payment-dialog";
+import { EducationFeePaymentHistory } from "./education-fee-payment-history";
+import { EducationStudentSearch } from "./education-student-search";
 import {
   applyEducationFeeSchedule,
   archiveEducationFeeSchedule,
@@ -19,15 +21,6 @@ import {
 } from "../actions";
 
 const PAGE_SIZE = 50;
-
-type PaymentRecord = {
-  id: string;
-  charge_id: string;
-  amount: number;
-  payment_method: string;
-  reference: string | null;
-  created_at: string;
-};
 
 export default async function EducationFinancePage({
   searchParams,
@@ -44,6 +37,7 @@ export default async function EducationFinancePage({
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   const requestedYear = typeof params.year === "string" ? params.year : "";
   const currentPage = Math.min(1_000_000, Math.max(1, Number.parseInt(typeof params.page === "string" ? params.page : "1", 10) || 1));
+  const currentSchedulePage = Math.min(1_000_000, Math.max(1, Number.parseInt(typeof params.schedulePage === "string" ? params.schedulePage : "1", 10) || 1));
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
@@ -87,85 +81,101 @@ export default async function EducationFinancePage({
   const canViewAgingReport = canViewPayments && canReadStudents && canReadAcademicYears;
   const canViewCollectionsReport = canViewPayments && canReadStudents && canReadAcademicYears;
   const canExportFinance = canExportCharges && canViewPayments && canReadStudents && canReadAcademicYears;
-  const [chargesResult, studentsResult, classesResult, schedulesResult] = branchIds.length ? await Promise.all([
-    (() => {
-      let query = supabase.from("education_fee_charges")
-        .select("id, branch_id, student_id, academic_year_id, description, amount, due_on, status, created_at", { count: "exact" })
+  const createBranchId = selectedBranch || campuses[0]?.id || "";
+  const createYearId = availableYears.some((year) => year.id === selectedYear) ? selectedYear : availableYears[0]?.id || "";
+  const [chargesResult, studentCountResult, classesResult, schedulesResult] = branchIds.length ? await Promise.all([
+    supabase.rpc("education_get_fee_charges_page", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_academic_year_id: selectedYear || null,
+      p_limit: PAGE_SIZE,
+      p_offset: (currentPage - 1) * PAGE_SIZE,
+    }),
+    canPrepareCharge && createBranchId
+      ? supabase.from("education_students")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", context.orgId)
+      .eq("branch_id", createBranchId)
+      .eq("status", "active")
+      : Promise.resolve({ count: 0, error: null }),
+    canPrepareCharge && createBranchId && createYearId
+      ? supabase.from("education_classes")
+      .select("id, branch_id, academic_year_id, name")
+      .eq("org_id", context.orgId)
+      .eq("branch_id", createBranchId)
+      .eq("academic_year_id", createYearId)
+      .eq("status", "active")
+      .order("name")
+      : Promise.resolve({ data: [], error: null }),
+    canPrepareCharge ? (() => {
+      let query = supabase.from("education_fee_schedules")
+        .select("id, branch_id, class_id, academic_year_id, description, amount, due_on, status, created_at", { count: "exact" })
         .eq("org_id", context.orgId)
         .in("branch_id", branchIds)
         .order("created_at", { ascending: false })
-        .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+        .order("id", { ascending: false });
       if (selectedYear) query = query.eq("academic_year_id", selectedYear);
-      return query;
-    })(),
-    supabase.from("education_students")
-      .select("id, branch_id, student_number, first_name, last_name")
-      .eq("org_id", context.orgId)
-      .in("branch_id", branchIds)
-      .eq("status", "active")
-      .order("last_name")
-      .order("first_name"),
-    supabase.from("education_classes")
-      .select("id, branch_id, academic_year_id, name")
-      .eq("org_id", context.orgId)
-      .in("branch_id", branchIds)
-      .eq("status", "active")
-      .order("name"),
-    (() => {
-      let query = supabase.from("education_fee_schedules")
-        .select("id, branch_id, class_id, academic_year_id, description, amount, due_on, status, created_at")
-        .eq("org_id", context.orgId)
-        .in("branch_id", branchIds)
-        .order("created_at", { ascending: false });
-      if (selectedYear) query = query.eq("academic_year_id", selectedYear);
-      return query;
-    })(),
+      return query.range((currentSchedulePage - 1) * PAGE_SIZE, currentSchedulePage * PAGE_SIZE - 1);
+    })() : Promise.resolve({ data: [], count: 0, error: null }),
   ]) : [
     { data: [], error: null },
+    { count: 0, error: null },
     { data: [], error: null },
-    { data: [], error: null },
-    { data: [], error: null },
+    { data: [], count: 0, error: null },
   ];
   if (chargesResult.error) throw new Error(`Could not load Think Education fee charges: ${chargesResult.error.message}`);
-  if (studentsResult.error) throw new Error(`Could not load students for fee management: ${studentsResult.error.message}`);
+  if (studentCountResult.error) throw new Error(`Could not count active students for fee management: ${studentCountResult.error.message}`);
   if (classesResult.error) throw new Error(`Could not load classes for fee schedules: ${classesResult.error.message}`);
   if (schedulesResult.error) throw new Error(`Could not load Think Education fee schedules: ${schedulesResult.error.message}`);
   const charges = chargesResult.data ?? [];
-  const totalChargeCount = chargesResult.count ?? 0;
+  const activeStudentCount = studentCountResult.count ?? 0;
+  const totalChargeCount = charges[0]?.total_count ?? 0;
+  const totalScheduleCount = schedulesResult.count ?? 0;
+  const totalSchedulePages = Math.max(1, Math.ceil(totalScheduleCount / PAGE_SIZE));
+  const schedulePageHref = (page: number) => {
+    const next = new URLSearchParams();
+    if (selectedBranch) next.set("branch", selectedBranch);
+    if (selectedYear) next.set("year", selectedYear);
+    if (currentPage > 1) next.set("page", String(currentPage));
+    next.set("schedulePage", String(page));
+    return `${getProductAppPath("think-education", "/finance")}?${next.toString()}`;
+  };
+  if (canPrepareCharge && currentSchedulePage > totalSchedulePages) redirect(schedulePageHref(totalSchedulePages));
   const totalPages = Math.max(1, Math.ceil(totalChargeCount / PAGE_SIZE));
   const queryForPage = (page: number) => {
     const next = new URLSearchParams();
     if (selectedBranch) next.set("branch", selectedBranch);
     if (selectedYear) next.set("year", selectedYear);
+    if (currentSchedulePage > 1) next.set("schedulePage", String(currentSchedulePage));
     next.set("page", String(page));
     return `${getProductAppPath("think-education", "/finance")}?${next.toString()}`;
   };
   if (currentPage > totalPages) redirect(queryForPage(totalPages));
-  const chargeIds = charges.map((charge) => charge.id);
-  let payments: PaymentRecord[] = [];
-  if (chargeIds.length) {
-    const { data, error } = await supabase.from("education_fee_payments")
-      .select("id, charge_id, amount, payment_method, reference, created_at")
-      .eq("org_id", context.orgId)
-      .in("charge_id", chargeIds)
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(`Could not load Think Education payments: ${error.message}`);
-    payments = (data ?? []) as PaymentRecord[];
-  }
-
-  const paidByCharge = new Map<string, number>();
-  const paymentsByCharge = new Map<string, PaymentRecord[]>();
-  for (const payment of payments) {
-    paidByCharge.set(payment.charge_id, (paidByCharge.get(payment.charge_id) ?? 0) + payment.amount);
-    paymentsByCharge.set(payment.charge_id, [...(paymentsByCharge.get(payment.charge_id) ?? []), payment]);
-  }
-  const students = studentsResult.data ?? [];
-  const classes = classesResult.data ?? [];
   const schedules = schedulesResult.data ?? [];
-  const studentById = new Map(students.map((student) => [
-    student.id,
-    `${student.first_name} ${student.last_name} · ${student.student_number}`,
-  ]));
+  const scheduleClassIds = [...new Set(schedules.map((schedule) => schedule.class_id))];
+  const { data: scheduleClasses, error: scheduleClassesError } = scheduleClassIds.length
+    ? await supabase.from("education_classes")
+      .select("id, name")
+      .eq("org_id", context.orgId)
+      .in("branch_id", branchIds)
+      .eq("status", "active")
+      .in("id", scheduleClassIds)
+    : { data: [], error: null };
+  if (scheduleClassesError) throw new Error(`Could not load classes for fee schedules: ${scheduleClassesError.message}`);
+  const paidByCharge = new Map(charges.map((charge) => [charge.id, Number(charge.paid)]));
+  const paymentCountByCharge = new Map(charges.map((charge) => [charge.id, charge.payment_count]));
+  const classes = classesResult.data ?? [];
+  const classNameById = new Map([
+    ...classes.map((classroom) => [classroom.id, classroom.name] as const),
+    ...(scheduleClasses ?? []).map((classroom) => [classroom.id, classroom.name] as const),
+  ]);
+  const studentById = new Map(charges.map((charge) => {
+    const fullName = [charge.first_name, charge.last_name].filter(Boolean).join(" ");
+    const label = fullName && charge.student_number
+      ? `${fullName} · ${charge.student_number}`
+      : fullName || "Student";
+    return [charge.student_id, label] as const;
+  }));
   const payableCharges = charges.flatMap((charge) => {
     const balance = Math.max(0, charge.amount - (paidByCharge.get(charge.id) ?? 0));
     return charge.status === "open" && balance > 0
@@ -185,13 +195,9 @@ export default async function EducationFinancePage({
   const totalPaid = activeCharges.reduce((sum, charge) => sum + (paidByCharge.get(charge.id) ?? 0), 0);
   const outstanding = Math.max(0, totalCharged - totalPaid);
   const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
-  const createBranchId = selectedBranch || campuses[0]?.id || "";
-  const createYearId = availableYears.some((year) => year.id === selectedYear) ? selectedYear : availableYears[0]?.id || "";
-  const createBranchStudents = students.filter((student) => student.branch_id === createBranchId);
   const createYearClasses = classes.filter((classroom) =>
     classroom.branch_id === createBranchId && classroom.academic_year_id === createYearId
   );
-  const classNameById = new Map(classes.map((classroom) => [classroom.id, classroom.name]));
   const exportQuery = new URLSearchParams();
   if (selectedBranch) exportQuery.set("branch", selectedBranch);
   if (selectedYear) exportQuery.set("year", selectedYear);
@@ -231,7 +237,7 @@ export default async function EducationFinancePage({
       <p className="mt-1 text-sm text-slate-600">Step 1: create a charge for a student. Step 2: record their payment from the charge or payment list. Outstanding balances update automatically.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createBranchStudents.length > 0 && <EducationFormDialog
+        {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && activeStudentCount > 0 && <EducationFormDialog
           buttonLabel="Create student charge"
           title="Create student fee charge"
           description="Add a fee to one student’s account. Payments can be recorded after the charge is created."
@@ -246,10 +252,7 @@ export default async function EducationFinancePage({
               <input type="hidden" name="academic_year_id" value={createYearId} />
             </label>
             <label className="text-sm font-medium text-slate-700">Student
-              <select required name="student_id" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-                <option value="" disabled>Select a student</option>
-                {createBranchStudents.map((student) => <option key={student.id} value={student.id}>{student.first_name} {student.last_name} · {student.student_number}</option>)}
-              </select>
+              <EducationStudentSearch key={createBranchId} branchId={createBranchId} />
             </label>
             <label className="text-sm font-medium text-slate-700">Charge description
               <input required name="description" maxLength={160} placeholder="e.g. Tuition, books, or transport" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
@@ -288,7 +291,7 @@ export default async function EducationFinancePage({
       </div>
     </header>
 
-    {canPrepareCharge && campuses.length > 0 && (!createYearId || createBranchStudents.length === 0) && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+    {canPrepareCharge && campuses.length > 0 && (!createYearId || activeStudentCount === 0) && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
       {!createYearId ? "Create a planned or active academic year before adding fee charges." : "No active students are available at the selected campus."}
     </p>}
 
@@ -374,7 +377,7 @@ export default async function EducationFinancePage({
               returnToFinance
             />}
 
-            {canEditCharges && charge.status === "open" && (paymentsByCharge.get(charge.id) ?? []).length === 0 && <details className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm">
+            {canEditCharges && charge.status === "open" && (paymentCountByCharge.get(charge.id) ?? 0) === 0 && <details className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm">
               <summary className="cursor-pointer font-semibold text-rose-800">Void unpaid charge</summary>
               <form action={voidEducationFeeCharge} className="mt-3 flex flex-wrap items-end gap-3">
                 <input type="hidden" name="charge_id" value={charge.id} />
@@ -386,21 +389,11 @@ export default async function EducationFinancePage({
               <p className="mt-2 text-xs text-rose-700">Charges with any recorded payment cannot be voided.</p>
             </details>}
 
-            {(paymentsByCharge.get(charge.id) ?? []).length > 0 && <details className="text-sm">
-              <summary className="cursor-pointer font-medium text-blue-800">Payment history ({(paymentsByCharge.get(charge.id) ?? []).length})</summary>
-              <ul className="mt-2 space-y-2 pl-4">
-                {(paymentsByCharge.get(charge.id) ?? []).map((payment) => <li key={payment.id} className="flex flex-wrap justify-between gap-2 text-slate-600">
-                  <span>{new Date(payment.created_at).toLocaleString()} · {payment.payment_method.replace("_", " ")}{payment.reference ? ` · ${payment.reference}` : ""}</span>
-                  <span className="flex items-center gap-3">
-                    <span className="font-medium text-slate-800">{formatMoney(payment.amount)} · Receipt {payment.id.toUpperCase()}</span>
-                    {canViewPayments && canPrintReceipt && <Link
-                      href={getProductAppPath("think-education", `/finance/receipts/${payment.id}`)}
-                      className="font-semibold text-blue-700 hover:text-blue-900 print:hidden"
-                    >Open receipt</Link>}
-                  </span>
-                </li>)}
-              </ul>
-            </details>}
+            {canViewPayments && (paymentCountByCharge.get(charge.id) ?? 0) > 0 && <EducationFeePaymentHistory
+              chargeId={charge.id}
+              initialCount={paymentCountByCharge.get(charge.id) ?? 0}
+              canPrintReceipt={canPrintReceipt}
+            />}
           </article>;
         })}
       </div>}
@@ -481,13 +474,20 @@ export default async function EducationFinancePage({
           </div>
         </div>)}
       </div>}
+      {totalScheduleCount > 0 && <nav aria-label="Fee schedule pages" className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
+        <p className="text-slate-500">Showing {Math.min(totalScheduleCount, (currentSchedulePage - 1) * PAGE_SIZE + 1)}–{Math.min(totalScheduleCount, currentSchedulePage * PAGE_SIZE)} of {totalScheduleCount} schedules</p>
+        <div className="flex gap-2">
+          {currentSchedulePage > 1 && <Link href={schedulePageHref(currentSchedulePage - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Previous</Link>}
+          {currentSchedulePage < totalSchedulePages && <Link href={schedulePageHref(currentSchedulePage + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Next</Link>}
+        </div>
+      </nav>}
       {canPrepareCharge && campuses.length > 0 && createBranchId && createYearId && createYearClasses.length === 0 && <p className="border-t border-slate-200 p-4 text-sm text-slate-600">Create an active class in the selected academic year to set up a class fee schedule.</p>}
     </section>}
 
     {canCreateCharge && !canPrepareCharge && <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
       Student directory view and academic calendar view permissions are required to create charges.
     </p>}
-    {canPrepareCharge && campuses.length > 0 && (!createYearId || createBranchStudents.length === 0) && <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+    {canPrepareCharge && campuses.length > 0 && (!createYearId || activeStudentCount === 0) && <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
       {!createYearId ? "Create a planned or active academic year before adding fee charges." : "No active students are available at the selected campus."}
     </p>}
   </main>;

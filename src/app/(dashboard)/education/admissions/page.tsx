@@ -10,6 +10,7 @@ import { recordEducationAdmissionOffer, reviewEducationAdmissionDocument, update
 import { EducationSubmitButton } from "../submit-button";
 
 const ADMISSION_STATUSES = ["pending", "under_review", "admitted", "rejected", "enrolled", "withdrawn"] as const;
+const PAGE_SIZE = 50;
 
 export default async function EducationAdmissionsPage({
   searchParams,
@@ -31,6 +32,8 @@ export default async function EducationAdmissionsPage({
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   const requestedStatus = typeof params.status === "string" ? params.status : "";
   const requestedSearch = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
+  const parsedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10);
+  const currentPage = Number.isFinite(parsedPage) ? Math.min(1_000_000, Math.max(1, parsedPage)) : 1;
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
@@ -38,6 +41,14 @@ export default async function EducationAdmissionsPage({
     ? (requestedStatus as (typeof ADMISSION_STATUSES)[number])
     : "";
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
+  const pageHref = (page: number) => {
+    const query = new URLSearchParams();
+    if (requestedSearch) query.set("search", requestedSearch);
+    if (selectedBranch) query.set("branch", selectedBranch);
+    if (selectedStatus) query.set("status", selectedStatus);
+    query.set("page", String(page));
+    return `${getProductAppPath("think-education", "/admissions")}?${query.toString()}`;
+  };
   const [canCreate, canEdit, canApproveAction, canCreateStudent, canViewClasses, canCreateGuardian, canExport, canViewAdmissionDocuments, canCreateAdmissionDocuments] = await Promise.all([
     canTabPermission("education_admissions", "admissions", "applications", "create"),
     canTabPermission("education_admissions", "admissions", "applications", "edit"),
@@ -107,22 +118,52 @@ export default async function EducationAdmissionsPage({
     verified_at: string | null;
     created_at: string;
   }> = [];
+  let admissionTotalCount = 0;
+  let awaitingReviewCount = 0;
+  let admittedCount = 0;
+  let totalPages = 1;
   if (branchIds.length) {
+    const safeSearch = requestedSearch.replace(/[^A-Za-z0-9\s_-]/g, "");
     let admissionsQuery = supabase.from("education_admissions")
-      .select("id, branch_id, application_number, applicant_first_name, applicant_last_name, applicant_other_names, applicant_email, applicant_phone, applicant_date_of_birth, applicant_gender, applicant_address, guardian_first_name, guardian_last_name, guardian_email, guardian_phone, guardian_relationship, requested_class_id, decision_note, enrolled_student_id, status, applied_at")
+      .select("id, branch_id, application_number, applicant_first_name, applicant_last_name, applicant_other_names, applicant_email, applicant_phone, applicant_date_of_birth, applicant_gender, applicant_address, guardian_first_name, guardian_last_name, guardian_email, guardian_phone, guardian_relationship, requested_class_id, decision_note, enrolled_student_id, status, applied_at", { count: "exact" })
       .eq("org_id", context.orgId).in("branch_id", branchIds)
-      .order("applied_at", { ascending: false });
-    if (selectedStatus) admissionsQuery = admissionsQuery.eq("status", selectedStatus);
-    if (requestedSearch) {
-      const safeSearch = requestedSearch.replace(/[^A-Za-z0-9\s_-]/g, "");
-      if (safeSearch) {
-        const pattern = `%${safeSearch}%`;
-        admissionsQuery = admissionsQuery.or(`application_number.ilike.${pattern},applicant_first_name.ilike.${pattern},applicant_last_name.ilike.${pattern},applicant_email.ilike.${pattern},applicant_phone.ilike.${pattern}`);
-      }
+      .order("applied_at", { ascending: false }).order("id", { ascending: false });
+    let awaitingReviewQuery = supabase.from("education_admissions").select("id", { count: "exact", head: true })
+      .eq("org_id", context.orgId).in("branch_id", branchIds)
+      .in("status", ["pending", "under_review"]);
+    let admittedQuery = supabase.from("education_admissions").select("id", { count: "exact", head: true })
+      .eq("org_id", context.orgId).in("branch_id", branchIds)
+      .in("status", ["admitted", "enrolled"]);
+    if (selectedStatus) {
+      admissionsQuery = admissionsQuery.eq("status", selectedStatus);
+      awaitingReviewQuery = awaitingReviewQuery.eq("status", selectedStatus);
+      admittedQuery = admittedQuery.eq("status", selectedStatus);
     }
-    const { data, error } = await admissionsQuery;
+    if (safeSearch) {
+      const pattern = `%${safeSearch}%`;
+      const filter = `application_number.ilike.${pattern},applicant_first_name.ilike.${pattern},applicant_last_name.ilike.${pattern},applicant_email.ilike.${pattern},applicant_phone.ilike.${pattern}`;
+      admissionsQuery = admissionsQuery.or(filter);
+      awaitingReviewQuery = awaitingReviewQuery.or(filter);
+      admittedQuery = admittedQuery.or(filter);
+    }
+    const [
+      { data, count, error },
+      awaitingReviewResult,
+      admittedResult,
+    ] = await Promise.all([
+      admissionsQuery.range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1),
+      awaitingReviewQuery,
+      admittedQuery,
+    ]);
     if (error) throw new Error(`Could not load Think Education applications: ${error.message}`);
+    if (awaitingReviewResult.error) throw new Error(`Could not count applications awaiting review: ${awaitingReviewResult.error.message}`);
+    if (admittedResult.error) throw new Error(`Could not count admitted applications: ${admittedResult.error.message}`);
     admissions = data ?? [];
+    admissionTotalCount = count ?? 0;
+    awaitingReviewCount = awaitingReviewResult.count ?? 0;
+    admittedCount = admittedResult.count ?? 0;
+    totalPages = Math.max(1, Math.ceil(admissionTotalCount / PAGE_SIZE));
+    if (currentPage > totalPages) redirect(pageHref(totalPages));
     if (canViewClasses) {
       const { data: activeYears, error: yearsError } = await supabase.from("education_academic_years")
         .select("id").eq("org_id", context.orgId).eq("status", "active");
@@ -142,14 +183,14 @@ export default async function EducationAdmissionsPage({
       const { data: offerRows, error: offersError } = await supabase.from("education_admission_offers")
         .select("id, admission_id, offer_number, expires_on, terms, status, issued_at")
         .eq("org_id", context.orgId).in("admission_id", admissionIds)
-        .order("offer_number", { ascending: false });
+        .order("offer_number", { ascending: false }).order("id", { ascending: false });
       if (offersError) throw new Error(`Could not load admission offer history: ${offersError.message}`);
       offers = offerRows ?? [];
       if (canViewAdmissionDocuments) {
         const { data: documentRows, error: documentsError } = await supabase.from("education_documents")
           .select("id, admission_id, branch_id, title, file_name, file_size, status, retention_until, verification_status, verification_note, verified_at, created_at")
           .eq("org_id", context.orgId).in("admission_id", admissionIds)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false }).order("id", { ascending: false });
         if (documentsError) throw new Error(`Could not load applicant document verification: ${documentsError.message}`);
         admissionDocuments = (documentRows ?? []).filter(
           (document): document is typeof document & { admission_id: string } => document.admission_id !== null,
@@ -174,32 +215,11 @@ export default async function EducationAdmissionsPage({
   }
   const getOfferStatus = (offer: (typeof offers)[number] | undefined) =>
     offer?.status === "offered" && offer.expires_on < today ? "expired" : offer?.status ?? "";
-  const csvRows = [
-    ["Application", "Applicant", "Other names", "Date of birth", "Gender", "Address", "Guardian", "Guardian contact", "Relationship", "Campus", "Class", "Contact", "Applied on", "Status", "Offer status", "Offer expiry", "Admission documents", "Pending document reviews", "Rejected document reviews", "Decision note"],
-    ...admissions.map((application) => [
-      application.application_number,
-      `${application.applicant_first_name} ${application.applicant_last_name}`.trim(),
-      application.applicant_other_names ?? "",
-      application.applicant_date_of_birth ?? "",
-      application.applicant_gender ?? "",
-      application.applicant_address ?? "",
-      [application.guardian_first_name, application.guardian_last_name].filter(Boolean).join(" "),
-      application.guardian_email || application.guardian_phone || "",
-      application.guardian_relationship ?? "",
-      campusNameById.get(application.branch_id) ?? application.branch_id,
-      application.requested_class_id ? classNameById.get(application.requested_class_id) ?? application.requested_class_id : "No class selected",
-      application.applicant_email || application.applicant_phone || "—",
-      new Date(application.applied_at).toISOString(),
-      application.status.replace("_", " "),
-      getOfferStatus(latestOfferByAdmission.get(application.id)),
-      latestOfferByAdmission.get(application.id)?.expires_on ?? "",
-      canViewAdmissionDocuments ? documentsByAdmission.get(application.id)?.length ?? 0 : "",
-      canViewAdmissionDocuments ? documentsByAdmission.get(application.id)?.filter((document) => document.verification_status === "pending").length ?? 0 : "",
-      canViewAdmissionDocuments ? documentsByAdmission.get(application.id)?.filter((document) => document.verification_status === "rejected").length ?? 0 : "",
-      application.decision_note ?? "",
-    ]),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+  const exportParams = new URLSearchParams();
+  if (requestedSearch) exportParams.set("search", requestedSearch);
+  if (selectedBranch) exportParams.set("branch", selectedBranch);
+  if (selectedStatus) exportParams.set("status", selectedStatus);
+  const exportHref = `/api/education/admissions/export?${exportParams.toString()}`;
   const errorMessage = params.error === "duplicate"
     ? "That application number is already in use."
     : params.error === "invalid"
@@ -257,9 +277,9 @@ export default async function EducationAdmissionsPage({
 
     <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
       {[
-        { label: "Applications matching filters", value: admissions.length, icon: ClipboardList },
-        { label: "Awaiting review in results", value: admissions.filter((item) => item.status === "pending" || item.status === "under_review").length, icon: UserPlus },
-        { label: "Admitted in results", value: admissions.filter((item) => item.status === "admitted" || item.status === "enrolled").length, icon: UserPlus },
+        { label: "Applications matching filters", value: admissionTotalCount, icon: ClipboardList },
+        { label: "Awaiting review in results", value: awaitingReviewCount, icon: UserPlus },
+        { label: "Admitted in results", value: admittedCount, icon: UserPlus },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value.toLocaleString()}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
@@ -282,7 +302,7 @@ export default async function EducationAdmissionsPage({
           {ADMISSION_STATUSES.map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}
         </select>
         <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {canExport && admissions.length > 0 && <a href={csvHref} download={`education-admissions-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+        {canExport && admissionTotalCount > 0 && <a href={exportHref} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
       </form>
       {campuses.length === 0 ? <div className="p-8 text-center">
         <ClipboardList className="mx-auto h-10 w-10 text-slate-300" />
@@ -431,6 +451,14 @@ export default async function EducationAdmissionsPage({
           </tbody>
         </table>
       </div>}
+      {admissionTotalCount > 0 && <nav aria-label="Admission pages" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm">
+        <p className="text-slate-600">Showing {(currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, admissionTotalCount)} of {admissionTotalCount.toLocaleString()} applications</p>
+        <div className="flex items-center gap-2">
+          <Link aria-disabled={currentPage === 1} href={pageHref(Math.max(1, currentPage - 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${currentPage === 1 ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Previous</Link>
+          <span className="text-slate-600">Page {currentPage} of {totalPages}</span>
+          <Link aria-disabled={currentPage === totalPages} href={pageHref(Math.min(totalPages, currentPage + 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${currentPage === totalPages ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Next</Link>
+        </div>
+      </nav>}
     </section>
 
   </main>;

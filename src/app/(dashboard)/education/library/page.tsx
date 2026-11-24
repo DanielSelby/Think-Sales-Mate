@@ -7,6 +7,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { EducationLibraryCopyPicker } from "./education-library-copy-picker";
 import {
   createEducationLibraryBook,
   issueEducationLibraryCopy,
@@ -14,7 +15,7 @@ import {
   returnEducationLibraryLoan,
 } from "../actions";
 
-const DATA_LIMIT = 1000;
+const PAGE_SIZE = 50;
 const LOAN_FILTERS = ["all", "overdue", "due_soon", "not_due_soon"] as const;
 type LoanFilter = typeof LOAN_FILTERS[number];
 
@@ -36,6 +37,10 @@ export default async function EducationLibraryPage({
   const search = normalizeEducationLibrarySearch(requestedSearch);
   const requestedLoanFilter = typeof params.loan_status === "string" ? params.loan_status : "";
   const loanFilter: LoanFilter = isLoanFilter(requestedLoanFilter) ? requestedLoanFilter : "all";
+  const parsedCatalogPage = Number.parseInt(typeof params.catalog_page === "string" ? params.catalog_page : "1", 10);
+  const catalogPage = Number.isFinite(parsedCatalogPage) ? Math.min(1_000_000, Math.max(1, parsedCatalogPage)) : 1;
+  const parsedLoanPage = Number.parseInt(typeof params.loan_page === "string" ? params.loan_page : "1", 10);
+  const loanPage = Number.isFinite(parsedLoanPage) ? Math.min(1_000_000, Math.max(1, parsedLoanPage)) : 1;
   const [canViewCatalog, canCreate, canViewCirculation, canCreateLoan, canEdit, canExportCirculation, { campuses }] = await Promise.all([
     canTabPermission("education_library", "library", "catalog", "view"),
     canTabPermission("education_library", "library", "catalog", "create"),
@@ -55,46 +60,85 @@ export default async function EducationLibraryPage({
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
   const supabase = await createClient();
 
+  const loadCatalog = canViewCatalog || canIssue;
+  const today = new Date().toISOString().slice(0, 10);
+  const dueSoonThrough = new Date(`${today}T00:00:00.000Z`);
+  dueSoonThrough.setUTCDate(dueSoonThrough.getUTCDate() + 7);
+  const dueSoonThroughText = dueSoonThrough.toISOString().slice(0, 10);
   let booksQuery = supabase.from("education_library_books")
       .select("id, branch_id, isbn, title, author, publisher, category, publication_year", { count: "exact" })
       .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "active")
-      .order("title").range(0, DATA_LIMIT - 1);
+      .order("title").order("id").range((catalogPage - 1) * PAGE_SIZE, catalogPage * PAGE_SIZE - 1);
   if (search) {
     const pattern = `%${search}%`;
     booksQuery = booksQuery.or(`title.ilike.${pattern},author.ilike.${pattern},isbn.ilike.${pattern},category.ilike.${pattern}`);
   }
-  const loadCatalog = canViewCatalog || canIssue;
-  const [booksResult, copiesResult, loansResult] = branchIds.length ? await Promise.all([
+  let loansQuery = supabase.from("education_library_loans")
+    .select("id, branch_id, copy_id, student_id, loaned_on, due_on, renewal_count", { count: "exact" })
+    .eq("org_id", context.orgId).in("branch_id", branchIds).is("returned_on", null)
+    .order("due_on").order("id");
+  if (loanFilter === "overdue") loansQuery = loansQuery.lt("due_on", today);
+  if (loanFilter === "due_soon") loansQuery = loansQuery.gte("due_on", today).lte("due_on", dueSoonThroughText);
+  if (loanFilter === "not_due_soon") loansQuery = loansQuery.gt("due_on", dueSoonThroughText);
+  const [booksResult, loansResult, overdueCountResult] = branchIds.length ? await Promise.all([
     loadCatalog ? booksQuery : Promise.resolve({ data: [], count: 0, error: null }),
-    loadCatalog
-      ? supabase.from("education_library_copies")
-        .select("id, branch_id, book_id, copy_number, status", { count: "exact" })
-        .eq("org_id", context.orgId).in("branch_id", branchIds)
-        .order("copy_number").range(0, DATA_LIMIT - 1)
+    canViewCirculation
+      ? loansQuery.range((loanPage - 1) * PAGE_SIZE, loanPage * PAGE_SIZE - 1)
       : Promise.resolve({ data: [], count: 0, error: null }),
     canViewCirculation
-      ? supabase.from("education_library_loans")
-        .select("id, branch_id, copy_id, student_id, loaned_on, due_on, renewal_count", { count: "exact" })
-        .eq("org_id", context.orgId).in("branch_id", branchIds).is("returned_on", null)
-        .order("due_on").limit(DATA_LIMIT)
-      : Promise.resolve({ data: [], count: 0, error: null }),
+      ? supabase.from("education_library_loans").select("id", { count: "exact", head: true })
+        .eq("org_id", context.orgId).in("branch_id", branchIds).is("returned_on", null).lt("due_on", today)
+      : Promise.resolve({ count: 0, error: null }),
   ]) : [
     { data: [], count: 0, error: null },
     { data: [], count: 0, error: null },
-    { data: [], count: 0, error: null },
+    { count: 0, error: null },
   ];
 
   if (booksResult.error) throw new Error(`Could not load Think Education library catalog: ${booksResult.error.message}`);
-  if (copiesResult.error) throw new Error(`Could not load Think Education library copies: ${copiesResult.error.message}`);
   if (loansResult.error) throw new Error(`Could not load Think Education library loans: ${loansResult.error.message}`);
-  if ((booksResult.count ?? 0) > DATA_LIMIT || (copiesResult.count ?? 0) > DATA_LIMIT
-    || (loansResult.count ?? 0) > DATA_LIMIT) {
-    throw new Error("The library contains more than 1,000 records for this view. Filter to one campus to load the results.");
-  }
-
+  if (overdueCountResult.error) throw new Error(`Could not count overdue library loans: ${overdueCountResult.error.message}`);
   const books = booksResult.data ?? [];
-  const copies = copiesResult.data ?? [];
   const loans = loansResult.data ?? [];
+  const catalogTotalCount = booksResult.count ?? 0;
+  const loanTotalCount = loansResult.count ?? 0;
+  const overdueLoanCount = overdueCountResult.count ?? 0;
+  const catalogPages = Math.max(1, Math.ceil(catalogTotalCount / PAGE_SIZE));
+  const loanPages = Math.max(1, Math.ceil(loanTotalCount / PAGE_SIZE));
+  const pageHref = (key: "catalog_page" | "loan_page", page: number) => {
+    const query = new URLSearchParams();
+    if (selectedBranch) query.set("branch", selectedBranch);
+    if (requestedSearch) query.set("search", requestedSearch);
+    if (loanFilter !== "all") query.set("loan_status", loanFilter);
+    query.set(key, String(page));
+    return `${getProductAppPath("think-education", "/library")}?${query.toString()}`;
+  };
+  if (catalogPage > catalogPages) redirect(pageHref("catalog_page", catalogPages));
+  if (loanPage > loanPages) redirect(pageHref("loan_page", loanPages));
+  type LibraryCopy = { id: string; branch_id: string; book_id: string; copy_number: string; status: string };
+  const catalogCopies: Array<{ id: string; book_id: string; status: string }> = [];
+  const catalogBookIds = books.map((book) => book.id);
+  for (let offset = 0; loadCatalog && catalogBookIds.length && offset <= 100_000; offset += 1000) {
+    const { data: copyBatch, error: copyError } = await supabase.from("education_library_copies")
+      .select("id, book_id, status")
+      .eq("org_id", context.orgId).in("branch_id", branchIds).in("book_id", catalogBookIds)
+      .order("copy_number").order("id").range(offset, offset + 999);
+    if (copyError) throw new Error(`Could not load catalog copy counts: ${copyError.message}`);
+    if (offset === 100_000 && (copyBatch?.length ?? 0) > 0) {
+      throw new Error("The displayed library titles exceed the copy-count processing limit.");
+    }
+    catalogCopies.push(...(copyBatch ?? []));
+    if ((copyBatch?.length ?? 0) < 1000) break;
+  }
+  const loanCopyIds = [...new Set(loans.map((loan) => loan.copy_id))];
+  let copies: LibraryCopy[] = [];
+  if (loadCatalog && loanCopyIds.length) {
+    const { data: loanCopies, error: loanCopiesError } = await supabase.from("education_library_copies")
+      .select("id, branch_id, book_id, copy_number, status")
+      .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", loanCopyIds);
+    if (loanCopiesError) throw new Error(`Could not load active loan copy details: ${loanCopiesError.message}`);
+    copies = loanCopies ?? [];
+  }
   const loanStudentIds = [...new Set(loans.map((loan) => loan.student_id))];
   const { data: students, error: studentsError } = loanStudentIds.length
     ? await supabase.from("education_students").select("id, student_number, first_name, last_name")
@@ -102,51 +146,38 @@ export default async function EducationLibraryPage({
     : { data: [], error: null };
   if (studentsError) throw new Error(`Could not load library borrower names: ${studentsError.message}`);
 
-  const bookById = new Map(books.map((book) => [book.id, book]));
+  const missingLoanBookIds = [...new Set(copies.map((copy) => copy.book_id).filter((bookId) => !catalogBookIds.includes(bookId)))];
+  const { data: loanBooks, error: loanBooksError } = missingLoanBookIds.length && loadCatalog
+    ? await supabase.from("education_library_books")
+      .select("id, branch_id, isbn, title, author, publisher, category, publication_year")
+      .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", missingLoanBookIds)
+    : { data: [], error: null };
+  if (loanBooksError) throw new Error(`Could not load book titles for active loans: ${loanBooksError.message}`);
+  const bookById = new Map([...(books ?? []), ...(loanBooks ?? [])].map((book) => [book.id, book]));
   const copyById = new Map(copies.map((copy) => [copy.id, copy]));
   const studentById = new Map((students ?? []).map((student) => [student.id, student]));
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const copyCountByBook = new Map<string, number>();
   const availableCountByBook = new Map<string, number>();
-  const openCopyIds = new Set(loans.map((loan) => loan.copy_id));
-  for (const copy of copies) {
+  const openCopyIds = new Set<string>();
+  for (let start = 0; canViewCirculation && start < catalogCopies.length; start += 100) {
+    const copyIds = catalogCopies.slice(start, start + 100).map((copy) => copy.id);
+    const { data: openLoans, error: openLoansError } = await supabase.from("education_library_loans")
+      .select("copy_id").eq("org_id", context.orgId).in("copy_id", copyIds).is("returned_on", null);
+    if (openLoansError) throw new Error(`Could not verify available library copies: ${openLoansError.message}`);
+    for (const loan of openLoans ?? []) openCopyIds.add(loan.copy_id);
+  }
+  for (const copy of catalogCopies) {
     copyCountByBook.set(copy.book_id, (copyCountByBook.get(copy.book_id) ?? 0) + 1);
     if (copy.status === "available" && !openCopyIds.has(copy.id)) {
       availableCountByBook.set(copy.book_id, (availableCountByBook.get(copy.book_id) ?? 0) + 1);
     }
   }
-  const availableCopies = copies.filter((copy) => copy.status === "available" && !openCopyIds.has(copy.id));
-  const today = new Date().toISOString().slice(0, 10);
-  const dueSoonThrough = new Date(`${today}T00:00:00.000Z`);
-  dueSoonThrough.setUTCDate(dueSoonThrough.getUTCDate() + 7);
-  const dueSoonThroughText = dueSoonThrough.toISOString().slice(0, 10);
-  const visibleLoans = loans.filter((loan) => {
-    if (loanFilter === "overdue") return loan.due_on < today;
-    if (loanFilter === "due_soon") return loan.due_on >= today && loan.due_on <= dueSoonThroughText;
-    if (loanFilter === "not_due_soon") return loan.due_on > dueSoonThroughText;
-    return true;
-  });
-  const overdueLoanCount = loans.filter((loan) => loan.due_on < today).length;
-  const csvRows = [
-    ["Student", "Campus", "Book", "Copy", "Loaned on", "Due on", "Renewals", "Status"],
-    ...visibleLoans.map((loan) => {
-      const student = studentById.get(loan.student_id);
-      const copy = copyById.get(loan.copy_id);
-      const book = copy ? bookById.get(copy.book_id) : null;
-      const status = loan.due_on < today ? "Overdue" : loan.due_on <= dueSoonThroughText ? "Due soon" : "Due later";
-      return [
-        student ? `${student.first_name} ${student.last_name} (${student.student_number})` : "Unknown student",
-        campusNameById.get(loan.branch_id) ?? loan.branch_id,
-        book?.title ?? "Unknown book",
-        copy?.copy_number ?? "",
-        loan.loaned_on,
-        loan.due_on,
-        String(loan.renewal_count),
-        status,
-      ];
-    }),
-  ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+  const visibleLoans = loans;
+  const exportParams = new URLSearchParams();
+  if (selectedBranch) exportParams.set("branch", selectedBranch);
+  if (loanFilter !== "all") exportParams.set("loan_status", loanFilter);
+  const exportHref = `/api/education/library/loans/export?${exportParams.toString()}`;
 
   const errorMessage = params.error === "invalid"
     ? "Enter valid book details, campus, and copy count."
@@ -200,7 +231,7 @@ export default async function EducationLibraryPage({
         </select>
       </label>}
       <button type="submit" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-      {canExportCirculation && visibleLoans.length > 0 && <a href={csvHref} download={`education-library-loans-${new Date().toISOString().slice(0, 10)}.csv`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
+      {canExportCirculation && loanTotalCount > 0 && <a href={exportHref} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
     </form>
 
     {canViewCatalog && canCreate && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -242,17 +273,7 @@ export default async function EducationLibraryPage({
       <h2 className="font-semibold text-slate-950">Issue a book</h2>
       <p className="mt-1 text-sm text-slate-500">Loans are due in 14 days. Students can hold up to five books and cannot borrow while overdue.</p>
       <form action={issueEducationLibraryCopy} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <label className="text-sm font-medium text-slate-700">Available copy
-          <select required name="copy_ref" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            <option value="" disabled>Select a campus copy</option>
-            {availableCopies.map((copy) => {
-              const book = bookById.get(copy.book_id);
-              return <option key={copy.id} value={`${copy.branch_id}.${copy.id}`}>
-                {campusNameById.get(copy.branch_id)} · {book?.title ?? "Book"} · {copy.copy_number}
-              </option>;
-            })}
-          </select>
-        </label>
+        <EducationLibraryCopyPicker branchId={selectedBranch} />
         <label className="text-sm font-medium text-slate-700">Student number
           <input required name="student_number" maxLength={80} autoComplete="off" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
@@ -260,7 +281,6 @@ export default async function EducationLibraryPage({
           <button disabled={!availableCopies.length} type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white enabled:hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">Issue for 14 days</button>
         </div>
       </form>
-      {!availableCopies.length && <p className="mt-3 text-sm text-slate-500">There are no available copies in the selected campuses.</p>}
     </section>}
 
     {canViewCatalog && <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -275,7 +295,7 @@ export default async function EducationLibraryPage({
       <div className="flex items-center gap-2 border-b border-slate-100 p-4">
         <BookOpen className="h-5 w-5 text-blue-700" />
         <h2 className="font-semibold text-slate-950">Catalog</h2>
-        <span className="text-sm text-slate-500">{books.length} titles</span>
+        <span className="text-sm text-slate-500">{catalogTotalCount.toLocaleString()} titles</span>
       </div>
       {books.length ? <div className="divide-y divide-slate-100">
         {books.map((book) => {
@@ -289,11 +309,19 @@ export default async function EducationLibraryPage({
           </article>;
         })}
       </div> : <p className="p-6 text-center text-sm text-slate-500">No books have been added to the catalog yet.</p>}
+      {catalogTotalCount > 0 && <nav aria-label="Library catalog pages" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+        <p className="text-slate-600">Showing {(catalogPage - 1) * PAGE_SIZE + 1}-{Math.min(catalogPage * PAGE_SIZE, catalogTotalCount)} of {catalogTotalCount.toLocaleString()} titles</p>
+        <div className="flex items-center gap-2">
+          <Link aria-disabled={catalogPage === 1} href={pageHref("catalog_page", Math.max(1, catalogPage - 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${catalogPage === 1 ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Previous</Link>
+          <span className="text-slate-600">Page {catalogPage} of {catalogPages}</span>
+          <Link aria-disabled={catalogPage === catalogPages} href={pageHref("catalog_page", Math.min(catalogPages, catalogPage + 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${catalogPage === catalogPages ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Next</Link>
+        </div>
+      </nav>}
     </section>}
 
     {canViewCirculation && <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 p-4">
-        <h2 className="font-semibold text-slate-950">Active loans <span className="font-normal text-slate-500">({visibleLoans.length.toLocaleString()} shown)</span></h2>
+        <h2 className="font-semibold text-slate-950">Active loans <span className="font-normal text-slate-500">({loanTotalCount.toLocaleString()} matching, {visibleLoans.length} shown)</span></h2>
         <p className="mt-1 text-sm text-slate-500">{overdueLoanCount.toLocaleString()} overdue across the selected campuses. A loan may be renewed once before its due date.</p>
       </div>
       {visibleLoans.length ? <div className="divide-y divide-slate-100">
@@ -323,7 +351,15 @@ export default async function EducationLibraryPage({
             </div>}
           </article>;
         })}
-      </div> : <p className="p-6 text-center text-sm text-slate-500">{loans.length ? "No active loans match this due-status filter." : "There are no active loans in the selected campuses."}</p>}
+      </div> : <p className="p-6 text-center text-sm text-slate-500">{loanFilter !== "all" ? "No active loans match this due-status filter." : "There are no active loans in the selected campuses."}</p>}
+      {loanTotalCount > 0 && <nav aria-label="Active loan pages" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+        <p className="text-slate-600">Showing {(loanPage - 1) * PAGE_SIZE + 1}-{Math.min(loanPage * PAGE_SIZE, loanTotalCount)} of {loanTotalCount.toLocaleString()} loans</p>
+        <div className="flex items-center gap-2">
+          <Link aria-disabled={loanPage === 1} href={pageHref("loan_page", Math.max(1, loanPage - 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${loanPage === 1 ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Previous</Link>
+          <span className="text-slate-600">Page {loanPage} of {loanPages}</span>
+          <Link aria-disabled={loanPage === loanPages} href={pageHref("loan_page", Math.min(loanPages, loanPage + 1))} className={`rounded-lg border px-3 py-1.5 font-medium ${loanPage === loanPages ? "pointer-events-none opacity-40" : "hover:bg-slate-50"}`}>Next</Link>
+        </div>
+      </nav>}
     </section>}
   </main>;
 }
