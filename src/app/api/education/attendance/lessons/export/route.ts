@@ -51,6 +51,9 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
   const weekday = getEducationISOWeekday(attendanceDate);
+  if (weekday === null) {
+    return NextResponse.json({ error: "A valid attendance date is required." }, { status: 400 });
+  }
   const { data: lesson, error: lessonError } = await supabase.from("education_timetable_entries")
     .select("id, branch_id, class_id, academic_year_id, subject_name")
     .eq("org_id", context.orgId)
