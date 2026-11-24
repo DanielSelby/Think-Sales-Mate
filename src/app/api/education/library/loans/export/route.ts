@@ -9,13 +9,19 @@ const MAX_EXPORT_ROWS = 100_000;
 const LOAN_FILTERS = ["all", "overdue", "due_soon", "not_due_soon"] as const;
 
 function csvCell(value: unknown) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const text = String(value ?? "");
+  const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replace(/"/g, '""')}"`;
 }
 
 export async function GET(request: NextRequest) {
   const context = await getCurrentOrgContext();
   if (!context) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
-  if (!await canTabPermission("education_library", "library", "circulation", "export")) {
+  const [canView, canExport] = await Promise.all([
+    canTabPermission("education_library", "library", "circulation", "view"),
+    canTabPermission("education_library", "library", "circulation", "export"),
+  ]);
+  if (!canView || !canExport) {
     return NextResponse.json({ error: "You do not have permission to export library loans." }, { status: 403 });
   }
 

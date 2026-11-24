@@ -7,8 +7,12 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const context = await getCurrentOrgContext();
   if (!context) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
-  if (!await canTabPermission("education_library", "library", "circulation", "create")
-    || !await canTabPermission("education_students", "students", "list", "view")) {
+  const [canViewCirculation, canCreateLoan, canViewStudents] = await Promise.all([
+    canTabPermission("education_library", "library", "circulation", "view"),
+    canTabPermission("education_library", "library", "circulation", "create"),
+    canTabPermission("education_students", "students", "list", "view"),
+  ]);
+  if (!canViewCirculation || !canCreateLoan || !canViewStudents) {
     return NextResponse.json({ error: "You do not have permission to issue library books." }, { status: 403 });
   }
 

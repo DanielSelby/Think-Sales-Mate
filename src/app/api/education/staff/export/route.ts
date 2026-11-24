@@ -8,13 +8,19 @@ const BATCH_SIZE = 1000;
 const STAFF_CATEGORIES = ["teaching", "non_teaching"] as const;
 
 function csvCell(value: unknown) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const text = String(value ?? "");
+  const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replace(/"/g, '""')}"`;
 }
 
 export async function GET(request: NextRequest) {
   const context = await getCurrentOrgContext();
   if (!context) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
-  if (!await canTabPermission("education_staff", "staff", "directory", "export")) {
+  const [canView, canExport] = await Promise.all([
+    canTabPermission("education_staff", "staff", "directory", "view"),
+    canTabPermission("education_staff", "staff", "directory", "export"),
+  ]);
+  if (!canView || !canExport) {
     return NextResponse.json({ error: "You do not have permission to export staff records." }, { status: 403 });
   }
 
@@ -23,9 +29,7 @@ export async function GET(request: NextRequest) {
   const requestedCategory = params.get("category") ?? "";
   const search = (params.get("search") ?? "").trim().slice(0, 80);
   const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
-  const category = STAFF_CATEGORIES.includes(requestedCategory as (typeof STAFF_CATEGORIES)[number])
-    ? requestedCategory
-    : "";
+  const category = STAFF_CATEGORIES.find((candidate) => candidate === requestedCategory);
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   if (requestedBranch && !campusIds.includes(requestedBranch)) {

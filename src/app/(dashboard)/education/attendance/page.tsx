@@ -18,6 +18,12 @@ function isValidDate(value: string) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
+function csvCell(value: unknown) {
+  const text = String(value ?? "");
+  const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replace(/"/g, '""')}"`;
+}
+
 export default async function EducationAttendancePage({
   searchParams,
 }: {
@@ -118,7 +124,7 @@ export default async function EducationAttendancePage({
       ];
     }),
   ];
-  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csvRows.map((row) => row.map(csvCell).join(",")).join("\n"))}`;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const queryForPage = (page: number) => {
     const next = new URLSearchParams({ date: attendanceDate, page: String(page) });

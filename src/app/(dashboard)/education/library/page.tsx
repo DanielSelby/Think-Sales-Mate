@@ -110,7 +110,10 @@ export default async function EducationLibraryPage({
     if (selectedBranch) query.set("branch", selectedBranch);
     if (requestedSearch) query.set("search", requestedSearch);
     if (loanFilter !== "all") query.set("loan_status", loanFilter);
-    query.set(key, String(page));
+    const nextCatalogPage = key === "catalog_page" ? page : catalogPage;
+    const nextLoanPage = key === "loan_page" ? page : loanPage;
+    if (nextCatalogPage > 1) query.set("catalog_page", String(nextCatalogPage));
+    if (nextLoanPage > 1) query.set("loan_page", String(nextLoanPage));
     return `${getProductAppPath("think-education", "/library")}?${query.toString()}`;
   };
   if (catalogPage > catalogPages) redirect(pageHref("catalog_page", catalogPages));
@@ -142,7 +145,7 @@ export default async function EducationLibraryPage({
   const loanStudentIds = [...new Set(loans.map((loan) => loan.student_id))];
   const { data: students, error: studentsError } = loanStudentIds.length
     ? await supabase.from("education_students").select("id, student_number, first_name, last_name")
-      .eq("org_id", context.orgId).in("id", loanStudentIds)
+      .eq("org_id", context.orgId).in("branch_id", branchIds).in("id", loanStudentIds)
     : { data: [], error: null };
   if (studentsError) throw new Error(`Could not load library borrower names: ${studentsError.message}`);
 
@@ -278,7 +281,7 @@ export default async function EducationLibraryPage({
           <input required name="student_number" maxLength={80} autoComplete="off" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
         </label>
         <div className="flex items-end">
-          <button disabled={!availableCopies.length} type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white enabled:hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">Issue for 14 days</button>
+          <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Issue for 14 days</button>
         </div>
       </form>
     </section>}

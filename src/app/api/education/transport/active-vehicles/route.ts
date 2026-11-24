@@ -7,7 +7,11 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const context = await getCurrentOrgContext();
   if (!context) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
-  if (!await canTabPermission("education_transport", "transport", "fleet", "create")) {
+  const [canViewFleet, canCreateFleet] = await Promise.all([
+    canTabPermission("education_transport", "transport", "fleet", "view"),
+    canTabPermission("education_transport", "transport", "fleet", "create"),
+  ]);
+  if (!canViewFleet || !canCreateFleet) {
     return NextResponse.json({ error: "You do not have permission to create transport routes." }, { status: 403 });
   }
 

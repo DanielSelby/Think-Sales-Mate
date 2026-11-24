@@ -28,13 +28,19 @@ async function collectPages<T>(
 }
 
 function csvCell(value: unknown) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const text = String(value ?? "");
+  const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replace(/"/g, '""')}"`;
 }
 
 export async function GET(request: NextRequest) {
   const context = await getCurrentOrgContext();
   if (!context) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
-  if (!await canTabPermission("education_admissions", "admissions", "applications", "export")) {
+  const [canView, canExport] = await Promise.all([
+    canTabPermission("education_admissions", "admissions", "applications", "view"),
+    canTabPermission("education_admissions", "admissions", "applications", "export"),
+  ]);
+  if (!canView || !canExport) {
     return NextResponse.json({ error: "You do not have permission to export applications." }, { status: 403 });
   }
 
@@ -43,9 +49,7 @@ export async function GET(request: NextRequest) {
   const requestedStatus = params.get("status") ?? "";
   const search = (params.get("search") ?? "").trim().slice(0, 80);
   const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
-  const status = ADMISSION_STATUSES.includes(requestedStatus as (typeof ADMISSION_STATUSES)[number])
-    ? requestedStatus
-    : "";
+  const status = ADMISSION_STATUSES.find((candidate) => candidate === requestedStatus);
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   if (requestedBranch && !campusIds.includes(requestedBranch)) {
