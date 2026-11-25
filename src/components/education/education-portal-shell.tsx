@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { getEducationPortalScopedPath } from "@/lib/education/portal-auth";
 import {
   Bell,
   BookOpen,
@@ -19,6 +20,7 @@ type EducationPortalShellProps = {
   activeItem: string;
   subtitle: string;
   userEmail?: string | null;
+  organizationId?: string | null;
   children: ReactNode;
 };
 
@@ -54,6 +56,7 @@ export function EducationPortalShell({
   activeItem,
   subtitle,
   userEmail,
+  organizationId,
   children,
 }: EducationPortalShellProps) {
   const roleLabel = role === "parent" ? "Parent Portal" : role === "teacher" ? "Teacher Portal" : "Student Portal";
@@ -75,7 +78,9 @@ export function EducationPortalShell({
           {portalNavigation[role].map(({ label, href, icon: Icon }) => (
             <Link
               key={label}
-              href={href}
+              href={organizationId
+                ? `${getEducationPortalScopedPath(href.split("#")[0], organizationId)}${href.includes("#") ? `#${href.split("#")[1]}` : ""}`
+                : href}
               aria-current={label === activeItem ? "page" : undefined}
               className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 label === activeItem

@@ -37,6 +37,7 @@ import {
 } from "@/app/education-notifications/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
+import { getEducationPortalScopedPath, isEducationOrganizationId } from "@/lib/education/portal-auth";
 import { EducationPortalShell } from "@/components/education/education-portal-shell";
 import { EducationAssignmentAttachmentLinks } from "@/components/education/assignment-attachment-links";
 import { GuardianAiAssistant } from "./guardian-ai-assistant";
@@ -97,6 +98,10 @@ export default async function EducationGuardianPortalPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const hasOrganizationScope = params.org !== undefined;
+  const requestedOrganizationId = isEducationOrganizationId(params.org)
+    ? params.org.toLowerCase()
+    : null;
   const requestedAssignmentPageValue = Number.parseInt(
     typeof params.assignmentPage === "string" ? params.assignmentPage : "1",
     10
@@ -143,7 +148,9 @@ export default async function EducationGuardianPortalPage({
       console.error("Think Education guardian portal returned unexpected data:", parsedPortal.error.flatten());
       throw new Error("The guardian portal data could not be safely displayed.");
     }
-    portal = parsedPortal.data;
+    portal = hasOrganizationScope
+      ? parsedPortal.data.filter((organization) => organization.organizationId === requestedOrganizationId)
+      : parsedPortal.data;
     const guardianOrgIds = portal.map((organization) => organization.organizationId);
     const guardianStudentIds = portal.flatMap((organization) =>
       organization.children.map((student) => student.id)
@@ -157,7 +164,9 @@ export default async function EducationGuardianPortalPage({
       console.error("Think Education guardian contact details returned unexpected data:", parsedContacts.error.flatten());
       throw new Error("Guardian contact details could not be safely displayed.");
     }
-    guardianContacts = parsedContacts.data;
+    guardianContacts = parsedContacts.data.filter((contact) =>
+      guardianOrgIds.includes(contact.org_id)
+    );
     for (let offset = 0; offset < guardianStudentIds.length; offset += 100) {
       const { data: scheduleRows, error: scheduleError } = await supabase.rpc(
         "education_get_guardian_schedule",
@@ -302,6 +311,7 @@ export default async function EducationGuardianPortalPage({
         throw new Error("Guardian currency settings could not be safely displayed.");
       }
       for (const row of parsedCurrencyConfigs.data) {
+        if (!guardianOrgIds.includes(row.organization_id)) continue;
         currencyConfigByOrganization.set(row.organization_id, getCurrencyConfigFromSettings({
           currency_code: row.currency_code,
           currency_symbol: row.currency_symbol,
@@ -321,7 +331,9 @@ export default async function EducationGuardianPortalPage({
       console.error("Think Education guardian fee payment status returned unexpected data:", parsedFeePaymentRows.error.flatten());
       throw new Error("Guardian fee payment status could not be safely displayed.");
     }
-    guardianFeePaymentData = parsedFeePaymentRows.data;
+    guardianFeePaymentData = parsedFeePaymentRows.data.filter((fee) =>
+      guardianOrgIds.includes(fee.organizationId)
+    );
 
     const { data: communications, error: communicationsError } = await supabase.rpc("education_get_guardian_communications");
     if (communicationsError) throw new Error(`Could not load guardian announcements: ${communicationsError.message}`);
@@ -330,20 +342,25 @@ export default async function EducationGuardianPortalPage({
       console.error("Think Education guardian announcements returned unexpected data:", parsedCommunications.error.flatten());
       throw new Error("Guardian announcements could not be safely displayed.");
     }
-    announcements = parsedCommunications.data;
+    announcements = parsedCommunications.data.filter((announcement) =>
+      !hasOrganizationScope || announcement.organizationId === requestedOrganizationId
+    );
 
-    const { data: notificationRows, error: notificationError } = await supabase.from("education_notifications")
-      .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, assignment_id, assignment_event_key, delivery_status, read_at, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(30);
-    if (notificationError) throw new Error(`Could not load guardian notifications: ${notificationError.message}`);
-    const parsedNotifications = educationNotificationsSchema.safeParse(notificationRows ?? []);
-    if (!parsedNotifications.success) {
-      console.error("Think Education guardian notifications returned unexpected data:", parsedNotifications.error.flatten());
-      throw new Error("Guardian notifications could not be safely displayed.");
+    if (guardianOrgIds.length) {
+      const { data: notificationRows, error: notificationError } = await supabase.from("education_notifications")
+        .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, assignment_id, assignment_event_key, delivery_status, read_at, created_at")
+        .eq("user_id", user.id)
+        .in("org_id", guardianOrgIds)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (notificationError) throw new Error(`Could not load guardian notifications: ${notificationError.message}`);
+      const parsedNotifications = educationNotificationsSchema.safeParse(notificationRows ?? []);
+      if (!parsedNotifications.success) {
+        console.error("Think Education guardian notifications returned unexpected data:", parsedNotifications.error.flatten());
+        throw new Error("Guardian notifications could not be safely displayed.");
+      }
+      notifications = parsedNotifications.data;
     }
-    notifications = parsedNotifications.data;
 
     if (guardianOrgIds.length) {
       const { data: preferences, error: preferencesError } = await supabase.from("education_notification_preferences")
@@ -359,7 +376,9 @@ export default async function EducationGuardianPortalPage({
     if (outboundPreferencesError) {
       throw new Error(`Could not load announcement delivery preferences: ${outboundPreferencesError.message}`);
     }
-    outboundNotificationPreferences = outboundPreferences ?? [];
+    outboundNotificationPreferences = (outboundPreferences ?? []).filter((preference) =>
+      guardianOrgIds.includes(preference.org_id)
+    );
   }
   const message = messageFor(params);
   const paymentMessage = paymentMessageFor(params);
@@ -386,6 +405,7 @@ export default async function EducationGuardianPortalPage({
   const assignmentTotalPages = Math.max(1, Math.ceil(assignmentTotalCount / ASSIGNMENTS_PAGE_SIZE));
   const assignmentPageHref = (page: number) => {
     const query = new URLSearchParams();
+    if (requestedOrganizationId) query.set("org", requestedOrganizationId);
     if (selectedStudentId) query.set("student", selectedStudentId);
     query.set("assignmentPage", String(page));
     return `/education-portal?${query.toString()}#assignments`;
@@ -409,6 +429,7 @@ export default async function EducationGuardianPortalPage({
     activeItem="Dashboard"
     subtitle="A private view of students connected to your verified guardian profile."
     userEmail={user?.email}
+    organizationId={requestedOrganizationId}
   >
 
       {message && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
@@ -423,6 +444,7 @@ export default async function EducationGuardianPortalPage({
       {params.preference === "invalid" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">The preference selection was invalid.</p>}
 
       {user && linkedChildren.length > 1 && <form method="get" action="/education-portal" className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        {requestedOrganizationId && <input type="hidden" name="org" value={requestedOrganizationId} />}
         <label className="min-w-56 flex-1 text-sm font-medium text-slate-700">
           View child
           <select name="student" defaultValue={selectedStudentId} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
@@ -458,7 +480,9 @@ export default async function EducationGuardianPortalPage({
             </div>
             {notification.delivery_status === "delivered" && <form action={markEducationNotificationRead}>
               <input type="hidden" name="notification_id" value={notification.id} />
-              <input type="hidden" name="return_to" value="/education-portal" />
+              <input type="hidden" name="return_to" value={requestedOrganizationId
+                ? getEducationPortalScopedPath("/education-portal", requestedOrganizationId)
+                : "/education-portal"} />
               <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Mark read</button>
             </form>}
           </article>)}
@@ -482,7 +506,9 @@ export default async function EducationGuardianPortalPage({
                 <input type="hidden" name="org_id" value={organization.organizationId} />
                 <input type="hidden" name="notification_type" value={type} />
                 <input type="hidden" name="in_app_enabled" value={String(!enabled)} />
-                <input type="hidden" name="return_to" value="/education-portal" />
+                <input type="hidden" name="return_to" value={requestedOrganizationId
+                  ? getEducationPortalScopedPath("/education-portal", requestedOrganizationId)
+                  : "/education-portal"} />
                 <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">{enabled ? "Pause" : "Enable"}</button>
               </form>
             </li>;
@@ -534,7 +560,9 @@ export default async function EducationGuardianPortalPage({
                 <input type="hidden" name="org_id" value={preference.org_id} />
                 <input type="hidden" name="channel" value={channel} />
                 <input type="hidden" name="enabled" value={String(!enabled)} />
-                <input type="hidden" name="return_to" value="/education-portal" />
+                <input type="hidden" name="return_to" value={requestedOrganizationId
+                  ? getEducationPortalScopedPath("/education-portal", requestedOrganizationId)
+                  : "/education-portal"} />
                 <button type="submit" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                   {enabled ? `Turn off ${label}` : `Opt in to ${label}`}
                 </button>
@@ -560,6 +588,7 @@ export default async function EducationGuardianPortalPage({
         <h2 className="text-xl font-semibold">Sign in to your family account</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">Use the email address recorded by your school and the temporary password provided by the school.</p>
         <form action={signInToEducationGuardianPortal} className="mt-5 space-y-3">
+          {requestedOrganizationId && <input type="hidden" name="org_id" value={requestedOrganizationId} />}
           <label className="block text-sm font-medium text-slate-700">
             Email address
             <input type="email" name="email" required maxLength={254} autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
@@ -576,6 +605,7 @@ export default async function EducationGuardianPortalPage({
             Use the verified email address already recorded by the school. Your account can only be linked to active guardian profiles with a verified student relationship.
           </p>
           <form action={claimEducationGuardianPortalAccount} className="mt-5">
+            {requestedOrganizationId && <input type="hidden" name="org_id" value={requestedOrganizationId} />}
             <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
               Find and link my guardian profile
             </button>
@@ -595,6 +625,7 @@ export default async function EducationGuardianPortalPage({
               <h2 className="text-xl font-semibold">Welcome, {organization.guardianFirstName}</h2>
             </div>
             <form action={claimEducationGuardianPortalAccount}>
+              {requestedOrganizationId && <input type="hidden" name="org_id" value={requestedOrganizationId} />}
               <button type="submit" className="text-sm font-semibold text-blue-700 hover:text-blue-900">Refresh linked profiles</button>
             </form>
           </div>
@@ -729,7 +760,7 @@ export default async function EducationGuardianPortalPage({
                           <span className="text-right font-medium">
                             {formatGuardianMoney(payment.org_id, payment.amount)}
                             <a
-                              href={`/education-portal/fee-receipt?paymentId=${encodeURIComponent(payment.payment_id)}`}
+                              href={`/education-portal/fee-receipt?paymentId=${encodeURIComponent(payment.payment_id)}${requestedOrganizationId ? `&org=${encodeURIComponent(requestedOrganizationId)}` : ""}`}
                               target="_blank"
                               rel="noreferrer"
                               className="mt-1 block text-xs font-semibold text-blue-700 hover:text-blue-900"

@@ -15,6 +15,7 @@ import {
 } from "@/lib/education/assignments";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
+import { isEducationOrganizationId } from "@/lib/education/portal-auth";
 import { EducationPortalShell } from "@/components/education/education-portal-shell";
 import { TeacherAssignments } from "./teacher-assignments";
 import { TeacherAiAssistant } from "./teacher-ai-assistant";
@@ -50,6 +51,10 @@ export default async function EducationTeacherPortalPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const hasOrganizationScope = params.org !== undefined;
+  const requestedOrganizationId = isEducationOrganizationId(params.org)
+    ? params.org.toLowerCase()
+    : null;
   const requestedPageValue = Number.parseInt(
     typeof params.assignmentPage === "string" ? params.assignmentPage : "1",
     10
@@ -74,7 +79,9 @@ export default async function EducationTeacherPortalPage({
       console.error("Think Education teacher portal returned unexpected data:", parsed.error.flatten());
       throw new Error("The teacher portal data could not be safely displayed.");
     }
-    portal = parsed.data;
+    portal = hasOrganizationScope
+      ? parsed.data.filter((teacher) => teacher.organizationId === requestedOrganizationId)
+      : parsed.data;
     const orgIds = [...new Set(portal.map((teacher) => teacher.organizationId))];
     if (orgIds.length) {
       const { data: assignmentRows, error: assignmentError, count: assignmentCount } = await supabase
@@ -152,6 +159,12 @@ export default async function EducationTeacherPortalPage({
   }
   const message = messageFor(params);
   const assignmentTotalPages = Math.max(1, Math.ceil(assignmentTotalCount / ASSIGNMENTS_PAGE_SIZE));
+  const assignmentPageHref = (page: number) => {
+    const query = new URLSearchParams();
+    if (requestedOrganizationId) query.set("org", requestedOrganizationId);
+    query.set("assignmentPage", String(page));
+    return `/teacher-education-portal?${query.toString()}#assignments`;
+  };
 
   return <EducationPortalShell
     role="teacher"
@@ -159,12 +172,14 @@ export default async function EducationTeacherPortalPage({
     activeItem="Homework & Assignments"
     subtitle="Manage classwork alongside your classes, timetable, and daily attendance."
     userEmail={user?.email}
+    organizationId={requestedOrganizationId}
   >
       {message && <p role={params.claim === "error" || params.signin === "error" || params.assignment === "error" || params.assignment === "attachment-error" || params.assignment === "grade-error" || params.assignment === "revision-error" || params.assignment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
       {!user ? <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <h2 className="text-xl font-semibold">Sign in to your teacher account</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">Use the email address recorded in your school staff profile and the temporary password provided by your school.</p>
         <form action={signInToEducationTeacherPortal} className="mt-5 space-y-3">
+          {requestedOrganizationId && <input type="hidden" name="org_id" value={requestedOrganizationId} />}
           <label className="block text-sm font-medium text-slate-700">Email address
             <input type="email" name="email" required maxLength={254} autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
@@ -177,6 +192,7 @@ export default async function EducationTeacherPortalPage({
         <h2 className="text-xl font-semibold">Link your teacher profile</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">Your account must use the email address recorded on an active teaching staff profile. If you do not have a password, contact your school administrator.</p>
         <form action={claimEducationTeacherPortalAccount} className="mt-5">
+          {requestedOrganizationId && <input type="hidden" name="org_id" value={requestedOrganizationId} />}
           <button type="submit" className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Find and link my teacher profile</button>
         </form>
       </section> : <div className="space-y-6">
@@ -201,11 +217,11 @@ export default async function EducationTeacherPortalPage({
         </div>
         {assignmentTotalPages > 1 && <nav aria-label="Assignment pages" className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
           {assignmentPage > 1
-            ? <Link href={`/teacher-education-portal?assignmentPage=${assignmentPage - 1}#assignments`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous assignments</Link>
+            ? <Link href={assignmentPageHref(assignmentPage - 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous assignments</Link>
             : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400">Previous assignments</span>}
           <span className="text-sm text-slate-600">Assignments page {assignmentPage} of {assignmentTotalPages}</span>
           {assignmentPage < assignmentTotalPages
-            ? <Link href={`/teacher-education-portal?assignmentPage=${assignmentPage + 1}#assignments`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next assignments</Link>
+            ? <Link href={assignmentPageHref(assignmentPage + 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next assignments</Link>
             : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400">Next assignments</span>}
         </nav>}
         {portal.map((teacher) => {

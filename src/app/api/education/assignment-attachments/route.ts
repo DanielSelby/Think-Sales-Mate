@@ -9,9 +9,17 @@ import { createClient } from "@/lib/supabase/server";
 
 const uuidSchema = z.string().uuid();
 
-function redirectToPortal(request: NextRequest, portal: "teacher" | "student", status: string) {
+function redirectToPortal(
+  request: NextRequest,
+  portal: "teacher" | "student",
+  status: string,
+  organizationId?: string
+) {
   const path = portal === "teacher" ? "/teacher-education-portal" : "/student-education-portal";
   const url = new URL(path, request.url);
+  if (organizationId && uuidSchema.safeParse(organizationId).success) {
+    url.searchParams.set("org", organizationId);
+  }
   url.searchParams.set("assignment", status);
   return NextResponse.redirect(url, 303);
 }
@@ -40,15 +48,17 @@ export async function POST(request: NextRequest) {
   const assignmentId = String(formData.get("assignment_id") ?? "");
   const submissionId = String(formData.get("submission_id") ?? "");
   const studentId = String(formData.get("student_id") ?? "");
+  let organizationId = String(formData.get("org_id") ?? "");
+  if (!uuidSchema.safeParse(organizationId).success) organizationId = "";
   if (!kind || !uuidSchema.safeParse(assignmentId).success
     || (kind === "submission"
       ? !uuidSchema.safeParse(submissionId).success || !uuidSchema.safeParse(studentId).success
       : Boolean(submissionId || studentId))) {
-    return redirectToPortal(request, portal, "invalid");
+    return redirectToPortal(request, portal, "invalid", organizationId);
   }
 
   const file = await validateEducationAssignmentAttachmentFile(formData.get("attachment"));
-  if (!file) return redirectToPortal(request, portal, "invalid");
+  if (!file) return redirectToPortal(request, portal, "invalid", organizationId);
 
   const { data: assignment, error: assignmentError } = await supabase
     .from("education_assignments")
@@ -57,9 +67,10 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
   if (assignmentError) {
     console.error("Could not load assignment attachment context:", assignmentError.message);
-    return redirectToPortal(request, portal, "attachment-error");
+    return redirectToPortal(request, portal, "attachment-error", organizationId);
   }
-  if (!assignment) return redirectToPortal(request, portal, "attachment-error");
+  if (!assignment) return redirectToPortal(request, portal, "attachment-error", organizationId);
+  organizationId = assignment.org_id;
 
   const result = await uploadEducationAssignmentAttachment(supabase, {
     orgId: assignment.org_id,
@@ -69,10 +80,10 @@ export async function POST(request: NextRequest) {
     kind,
     file,
   });
-  if (!result.ok) return redirectToPortal(request, portal, "attachment-error");
+  if (!result.ok) return redirectToPortal(request, portal, "attachment-error", organizationId);
 
   revalidatePath("/teacher-education-portal");
   revalidatePath("/student-education-portal");
   revalidatePath("/education-portal");
-  return redirectToPortal(request, portal, "attachment-uploaded");
+  return redirectToPortal(request, portal, "attachment-uploaded", organizationId);
 }

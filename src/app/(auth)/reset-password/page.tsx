@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getEducationPortalPostLoginPath } from "@/lib/education/portal-auth";
@@ -57,7 +56,6 @@ function CheckCircleIcon() {
 }
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
   const [checkingSession, setCheckingSession] = useState(true);
   const [hasValidSession, setHasValidSession] = useState(false);
 
@@ -67,6 +65,8 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [portalHref, setPortalHref] = useState("/product-hub");
 
   useEffect(() => {
     (async () => {
@@ -101,20 +101,23 @@ export default function ResetPasswordPage() {
         setLoading(false);
         return;
       }
-      const supabase = await createClient();
-      const { error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) {
-        setError("Your password was updated. Please sign in again with the new password.");
-        setLoading(false);
-        return;
-      }
 
+      const next = new URLSearchParams(window.location.search).get("next");
+      const destination = getEducationPortalPostLoginPath(next);
+      setPortalHref(destination);
+      setSuccessMessage("Your new password has been saved.");
       setSuccess(true);
-      setTimeout(() => {
-        const next = new URLSearchParams(window.location.search).get("next");
-        router.push(getEducationPortalPostLoginPath(next));
-        router.refresh();
-      }, 1800);
+      setLoading(false);
+
+      try {
+        const supabase = await createClient();
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          setSuccessMessage("Your password was saved. Sign in again with your new password to continue.");
+        }
+      } catch {
+        setSuccessMessage("Your password was saved. Sign in again with your new password to continue.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update your password.");
       setLoading(false);
@@ -154,13 +157,20 @@ export default function ResetPasswordPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f7f4] px-5">
         <div className="w-full max-w-[460px]">
-          <div className="rounded-[28px] border border-[#e4e8e1] bg-white p-8 text-center shadow-[0_25px_70px_rgba(29,43,29,0.09)] sm:p-10">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#203820]">
+          <section role="status" aria-live="polite" className="rounded-[28px] border border-emerald-200 bg-white p-8 text-center shadow-[0_12px_0_rgba(16,120,62,0.12),0_30px_60px_rgba(29,80,48,0.2)] sm:-translate-y-1 sm:p-10">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-700 shadow-[0_6px_0_rgba(6,78,40,0.2)]">
               <CheckCircleIcon />
             </div>
             <h1 className="mt-5 text-2xl font-semibold text-[#20251f]">Password updated</h1>
-            <p className="mt-3 text-sm leading-6 text-[#737970]">Taking you to your portal…</p>
-          </div>
+            <p className="mt-3 text-sm leading-6 text-emerald-800">{successMessage}</p>
+            <Link
+              href={portalHref}
+              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-3 rounded-xl bg-emerald-800 px-5 text-sm font-semibold text-white shadow-[0_6px_0_rgba(6,78,40,0.24),0_12px_24px_rgba(16,80,45,0.18)] transition hover:-translate-y-0.5 hover:bg-emerald-900 active:translate-y-1 active:shadow-none"
+            >
+              {portalHref === "/product-hub" ? "Continue to your dashboard" : "Open your organization portal"}
+              <ArrowRightIcon />
+            </Link>
+          </section>
         </div>
       </main>
     );

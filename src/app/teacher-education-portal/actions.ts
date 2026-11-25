@@ -8,6 +8,11 @@ import {
   educationGradeAssignmentSchema,
   educationRequestAssignmentRevisionSchema,
 } from "@/lib/education/assignments";
+import {
+  getEducationPortalPathFromInput,
+  getEducationPortalScopedPath,
+  getEducationPortalStatusPath,
+} from "@/lib/education/portal-auth";
 
 const PORTAL_PATH = "/teacher-education-portal";
 
@@ -27,11 +32,13 @@ export async function createEducationAssignment(formData: FormData) {
     studentIds: formData.getAll("student_id").filter((value): value is string => typeof value === "string"),
   });
   if (!input.success) redirect(`${PORTAL_PATH}?assignment=invalid`);
+  const portalPath = getEducationPortalScopedPath(PORTAL_PATH, input.data.orgId);
+  const assignmentPath = (status: string) => getEducationPortalStatusPath(portalPath, "assignment", status);
 
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
-  if (!user) redirect(`/login?next=${encodeURIComponent(PORTAL_PATH)}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(portalPath)}`);
 
   const { data: assignmentId, error } = await supabase.rpc("education_teacher_create_assignment", {
     p_org_id: input.data.orgId,
@@ -44,31 +51,34 @@ export async function createEducationAssignment(formData: FormData) {
   });
   if (error) {
     console.error("Could not create education assignment:", error.message);
-    redirect(`${PORTAL_PATH}?assignment=error`);
+    redirect(assignmentPath("error"));
   }
   if (!assignmentId) {
     console.error("Could not create education assignment: no assignment ID was returned.");
-    redirect(`${PORTAL_PATH}?assignment=error`);
+    redirect(assignmentPath("error"));
   }
   revalidatePath(PORTAL_PATH);
   revalidatePath("/student-education-portal");
-  redirect(`${PORTAL_PATH}?assignment=created`);
+  redirect(assignmentPath("created"));
 }
 
 export async function gradeEducationAssignmentSubmission(formData: FormData) {
+  const portalPath = getEducationPortalPathFromInput(PORTAL_PATH, formData.get("org_id"));
+  if (!portalPath) redirect(`${PORTAL_PATH}?assignment=invalid`);
+  const assignmentPath = (status: string) => getEducationPortalStatusPath(portalPath, "assignment", status);
   const scoreText = formString(formData, "score").trim();
-  if (!scoreText) redirect(`${PORTAL_PATH}?assignment=invalid`);
+  if (!scoreText) redirect(assignmentPath("invalid"));
   const input = educationGradeAssignmentSchema.safeParse({
     submissionId: formString(formData, "submission_id"),
     score: Number(scoreText),
     feedback: formString(formData, "feedback"),
   });
-  if (!input.success) redirect(`${PORTAL_PATH}?assignment=invalid`);
+  if (!input.success) redirect(assignmentPath("invalid"));
 
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
-  if (!user) redirect(`/login?next=${encodeURIComponent(PORTAL_PATH)}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(portalPath)}`);
 
   const { error } = await supabase.rpc("education_teacher_grade_assignment_submission", {
     p_submission_id: input.data.submissionId,
@@ -77,24 +87,27 @@ export async function gradeEducationAssignmentSubmission(formData: FormData) {
   });
   if (error) {
     console.error("Could not grade education assignment submission:", error.message);
-    redirect(`${PORTAL_PATH}?assignment=grade-error`);
+    redirect(assignmentPath("grade-error"));
   }
   revalidatePath(PORTAL_PATH);
   revalidatePath("/student-education-portal");
-  redirect(`${PORTAL_PATH}?assignment=graded`);
+  redirect(assignmentPath("graded"));
 }
 
 export async function requestEducationAssignmentRevision(formData: FormData) {
+  const portalPath = getEducationPortalPathFromInput(PORTAL_PATH, formData.get("org_id"));
+  if (!portalPath) redirect(`${PORTAL_PATH}?assignment=invalid`);
+  const assignmentPath = (status: string) => getEducationPortalStatusPath(portalPath, "assignment", status);
   const input = educationRequestAssignmentRevisionSchema.safeParse({
     submissionId: formString(formData, "submission_id"),
     note: formString(formData, "note"),
   });
-  if (!input.success) redirect(`${PORTAL_PATH}?assignment=invalid`);
+  if (!input.success) redirect(assignmentPath("invalid"));
 
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
-  if (!user) redirect(`/login?next=${encodeURIComponent(PORTAL_PATH)}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(portalPath)}`);
 
   const { error } = await supabase.rpc("education_teacher_request_assignment_revision", {
     p_submission_id: input.data.submissionId,
@@ -102,19 +115,22 @@ export async function requestEducationAssignmentRevision(formData: FormData) {
   });
   if (error) {
     console.error("Could not request an education assignment revision:", error.message);
-    redirect(`${PORTAL_PATH}?assignment=revision-error`);
+    redirect(assignmentPath("revision-error"));
   }
   revalidatePath(PORTAL_PATH);
   revalidatePath("/student-education-portal");
   revalidatePath("/education-portal");
-  redirect(`${PORTAL_PATH}?assignment=revision-requested`);
+  redirect(assignmentPath("revision-requested"));
 }
 
 export async function recordEducationTeacherAttendance(formData: FormData) {
+  const portalPath = getEducationPortalPathFromInput(PORTAL_PATH, formData.get("org_id"));
+  if (!portalPath) redirect(`${PORTAL_PATH}?attendance=error`);
+  const attendancePath = (status: string) => getEducationPortalStatusPath(portalPath, "attendance", status);
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
-  if (!user) redirect(`/login?next=${encodeURIComponent(PORTAL_PATH)}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(portalPath)}`);
   const { error } = await supabase.rpc("education_teacher_record_student_attendance", {
     p_org_id: String(formData.get("org_id") ?? ""),
     p_class_id: String(formData.get("class_id") ?? ""),
@@ -125,42 +141,48 @@ export async function recordEducationTeacherAttendance(formData: FormData) {
   });
   if (error) {
     console.error("Could not record teacher portal attendance:", error.message);
-    redirect(`${PORTAL_PATH}?attendance=error`);
+    redirect(attendancePath("error"));
   }
   revalidatePath(PORTAL_PATH);
-  redirect(`${PORTAL_PATH}?attendance=saved`);
+  redirect(attendancePath("saved"));
 }
 
 export async function signInToEducationTeacherPortal(formData: FormData) {
+  const portalPath = getEducationPortalPathFromInput(PORTAL_PATH, formData.get("org_id"));
+  if (!portalPath) redirect(`${PORTAL_PATH}?signin=invalid`);
+  const invalidPath = getEducationPortalStatusPath(portalPath, "signin", "invalid");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password || password.length > 256) {
-    redirect(`${PORTAL_PATH}?signin=invalid`);
+    redirect(invalidPath);
   }
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
-  if (error || !data.user) redirect(`${PORTAL_PATH}?signin=invalid`);
+  if (error || !data.user) redirect(invalidPath);
   if (data.user.app_metadata?.must_change_password === true) {
-    redirect(`/reset-password?next=${encodeURIComponent(PORTAL_PATH)}`);
+    redirect(`/reset-password?next=${encodeURIComponent(portalPath)}`);
   }
-  redirect(PORTAL_PATH);
+  redirect(portalPath);
 }
 
-export async function claimEducationTeacherPortalAccount() {
+export async function claimEducationTeacherPortalAccount(formData: FormData) {
+  const portalPath = getEducationPortalPathFromInput(PORTAL_PATH, formData.get("org_id"));
+  if (!portalPath) redirect(`${PORTAL_PATH}?claim=error`);
+  const claimPath = (status: string) => getEducationPortalStatusPath(portalPath, "claim", status);
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
-  if (!user) redirect(`/login?next=${encodeURIComponent(PORTAL_PATH)}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(portalPath)}`);
   const { data: claimedCount, error } = await supabase.rpc("education_claim_teacher_account");
   if (error) {
-    if (error.code === "42501") redirect(`${PORTAL_PATH}?claim=verify-email`);
+    if (error.code === "42501") redirect(claimPath("verify-email"));
     console.error("Could not link the Think Education teacher account:", error.message);
-    redirect(`${PORTAL_PATH}?claim=error`);
+    redirect(claimPath("error"));
   }
-  if (claimedCount < 1) redirect(`${PORTAL_PATH}?claim=not-found`);
+  if (claimedCount < 1) redirect(claimPath("not-found"));
   revalidatePath(PORTAL_PATH);
-  redirect(`${PORTAL_PATH}?claim=linked`);
+  redirect(claimPath("linked"));
 }

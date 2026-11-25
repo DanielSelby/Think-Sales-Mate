@@ -21,6 +21,7 @@ export function escapeEducationCommunicationSearchTerm(value: string): string {
 
 export const educationPortalCommunicationsSchema = z.array(z.object({
   id: z.string().uuid(),
+  organizationId: z.string().uuid(),
   organizationName: z.string(),
   campusName: z.string(),
   studentName: z.string(),

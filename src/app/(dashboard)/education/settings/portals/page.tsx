@@ -7,6 +7,7 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { getEducationPortalScopedPath } from "@/lib/education/portal-auth";
 import { EducationPortalPasswordManager } from "./education-portal-password-manager";
 import { PortalLinkCard } from "./portal-link-card";
 
@@ -54,7 +55,10 @@ export default async function EducationPortalLinksPage() {
     if (!path) {
       throw new Error(`The ${portal.title} link is not configured for ${context.orgName}. Apply the Education portal links migration.`);
     }
-    return { ...portal, url: new URL(path, origin).toString() };
+    return {
+      ...portal,
+      url: new URL(getEducationPortalScopedPath(path, context.orgId), origin).toString(),
+    };
   });
   const canManagePortalPasswords = isOrganizationSuperAdminMember({
     role: context.role,

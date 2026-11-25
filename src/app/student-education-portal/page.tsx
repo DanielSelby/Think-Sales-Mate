@@ -19,6 +19,7 @@ import {
   type EducationAssignmentTarget,
 } from "@/lib/education/assignments";
 import { educationNotificationsSchema } from "@/lib/education/notifications";
+import { getEducationPortalScopedPath, isEducationOrganizationId } from "@/lib/education/portal-auth";
 import { setEducationNotificationPreference } from "@/app/education-notifications/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
@@ -53,6 +54,10 @@ export default async function EducationStudentPortalPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const hasOrganizationScope = params.org !== undefined;
+  const requestedOrganizationId = isEducationOrganizationId(params.org)
+    ? params.org.toLowerCase()
+    : null;
   const requestedPageValue = Number.parseInt(
     typeof params.assignmentPage === "string" ? params.assignmentPage : "1",
     10
@@ -87,13 +92,17 @@ export default async function EducationStudentPortalPage({
       console.error("Think Education student portal returned unexpected data:", parsedPortal.error.flatten());
       throw new Error("The student portal data could not be safely displayed.");
     }
-    portal = parsedPortal.data;
+    portal = hasOrganizationScope
+      ? parsedPortal.data.filter((student) => student.organizationId === requestedOrganizationId)
+      : parsedPortal.data;
 
     const studentIds = portal.map((student) => student.id);
+    const studentOrgIds = [...new Set(portal.map((student) => student.organizationId))];
     if (studentIds.length) {
       const { data: assignmentRows, error: assignmentError, count: assignmentCount } = await supabase
         .from("education_assignments")
         .select("id, org_id, class_id, title, description, due_on, max_score, status, created_by, created_at, updated_at", { count: "exact" })
+        .in("org_id", studentOrgIds)
         .eq("status", "published")
         .order("due_on", { ascending: true })
         .order("id", { ascending: true })
@@ -171,22 +180,26 @@ export default async function EducationStudentPortalPage({
       console.error("Think Education student announcements returned unexpected data:", parsedCommunications.error.flatten());
       throw new Error("Student announcements could not be safely displayed.");
     }
-    announcements = parsedCommunications.data;
+    announcements = parsedCommunications.data.filter((announcement) =>
+      !hasOrganizationScope || announcement.organizationId === requestedOrganizationId
+    );
 
-    const { data: notificationRows, error: notificationError } = await supabase.from("education_notifications")
-      .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, assignment_id, assignment_event_key, delivery_status, read_at, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(30);
-    if (notificationError) throw new Error(`Could not load student notifications: ${notificationError.message}`);
-    const parsedNotifications = educationNotificationsSchema.safeParse(notificationRows ?? []);
-    if (!parsedNotifications.success) {
-      console.error("Think Education student notifications returned unexpected data:", parsedNotifications.error.flatten());
-      throw new Error("Student notifications could not be safely displayed.");
+    if (studentOrgIds.length) {
+      const { data: notificationRows, error: notificationError } = await supabase.from("education_notifications")
+        .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, assignment_id, assignment_event_key, delivery_status, read_at, created_at")
+        .eq("user_id", user.id)
+        .in("org_id", studentOrgIds)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (notificationError) throw new Error(`Could not load student notifications: ${notificationError.message}`);
+      const parsedNotifications = educationNotificationsSchema.safeParse(notificationRows ?? []);
+      if (!parsedNotifications.success) {
+        console.error("Think Education student notifications returned unexpected data:", parsedNotifications.error.flatten());
+        throw new Error("Student notifications could not be safely displayed.");
+      }
+      notifications = parsedNotifications.data;
     }
-    notifications = parsedNotifications.data;
 
-    const studentOrgIds = [...new Set(portal.map((student) => student.organizationId))];
     if (studentOrgIds.length) {
       const { data: preferences, error: preferencesError } = await supabase.from("education_notification_preferences")
         .select("org_id, notification_type, in_app_enabled")
@@ -201,10 +214,18 @@ export default async function EducationStudentPortalPage({
     if (outboundPreferencesError) {
       throw new Error(`Could not load student announcement delivery preferences: ${outboundPreferencesError.message}`);
     }
-    outboundNotificationPreferences = outboundPreferences ?? [];
+    outboundNotificationPreferences = (outboundPreferences ?? []).filter((preference) =>
+      studentOrgIds.includes(preference.org_id)
+    );
   }
   const message = messageFor(params);
   const assignmentTotalPages = Math.max(1, Math.ceil(assignmentTotalCount / ASSIGNMENTS_PAGE_SIZE));
+  const assignmentPageHref = (page: number) => {
+    const query = new URLSearchParams();
+    if (requestedOrganizationId) query.set("org", requestedOrganizationId);
+    query.set("assignmentPage", String(page));
+    return `/student-education-portal?${query.toString()}#assignments`;
+  };
 
   return <EducationPortalShell
     role="student"
@@ -212,6 +233,7 @@ export default async function EducationStudentPortalPage({
     activeItem="AI School Assistant"
     subtitle="Your schoolwork, timetable, attendance, and published results."
     userEmail={user?.email}
+    organizationId={requestedOrganizationId}
   >
 
       {message && <p role={params.assignment === "error" || params.assignment === "attachment-error" || params.assignment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
@@ -231,7 +253,9 @@ export default async function EducationStudentPortalPage({
             </div>
             {notification.delivery_status === "delivered" && <form action={markEducationNotificationRead}>
               <input type="hidden" name="notification_id" value={notification.id} />
-              <input type="hidden" name="return_to" value="/student-education-portal" />
+              <input type="hidden" name="return_to" value={requestedOrganizationId
+                ? getEducationPortalScopedPath("/student-education-portal", requestedOrganizationId)
+                : "/student-education-portal"} />
               <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Mark read</button>
             </form>}
           </article>)}
@@ -255,7 +279,9 @@ export default async function EducationStudentPortalPage({
                 <input type="hidden" name="org_id" value={organizationId} />
                 <input type="hidden" name="notification_type" value={type} />
                 <input type="hidden" name="in_app_enabled" value={String(!enabled)} />
-                <input type="hidden" name="return_to" value="/student-education-portal" />
+                <input type="hidden" name="return_to" value={requestedOrganizationId
+                  ? getEducationPortalScopedPath("/student-education-portal", requestedOrganizationId)
+                  : "/student-education-portal"} />
                 <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">{enabled ? "Pause" : "Enable"}</button>
               </form>
             </li>;
@@ -278,7 +304,9 @@ export default async function EducationStudentPortalPage({
                 <input type="hidden" name="org_id" value={preference.org_id} />
                 <input type="hidden" name="channel" value={channel} />
                 <input type="hidden" name="enabled" value={String(!enabled)} />
-                <input type="hidden" name="return_to" value="/student-education-portal" />
+                <input type="hidden" name="return_to" value={requestedOrganizationId
+                  ? getEducationPortalScopedPath("/student-education-portal", requestedOrganizationId)
+                  : "/student-education-portal"} />
                 <button type="submit" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                   {enabled ? `Turn off ${label}` : `Opt in to ${label}`}
                 </button>
@@ -304,6 +332,7 @@ export default async function EducationStudentPortalPage({
         <h2 className="text-xl font-semibold">Sign in to your student account</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">Use the email address recorded in your student profile and the temporary password provided by your school.</p>
         <form action={signInToEducationStudentPortal} className="mt-5 space-y-3">
+          {requestedOrganizationId && <input type="hidden" name="org_id" value={requestedOrganizationId} />}
           <label className="block text-sm font-medium text-slate-700">
             Email address
             <input type="email" name="email" required maxLength={254} autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
@@ -320,6 +349,7 @@ export default async function EducationStudentPortalPage({
             Your account must use the verified email address already recorded in your student profile. Only an active matching student record can be linked.
           </p>
           <form action={claimEducationStudentPortalAccount} className="mt-5">
+            {requestedOrganizationId && <input type="hidden" name="org_id" value={requestedOrganizationId} />}
             <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
               Find and link my student profile
             </button>
@@ -337,11 +367,11 @@ export default async function EducationStudentPortalPage({
         </div>
         {assignmentTotalPages > 1 && <nav aria-label="Assignment pages" className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
           {assignmentPage > 1
-            ? <Link href={`/student-education-portal?assignmentPage=${assignmentPage - 1}#assignments`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous assignments</Link>
+            ? <Link href={assignmentPageHref(assignmentPage - 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous assignments</Link>
             : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400">Previous assignments</span>}
           <span className="text-sm text-slate-600">Assignments page {assignmentPage} of {assignmentTotalPages}</span>
           {assignmentPage < assignmentTotalPages
-            ? <Link href={`/student-education-portal?assignmentPage=${assignmentPage + 1}#assignments`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next assignments</Link>
+            ? <Link href={assignmentPageHref(assignmentPage + 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next assignments</Link>
             : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400">Next assignments</span>}
         </nav>}
         <div className="grid gap-5 lg:grid-cols-2">
@@ -410,6 +440,7 @@ export default async function EducationStudentPortalPage({
                         </div>
                       ) : (
                         <form action={submitEducationAssignment} className="mt-3 space-y-2">
+                          <input type="hidden" name="org_id" value={assignment.org_id} />
                           <input type="hidden" name="assignment_id" value={assignment.id} />
                           <input type="hidden" name="student_id" value={student.id} />
                           <label className="block text-xs font-medium text-slate-600">
@@ -422,6 +453,7 @@ export default async function EducationStudentPortalPage({
                         </form>
                       )}
                       {submission && (!submission.graded_at || submission.revision_requested_at) && <form action="/api/education/assignment-attachments" method="post" encType="multipart/form-data" className="mt-3 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
+                        <input type="hidden" name="org_id" value={assignment.org_id} />
                         <input type="hidden" name="kind" value="submission" />
                         <input type="hidden" name="assignment_id" value={assignment.id} />
                         <input type="hidden" name="submission_id" value={submission.id} />

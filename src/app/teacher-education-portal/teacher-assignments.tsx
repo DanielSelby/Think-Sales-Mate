@@ -182,6 +182,7 @@ export function TeacherAssignments({ teachers, assignments, attachments, targets
                         />
                         <form action="/api/education/assignment-attachments" method="post" encType="multipart/form-data" className="mt-2 flex flex-wrap items-end gap-2">
                           <input type="hidden" name="kind" value="assignment" />
+                          <input type="hidden" name="org_id" value={assignment.org_id} />
                           <input type="hidden" name="assignment_id" value={assignment.id} />
                           <label className="min-w-52 flex-1 text-xs font-medium text-slate-600">
                             Add a resource (max 10 MB)
@@ -217,6 +218,7 @@ export function TeacherAssignments({ teachers, assignments, attachments, targets
                                       </p>
                                     ) : (
                                       <form action={requestEducationAssignmentRevision} className="mt-3 space-y-2">
+                                        <input type="hidden" name="org_id" value={assignment.org_id} />
                                         <input type="hidden" name="submission_id" value={submission.id} />
                                         <label className="block text-xs font-medium text-slate-600">
                                           Request a revision
@@ -228,6 +230,7 @@ export function TeacherAssignments({ teachers, assignments, attachments, targets
                                   </div>
                                 ) : (
                                   <form action={gradeEducationAssignmentSubmission} className="mt-3 flex flex-wrap items-end gap-2">
+                                    <input type="hidden" name="org_id" value={assignment.org_id} />
                                     <input type="hidden" name="submission_id" value={submission.id} />
                                     <label className="text-xs font-medium text-slate-600">
                                       Score
