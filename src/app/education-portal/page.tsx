@@ -345,7 +345,6 @@ export default async function EducationGuardianPortalPage({
     }
     notifications = parsedNotifications.data;
 
-    const guardianOrgIds = portal.map((organization) => organization.organizationId);
     if (guardianOrgIds.length) {
       const { data: preferences, error: preferencesError } = await supabase.from("education_notification_preferences")
         .select("org_id, notification_type, in_app_enabled")
