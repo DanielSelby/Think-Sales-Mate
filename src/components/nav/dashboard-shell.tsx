@@ -33,6 +33,8 @@ interface Props {
   avatarUrl?: string | null;
   orgName:  string;
   logoUrl?: string | null;
+  educationInstitutionName?: string | null;
+  educationInstitutionLogoUrl?: string | null;
   systemLogoUrl?: string | null;
   systemName?: string;
   productLogoUrls?: Partial<Record<PlatformProductSlug, string>>;
@@ -53,7 +55,7 @@ interface Props {
   organizationUsage: OrganizationUsageSummary | null;
 }
 
-export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, systemLogoUrl, systemName, productLogoUrls, productNames, workspaceHubDarkThemeEnabled, workspaceHubDarkSurfaceStyle = "opaque", roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, educationCampuses, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
+export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, educationInstitutionName, educationInstitutionLogoUrl, systemLogoUrl, systemName, productLogoUrls, productNames, workspaceHubDarkThemeEnabled, workspaceHubDarkSurfaceStyle = "opaque", roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, educationCampuses, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
@@ -78,6 +80,16 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   }, [roleTheme, setTheme]);
   const theme = THEMES[activeTheme];
   const productScope = getProductNavigationScope(pathname);
+  const isEducationProduct = productScope === "think-education";
+  const displayedOrgName = isEducationProduct ? educationInstitutionName || orgName : orgName;
+  const displayedLogoUrl = isEducationProduct ? educationInstitutionLogoUrl || logoUrl : logoUrl;
+  const educationProductLogoUrl = educationInstitutionLogoUrl || logoUrl || productLogoUrls?.["think-education"];
+  const scopedProductNames = isEducationProduct
+    ? { ...productNames, "think-education": displayedOrgName }
+    : productNames;
+  const scopedProductLogoUrls = isEducationProduct && educationProductLogoUrl
+    ? { ...productLogoUrls, "think-education": educationProductLogoUrl }
+    : productLogoUrls;
   const productNavItems = getProductNavigationItems(NAV_ITEMS, productScope);
   const mobileNav = productScope === "thinksales-erp"
     ? productNavItems
@@ -161,8 +173,8 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             enabledModules={enabledModules}
             systemLogoUrl={systemLogoUrl}
             systemName={systemName}
-            productLogoUrls={productLogoUrls}
-            productNames={productNames}
+            productLogoUrls={scopedProductLogoUrls}
+            productNames={scopedProductNames}
             mobileOpen={mobileSidebarOpen}
             onNavigate={() => setMobileSidebarOpen(false)}
           />
@@ -180,8 +192,8 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             userId={userId}
             orgId={orgId}
             currency={currency}
-            orgName={orgName}
-            logoUrl={logoUrl}
+            orgName={displayedOrgName}
+            logoUrl={displayedLogoUrl}
             userName={userName}
             userEmail={userEmail}
             avatarUrl={avatarUrl}

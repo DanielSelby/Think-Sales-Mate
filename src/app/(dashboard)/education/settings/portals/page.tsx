@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isOrganizationSuperAdminMember } from "@/lib/organizations/member-access";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { getEducationPortalScopedPath } from "@/lib/education/portal-auth";
+import { getEducationInstitutionDisplayName } from "@/lib/education/institution-branding";
 import { EducationPortalPasswordManager } from "./education-portal-password-manager";
 import { PortalLinkCard } from "./portal-link-card";
 
@@ -44,16 +45,24 @@ export default async function EducationPortalLinksPage() {
   }
 
   const supabase = await createClient();
-  const { data: records, error } = await supabase.from("education_portal_links")
-    .select("portal_type, portal_path")
-    .eq("org_id", context.orgId);
-  if (error) throw new Error(`Could not load portal links for ${context.orgName}: ${error.message}`);
+  const [linksResult, institutionResult] = await Promise.all([
+    supabase.from("education_portal_links")
+      .select("portal_type, portal_path")
+      .eq("org_id", context.orgId),
+    supabase.from("education_institution_settings")
+      .select("institution_name")
+      .eq("org_id", context.orgId)
+      .maybeSingle(),
+  ]);
+  if (linksResult.error) throw new Error(`Could not load portal links for ${context.orgName}: ${linksResult.error.message}`);
+  if (institutionResult.error) throw new Error(`Could not load Think Education institution name: ${institutionResult.error.message}`);
+  const institutionName = getEducationInstitutionDisplayName(institutionResult.data?.institution_name, context.orgName);
 
-  const pathByType = new Map((records ?? []).map((record) => [record.portal_type, record.portal_path]));
+  const pathByType = new Map((linksResult.data ?? []).map((record) => [record.portal_type, record.portal_path]));
   const links = PORTALS.map((portal) => {
     const path = pathByType.get(portal.type);
     if (!path) {
-      throw new Error(`The ${portal.title} link is not configured for ${context.orgName}. Apply the Education portal links migration.`);
+      throw new Error(`The ${portal.title} link is not configured for ${institutionName}. Apply the Education portal links migration.`);
     }
     return {
       ...portal,
@@ -72,7 +81,7 @@ export default async function EducationPortalLinksPage() {
         <ArrowLeft className="h-4 w-4" /> Institution Settings
       </Link>
       <h1 className="mt-2 text-2xl font-bold text-slate-950">Portal Links</h1>
-      <p className="mt-1 text-sm text-slate-600">Share the correct portal link with students, families, and teaching staff at {context.orgName}.</p>
+      <p className="mt-1 text-sm text-slate-600">Share the correct portal link with students, families, and teaching staff at {institutionName}.</p>
     </header>
 
     <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">

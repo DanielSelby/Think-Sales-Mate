@@ -27,6 +27,14 @@ describe("Think Education portal auth redirects", () => {
       .toBe(`https://school.example/auth/callback?next=${encodeURIComponent(scopedPath)}`);
   });
 
+  it("supports organization-scoped student and teacher section routes", () => {
+    const studentAssignments = getEducationPortalScopedPath("/student-education-portal/assignments", organizationId);
+    const teacherAttendance = getEducationPortalScopedPath("/teacher-education-portal/attendance", organizationId);
+    expect(studentAssignments).toBe(`/student-education-portal/assignments?org=${organizationId}`);
+    expect(teacherAttendance).toBe(`/teacher-education-portal/attendance?org=${organizationId}`);
+    expect(getEducationPortalPostLoginPath(studentAssignments)).toBe(studentAssignments);
+  });
+
   it("rejects unsupported portal paths", () => {
     expect(() => getEducationPortalAuthRedirectTo("https://school.example", "/login"))
       .toThrow("The requested Think Education portal is not supported.");

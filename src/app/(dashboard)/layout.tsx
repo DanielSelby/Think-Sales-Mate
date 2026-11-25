@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentOrgContext, OrganizationAccessExpiredError } from "@/lib/organizations/current";
 import { DashboardShell } from "@/components/nav/dashboard-shell";
 import { OrganizationExpiredScreen } from "@/components/organization/organization-access-expiry";
+import { getEducationInstitutionDisplayName } from "@/lib/education/institution-branding";
 import { getOrganizationExpiryStatus } from "@/lib/organization-access-expiry";
 import { createClient } from "@/lib/supabase/server";
 import type { DarkStyleKey, ThemeKey } from "@/store/useAppStore";
@@ -44,8 +45,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const roleKey = typeof context.accessPermissions.role_key === "string"
     ? context.accessPermissions.role_key
     : context.role;
-  const [{ data: companyProfile }, { data: profile }, roleThemeResult, platformSettings] = await Promise.all([
+  const [
+    { data: companyProfile },
+    { data: educationInstitution, error: educationInstitutionError },
+    { data: profile },
+    roleThemeResult,
+    platformSettings,
+  ] = await Promise.all([
     supabase.from("company_profile").select("logo_url").eq("org_id", context.orgId).maybeSingle(),
+    supabase.from("education_institution_settings")
+      .select("institution_name, institution_logo_url")
+      .eq("org_id", context.orgId)
+      .maybeSingle(),
     supabase.from("profiles").select("full_name, avatar_url, ui_preferences").eq("id", context.userId).maybeSingle(),
     supabase.from("organization_role_themes").select("theme_key").eq("org_id", context.orgId).eq("role_key", roleKey).maybeSingle(),
     Promise.all([
@@ -59,6 +70,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       return [undefined, null, "Think Digital Solutions", null, null] as const;
     }),
   ]);
+  if (educationInstitutionError) {
+    throw new Error(`Could not load Think Education institution branding: ${educationInstitutionError.message}`);
+  }
   const { data: roleTheme, error: roleThemeError } = roleThemeResult;
   let selectedTheme = roleTheme?.theme_key as ThemeKey | null;
   if (roleThemeError && /organization_role_themes|schema cache|relation .* does not exist/i.test(roleThemeError.message)) {
@@ -98,6 +112,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       organizationUsage={null}
       orgName={context.orgName}
       logoUrl={companyProfile?.logo_url ?? null}
+      educationInstitutionName={getEducationInstitutionDisplayName(educationInstitution?.institution_name, context.orgName)}
+      educationInstitutionLogoUrl={educationInstitution?.institution_logo_url ?? null}
       userName={profile?.full_name ?? null}
       userRole={context.role}
       allowedLocationIds={[...(context.locationId ? [context.locationId] : []), ...context.secondaryLocationIds]}

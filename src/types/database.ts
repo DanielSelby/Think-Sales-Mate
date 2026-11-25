@@ -66,6 +66,7 @@ type EducationInstitutionSettings = {
   institution_name: string;
   institution_code: string;
   institution_type: "basic" | "primary" | "junior_high" | "senior_high" | "college" | "university" | "technical_vocational" | "training" | "multi_level" | "other";
+  institution_logo_url: string | null;
   terminology: Json;
   settings: Json;
   updated_by: string | null;

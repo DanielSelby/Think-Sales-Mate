@@ -385,6 +385,113 @@ export async function saveEducationInstitutionSettings(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/settings")}?updated=1`);
 }
 
+export async function uploadEducationInstitutionLogo(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+
+  const { hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!hasOrganizationScope) {
+    throw new Error("Institution logos require explicit organization-wide Think Education access.");
+  }
+  if (!await canTabPermission("education_settings", "settings", "institution", "edit")) {
+    throw new Error("You need edit access to upload the Think Education institution logo.");
+  }
+
+  const supabase = await createClient();
+  const { data: institution, error: institutionError } = await supabase.from("education_institution_settings")
+    .select("org_id")
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (institutionError) throw new Error(`Could not load institution settings: ${institutionError.message}`);
+  const settingsPath = getProductAppPath("think-education", "/settings");
+  if (!institution) redirect(`${settingsPath}?logo=save-settings-first`);
+
+  const file = formData.get("institution_logo");
+  if (!(file instanceof File) || file.size === 0) redirect(`${settingsPath}?logo=invalid`);
+  if (file.size > 2 * 1024 * 1024) redirect(`${settingsPath}?logo=too-large`);
+
+  const imageTypes = {
+    "image/jpeg": {
+      isValid: (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff,
+    },
+    "image/png": {
+      isValid: (bytes: Uint8Array) => bytes.length >= 8
+        && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+        && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a,
+    },
+    "image/webp": {
+      isValid: (bytes: Uint8Array) => bytes.length >= 12
+        && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF"
+        && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP",
+    },
+  } as const;
+  if (!(file.type in imageTypes)) redirect(`${settingsPath}?logo=invalid`);
+  const imageType = imageTypes[file.type as keyof typeof imageTypes];
+  if (!imageType.isValid(new Uint8Array(await file.slice(0, 12).arrayBuffer()))) {
+    redirect(`${settingsPath}?logo=invalid`);
+  }
+
+  const logoPath = `${context.orgId}/institution-logo`;
+  const admin = createAdminClient();
+  const { error: uploadError } = await admin.storage.from("education-institution-logos").upload(logoPath, file, {
+    cacheControl: "3600",
+    contentType: file.type,
+    upsert: true,
+  });
+  if (uploadError) {
+    console.error("Could not upload Think Education institution logo:", uploadError.message);
+    redirect(`${settingsPath}?logo=error`);
+  }
+
+  const { data: publicUrl } = admin.storage.from("education-institution-logos").getPublicUrl(logoPath);
+  const logoUrl = `${publicUrl.publicUrl}?v=${Date.now()}`;
+  const { error } = await supabase.from("education_institution_settings")
+    .update({
+      institution_logo_url: logoUrl,
+      updated_by: context.userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("org_id", context.orgId);
+  if (error) {
+    console.error("Could not save Think Education institution logo:", error.message);
+    redirect(`${settingsPath}?logo=error`);
+  }
+
+  revalidatePath("/education/settings");
+  revalidatePath("/education");
+  redirect(`${settingsPath}?logo=updated`);
+}
+
+export async function clearEducationInstitutionLogo() {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+
+  const { hasOrganizationScope } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!hasOrganizationScope) {
+    throw new Error("Institution logos require explicit organization-wide Think Education access.");
+  }
+  if (!await canTabPermission("education_settings", "settings", "institution", "edit")) {
+    throw new Error("You need edit access to change the Think Education institution logo.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("education_institution_settings")
+    .update({
+      institution_logo_url: null,
+      updated_by: context.userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("org_id", context.orgId);
+  if (error) {
+    console.error("Could not clear Think Education institution logo:", error.message);
+    redirect(`${getProductAppPath("think-education", "/settings")}?logo=error`);
+  }
+
+  revalidatePath("/education/settings");
+  revalidatePath("/education");
+  redirect(`${getProductAppPath("think-education", "/settings")}?logo=cleared`);
+}
+
 export async function createEducationFeeCharge(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");

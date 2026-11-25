@@ -1,7 +1,16 @@
 const EDUCATION_PORTAL_PATHS = new Set([
   "/student-education-portal",
+  "/student-education-portal/assistant",
+  "/student-education-portal/assignments",
+  "/student-education-portal/attendance",
+  "/student-education-portal/results",
+  "/student-education-portal/timetable",
   "/education-portal",
   "/teacher-education-portal",
+  "/teacher-education-portal/assignments",
+  "/teacher-education-portal/classes",
+  "/teacher-education-portal/attendance",
+  "/teacher-education-portal/timetable",
 ]);
 
 const EDUCATION_ORGANIZATION_ID_PATTERN =

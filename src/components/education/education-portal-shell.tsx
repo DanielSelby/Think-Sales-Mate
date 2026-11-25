@@ -35,18 +35,18 @@ const portalNavigation: Record<EducationPortalRole, Array<{ label: string; href:
   ],
   teacher: [
     { label: "Dashboard", href: "/teacher-education-portal", icon: LayoutDashboard },
-    { label: "Homework & Assignments", href: "/teacher-education-portal#assignments", icon: BookOpen },
-    { label: "My Classes", href: "/teacher-education-portal#classes", icon: Users },
-    { label: "Attendance", href: "/teacher-education-portal#attendance", icon: CalendarDays },
-    { label: "Timetable", href: "/teacher-education-portal#timetable", icon: GraduationCap },
+    { label: "Homework & Assignments", href: "/teacher-education-portal/assignments", icon: BookOpen },
+    { label: "My Classes", href: "/teacher-education-portal/classes", icon: Users },
+    { label: "Attendance", href: "/teacher-education-portal/attendance", icon: CalendarDays },
+    { label: "Timetable", href: "/teacher-education-portal/timetable", icon: GraduationCap },
   ],
   student: [
     { label: "Dashboard", href: "/student-education-portal", icon: LayoutDashboard },
-    { label: "AI School Assistant", href: "/student-education-portal#assistant", icon: BookOpen },
-    { label: "Homework & Assignments", href: "/student-education-portal#assignments", icon: ClipboardCheck },
-    { label: "Attendance", href: "/student-education-portal#attendance", icon: CalendarDays },
-    { label: "My Results", href: "/student-education-portal#results", icon: GraduationCap },
-    { label: "Timetable", href: "/student-education-portal#timetable", icon: CalendarDays },
+    { label: "AI School Assistant", href: "/student-education-portal/assistant", icon: BookOpen },
+    { label: "Homework & Assignments", href: "/student-education-portal/assignments", icon: ClipboardCheck },
+    { label: "Attendance", href: "/student-education-portal/attendance", icon: CalendarDays },
+    { label: "My Results", href: "/student-education-portal/results", icon: GraduationCap },
+    { label: "Timetable", href: "/student-education-portal/timetable", icon: CalendarDays },
   ],
 };
 
