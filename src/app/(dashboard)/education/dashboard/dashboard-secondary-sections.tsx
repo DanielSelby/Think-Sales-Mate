@@ -160,34 +160,6 @@ export async function StudentDistributionSection({
   </ul>;
 }
 
-export function AttendanceTrendCard({
-  orgId,
-  branchIds,
-  today,
-  canReadAttendance,
-}: {
-  orgId: string;
-  branchIds: string[];
-  today: string;
-  canReadAttendance: boolean;
-}) {
-  return <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-bold text-slate-950">Attendance trend</h2>
-        <p className="mt-1 text-sm text-slate-500">Daily present rate across your selected campuses for the last seven days.</p>
-      </div>
-      <Link href={getProductAppPath("think-education", "/attendance")} className="text-sm font-semibold text-blue-700">Open attendance</Link>
-    </div>
-    <AttendanceTrendSection
-      orgId={orgId}
-      branchIds={branchIds}
-      today={today}
-      canReadAttendance={canReadAttendance}
-    />
-  </section>;
-}
-
 export function StudentDistributionCard({
   orgId,
   campuses,

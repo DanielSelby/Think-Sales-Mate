@@ -35,6 +35,8 @@ export async function updateEducationClass(formData: FormData) {
   const capacity = capacityValue ? Number(capacityValue) : null;
   const status = String(formData.get("status") ?? "");
 
+  if (status !== "active" && status !== "inactive") redirect(classListPath("error=invalid"));
+
   if (!CLASS_ID_PATTERN.test(classId)
     || !name
     || name.length > 100
@@ -44,8 +46,7 @@ export async function updateEducationClass(formData: FormData) {
     || curriculumStage.length > 80
     || medium.length > 80
     || (classTeacherId && !CLASS_ID_PATTERN.test(classTeacherId))
-    || (capacity !== null && (!Number.isInteger(capacity) || capacity < 1))
-    || !["active", "inactive"].includes(status)) {
+    || (capacity !== null && (!Number.isInteger(capacity) || capacity < 1))) {
     redirect(classListPath("error=invalid"));
   }
 

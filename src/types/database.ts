@@ -8154,6 +8154,23 @@ export interface Database {
         };
         Returns: string;
       };
+      education_archive_class: {
+        Args: {
+          p_org_id: string;
+          p_class_id: string;
+        };
+        Returns: string;
+      };
+      education_get_class_enrollment_counts: {
+        Args: {
+          p_org_id: string;
+          p_class_ids: string[];
+        };
+        Returns: Array<{
+          class_id: string;
+          active_count: number;
+        }>;
+      };
       education_set_academic_year_status: {
         Args: {
           p_org_id: string;
