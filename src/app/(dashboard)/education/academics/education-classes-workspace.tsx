@@ -30,6 +30,7 @@ type EducationClassRow = {
   class_code: string | null;
   level_name: string | null;
   stream_name: string | null;
+  room: string | null;
   curriculum_stage: string | null;
   medium: string | null;
   class_teacher_id: string | null;
@@ -101,6 +102,7 @@ export function EducationClassesWorkspace({
         item.class_code,
         item.level_name,
         item.stream_name,
+        item.room,
         item.curriculum_stage,
         item.medium,
         teacher?.first_name,
@@ -129,7 +131,7 @@ export function EducationClassesWorkspace({
         year: (row) => academicYears.find((year) => year.id === row.academic_year_id)?.name ?? "",
         teacher: teacherName,
         capacity: (row) => row.capacity ?? Number.MAX_SAFE_INTEGER,
-        room: (row) => row.room_names.join(", "),
+        room: (row) => row.room ?? "",
         status: (row) => row.status,
         created: (row) => row.created_at,
       };
@@ -170,7 +172,7 @@ export function EducationClassesWorkspace({
   const downloadCsv = () => {
     const headers = [
       "ID", "Class", "Section", "Grade", "Code", "Academic Year", "Stage", "Medium",
-      "Class Teacher", "Current Students", "Capacity", "Room", "Status", "Created",
+      "Class Teacher", "Current Students", "Capacity", "Room", "Timetable Rooms", "Status", "Created",
     ];
     const rows = visibleClasses.map((item) => {
       const teacher = teachers.find((member) => member.id === item.class_teacher_id);
@@ -186,6 +188,7 @@ export function EducationClassesWorkspace({
         canViewStaff ? teacher ? `${teacher.first_name} ${teacher.last_name}` : "Unassigned" : "Restricted",
         item.active_students,
         item.capacity ?? "",
+        item.room ?? "",
         item.room_names.join("; "),
         item.status,
         new Date(item.created_at).toISOString(),
@@ -357,7 +360,7 @@ export function EducationClassesWorkspace({
                   <p className="whitespace-nowrap font-medium text-slate-700">{item.active_students} / {item.capacity ?? "—"}</p>
                   {item.capacity !== null && <span className="mt-1 block h-1.5 w-20 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }} /></span>}
                 </td>
-                <td className="px-3 py-3 text-slate-700">{canViewTimetables ? item.room_names.join(", ") || "Unassigned" : "Timetable access required"}</td>
+                <td className="px-3 py-3 text-slate-700">{item.room || "Unassigned"}</td>
                 <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold capitalize ${item.status === "active" ? "bg-emerald-100 text-emerald-800" : item.status === "archived" ? "bg-slate-200 text-slate-700" : "bg-blue-100 text-blue-800"}`}>{item.status}</span></td>
                 <td className="whitespace-nowrap px-3 py-3 text-slate-600">{new Date(item.created_at).toLocaleDateString()}</td>
                 <td className="no-print px-3 py-3">
@@ -420,6 +423,7 @@ export function EducationClassesWorkspace({
               : "Unassigned"
             : "Staff access required"} />
           <Detail label="Active enrollment" value={`${viewingClass.active_students} / ${viewingClass.capacity ?? "No capacity limit"}`} />
+          <Detail label="Assigned room" value={viewingClass.room || "Unassigned"} />
           <Detail label="Active subjects" value={viewingClass.active_subjects.join(", ") || "No subjects assigned"} />
           <Detail label="Rooms in active timetable" value={canViewTimetables ? viewingClass.room_names.join(", ") || "No room assigned" : "Timetable access required"} />
           <Detail label="Status" value={viewingClass.status} />

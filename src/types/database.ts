@@ -645,6 +645,7 @@ type EducationClass = {
   class_code: string | null;
   level_name: string | null;
   stream_name: string | null;
+  room: string | null;
   curriculum_stage: string | null;
   medium: string | null;
   class_teacher_id: string | null;

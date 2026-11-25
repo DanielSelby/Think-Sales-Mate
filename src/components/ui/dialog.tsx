@@ -41,20 +41,25 @@ export function Dialog({ open, onClose, title, description, children, className 
           className
         )}
       >
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-md p-1 text-ledger-400 hover:bg-ledger-100 hover:text-ink-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
-          aria-label="Close"
+        <header
+          data-theme-modal-header
+          className="-mx-6 -mt-6 mb-4 flex items-start justify-between gap-4 rounded-t-[inherit] border-b px-6 py-4"
         >
-          <X className="h-4 w-4" />
-        </button>
-        <h2 id="dialog-title" className="font-display text-lg font-semibold text-ink-900 dark:text-white">
-          {title}
-        </h2>
-        {description && (
-          <p className="mt-1 text-sm text-ledger-500 dark:text-ledger-400">{description}</p>
-        )}
-        <div className="mt-4">{children}</div>
+          <div className="min-w-0">
+            <h2 id="dialog-title" className="font-display text-lg font-semibold">
+              {title}
+            </h2>
+            {description && <p className="mt-1 text-sm">{description}</p>}
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 rounded-md p-1 text-white/85 hover:bg-white/15 hover:text-white"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+        <div>{children}</div>
       </div>
     </div>
   );

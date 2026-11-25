@@ -22,6 +22,7 @@ type ExistingClass = {
   class_code: string | null;
   level_name: string | null;
   stream_name: string | null;
+  room: string | null;
   curriculum_stage: string | null;
   medium: string | null;
   class_teacher_id: string | null;
@@ -153,6 +154,9 @@ export function EducationClassForm({
       </label>
       <label className="text-sm font-medium text-slate-700">Stream
         <input name="stream_name" maxLength={80} defaultValue={classroom?.stream_name ?? ""} className={fieldClass} />
+      </label>
+      <label className="text-sm font-medium text-slate-700">Room
+        <input name="room" maxLength={80} defaultValue={classroom?.room ?? ""} placeholder="e.g. Room 12" className={fieldClass} />
       </label>
       <label className="text-sm font-medium text-slate-700">Curriculum stage
         <input name="curriculum_stage" maxLength={80} defaultValue={classroom?.curriculum_stage ?? ""} placeholder="Primary" className={fieldClass} />

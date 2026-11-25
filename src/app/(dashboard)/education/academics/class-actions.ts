@@ -28,6 +28,7 @@ export async function updateEducationClass(formData: FormData) {
   const classCode = String(formData.get("class_code") ?? "").trim();
   const levelName = String(formData.get("level_name") ?? "").trim();
   const streamName = String(formData.get("stream_name") ?? "").trim();
+  const room = String(formData.get("room") ?? "").trim();
   const curriculumStage = String(formData.get("curriculum_stage") ?? "").trim();
   const medium = String(formData.get("medium") ?? "").trim();
   const classTeacherId = String(formData.get("class_teacher_id") ?? "").trim();
@@ -43,6 +44,7 @@ export async function updateEducationClass(formData: FormData) {
     || classCode.length > 40
     || levelName.length > 80
     || streamName.length > 80
+    || room.length > 80
     || curriculumStage.length > 80
     || medium.length > 80
     || (classTeacherId && !CLASS_ID_PATTERN.test(classTeacherId))
@@ -92,6 +94,7 @@ export async function updateEducationClass(formData: FormData) {
       class_code: classCode || null,
       level_name: levelName || null,
       stream_name: streamName || null,
+      room: room || null,
       curriculum_stage: curriculumStage || null,
       medium: medium || null,
       class_teacher_id: classTeacherId || null,
@@ -153,7 +156,7 @@ export async function emailEducationClassesPdf(formData: FormData) {
   if (!branchIds.length) redirect(classListPath("error=campus"));
   const supabase = await createClient();
   const { data: classes, error: classesError } = await supabase.from("education_classes")
-    .select("id, branch_id, academic_year_id, name, class_code, level_name, stream_name, curriculum_stage, medium, class_teacher_id, capacity, status, created_at")
+    .select("id, branch_id, academic_year_id, name, class_code, level_name, stream_name, room, curriculum_stage, medium, class_teacher_id, capacity, status, created_at")
     .eq("org_id", context.orgId)
     .in("branch_id", branchIds)
     .in("id", classIds)
@@ -238,7 +241,8 @@ export async function emailEducationClassesPdf(formData: FormData) {
       `Section: ${item.stream_name || "—"} | Grade: ${item.level_name || "—"} | Year: ${yearNameById.get(item.academic_year_id) || "—"}`,
       `Stage: ${item.curriculum_stage || "—"} | Medium: ${item.medium || "—"}`,
       `Teacher: ${canViewStaff ? teacherNameById.get(item.class_teacher_id ?? "") || "Unassigned" : "Restricted"} | Students: ${enrollmentCountByClass.get(item.id) ?? 0}/${item.capacity ?? "No capacity limit"}`,
-      `Campus: ${campuses.find((campus) => campus.id === item.branch_id)?.name ?? "Campus"} | Room: ${canViewTimetables ? Array.from(roomNamesByClass.get(item.id) ?? []).join(", ") || "Unassigned" : "Restricted"}`,
+      `Campus: ${campuses.find((campus) => campus.id === item.branch_id)?.name ?? "Campus"} | Room: ${item.room || "Unassigned"}`,
+      `Timetable rooms: ${canViewTimetables ? Array.from(roomNamesByClass.get(item.id) ?? []).join(", ") || "Unassigned" : "Restricted"}`,
       `Created: ${new Date(item.created_at).toISOString().slice(0, 10)} | ID: ${item.id}`,
       "",
     ]),

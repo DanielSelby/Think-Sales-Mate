@@ -3094,11 +3094,12 @@ export async function createEducationClass(formData: FormData) {
   const streamName = String(formData.get("stream_name") ?? "").trim();
   const curriculumStage = String(formData.get("curriculum_stage") ?? "").trim();
   const medium = String(formData.get("medium") ?? "").trim();
+  const room = String(formData.get("room") ?? "").trim();
   const capacityValue = String(formData.get("capacity") ?? "").trim();
   const capacity = capacityValue ? Number(capacityValue) : null;
   if (!branchId || !academicYearId || !name || name.length > 100 || classCode.length > 40
     || levelName.length > 80 || streamName.length > 80
-    || curriculumStage.length > 80 || medium.length > 80
+    || curriculumStage.length > 80 || medium.length > 80 || room.length > 80
     || (classTeacherId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(classTeacherId))
     || (capacity !== null && (!Number.isInteger(capacity) || capacity < 1))) {
     redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=invalid`);
@@ -3137,6 +3138,7 @@ export async function createEducationClass(formData: FormData) {
     class_code: classCode || null,
     level_name: levelName || null,
     stream_name: streamName || null,
+    room: room || null,
     curriculum_stage: curriculumStage || null,
     medium: medium || null,
     capacity,

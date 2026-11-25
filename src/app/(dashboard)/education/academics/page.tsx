@@ -75,6 +75,7 @@ export default async function EducationAcademicsPage({
     class_code: string | null;
     level_name: string | null;
     stream_name: string | null;
+    room: string | null;
     curriculum_stage: string | null;
     medium: string | null;
     class_teacher_id: string | null;
@@ -86,7 +87,7 @@ export default async function EducationAcademicsPage({
     let offset = 0;
     while (true) {
       const { data: classPage, error: classesError } = await supabase.from("education_classes")
-        .select("id, branch_id, academic_year_id, name, class_code, level_name, stream_name, curriculum_stage, medium, class_teacher_id, capacity, status, created_at")
+        .select("id, branch_id, academic_year_id, name, class_code, level_name, stream_name, room, curriculum_stage, medium, class_teacher_id, capacity, status, created_at")
         .eq("org_id", context.orgId)
         .in("branch_id", branchIds)
         .order("name")

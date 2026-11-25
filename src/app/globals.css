@@ -4300,3 +4300,20 @@ html.dark[data-dark-style="think-service"] .page-canvas .education-page-content 
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18), inset 0 1px rgb(255 255 255 / 0.035) !important;
   backdrop-filter: blur(12px);
 }
+
+html body .page-canvas [role="dialog"] :is(header, [data-theme-modal-header], [class*="modal-header"]),
+[role="dialog"] :is(header, [data-theme-modal-header], [class*="modal-header"]) {
+  background-color: var(--theme-primary, #1d4ed8) !important;
+  border-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 74%, white) !important;
+  color: #fff !important;
+}
+
+html body .page-canvas [role="dialog"] :is(header, [data-theme-modal-header], [class*="modal-header"]) :is(h1, h2, h3, button, svg),
+[role="dialog"] :is(header, [data-theme-modal-header], [class*="modal-header"]) :is(h1, h2, h3, button, svg) {
+  color: inherit !important;
+}
+
+html body .page-canvas [role="dialog"] :is(header, [data-theme-modal-header], [class*="modal-header"]) p,
+[role="dialog"] :is(header, [data-theme-modal-header], [class*="modal-header"]) p {
+  color: rgb(255 255 255 / 0.82) !important;
+}
