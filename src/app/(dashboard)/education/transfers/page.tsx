@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRightLeft, Check, Plus, Truck, X } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, Check, Plus, Truck } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
@@ -40,13 +40,11 @@ export default async function EducationTransfersPage({
   const normalizedStatus = validStatuses.has(statusFilter) ? statusFilter : "all";
   const normalizedCampus = campuses.some((campus) => campus.id === campusFilter) ? campusFilter : "all";
   const branchIds = campuses.map((campus) => campus.id);
-  const [canCreate, canEdit, canApproveAction, canExport] = await Promise.all([
+  const [canCreate, canEdit, canExport] = await Promise.all([
     canTabPermission("education_transfers", "transfers", "requests", "create"),
     canTabPermission("education_transfers", "transfers", "requests", "edit"),
-    canTabPermission("education_transfers", "transfers", "requests", "approve"),
     canTabPermission("education_transfers", "transfers", "requests", "export"),
   ]);
-  const canApprove = canEdit && canApproveAction;
   const supabase = await createClient();
   let transfers: TransferRow[] = [];
   if (branchIds.length) {
@@ -201,16 +199,6 @@ export default async function EducationTransfersPage({
               <td className="max-w-[260px] px-4 py-3 text-slate-600">{transfer.reason}</td>
               <td className="px-4 py-3">
                 <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{transfer.status}</span>
-                {hasBothCampuses && transfer.status === "pending" && canApprove && <div className="mt-2 flex gap-2">
-                  <form action={transitionEducationStudentTransfer}>
-                    <input type="hidden" name="transfer_id" value={transfer.id} /><input type="hidden" name="status" value="approved" />
-                    <button className="inline-flex items-center gap-1 rounded-md bg-emerald-700 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-800"><Check className="h-3 w-3" />Approve</button>
-                  </form>
-                  <form action={transitionEducationStudentTransfer}>
-                    <input type="hidden" name="transfer_id" value={transfer.id} /><input type="hidden" name="status" value="rejected" />
-                    <button className="inline-flex items-center gap-1 rounded-md border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"><X className="h-3 w-3" />Reject</button>
-                  </form>
-                </div>}
                 {hasBothCampuses && transfer.status === "approved" && canEdit && transfer.effective_on <= today && <form action={transitionEducationStudentTransfer} className="mt-2">
                   <input type="hidden" name="transfer_id" value={transfer.id} /><input type="hidden" name="status" value="completed" />
                   <button className="rounded-md bg-blue-700 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-800">Complete transfer</button>

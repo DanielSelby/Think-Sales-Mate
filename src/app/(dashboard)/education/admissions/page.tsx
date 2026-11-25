@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ClipboardList, Plus, Search, UserPlus } from "lucide-react";
+import { ArrowLeft, ClipboardList, Search, UserPlus } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { recordEducationAdmissionOffer, reviewEducationAdmissionDocument, updateEducationAdmissionStatus } from "../actions";
 import { EducationSubmitButton } from "../submit-button";
+import { AdmissionCreateModal } from "./admission-create-modal";
+import { AdmissionEnrollmentModal } from "./admission-enrollment-modal";
 
 const ADMISSION_STATUSES = ["pending", "under_review", "admitted", "rejected", "enrolled", "withdrawn"] as const;
 const PAGE_SIZE = 50;
@@ -172,7 +174,7 @@ export default async function EducationAdmissionsPage({
       if (activeYearIds.length) {
         const { data: classRows, error: classesError } = await supabase.from("education_classes")
           .select("id, branch_id, academic_year_id, name, level_name, stream_name, capacity")
-          .eq("org_id", context.orgId).in("branch_id", branchIds)
+          .eq("org_id", context.orgId).in("branch_id", campusIds)
           .in("academic_year_id", activeYearIds).eq("status", "active").order("name");
         if (classesError) throw new Error(`Could not load Think Education classes for admissions: ${classesError.message}`);
         classes = classRows ?? [];
@@ -260,9 +262,17 @@ export default async function EducationAdmissionsPage({
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Admissions</h1>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Track applications and admission decisions across your assigned campuses.</p>
       </div>
-      {canCreate && <Link href={getProductAppPath("think-education", "/admissions/new")} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
-        <Plus className="h-4 w-4" /> New application
-      </Link>}
+      {canCreate && <AdmissionCreateModal
+        campuses={campuses}
+        classes={classes.map((classroom) => ({
+          id: classroom.id,
+          branchId: classroom.branch_id,
+          label: `${campusNameById.get(classroom.branch_id) ?? "Campus"} · ${classroom.name}${classroom.level_name ? ` (${classroom.level_name})` : ""}`,
+        }))}
+        canViewClasses={canViewClasses}
+        initiallyOpen={params.new === "1"}
+        admissionsPath={getProductAppPath("think-education", "/admissions")}
+      />}
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Application created.</p>}
@@ -400,10 +410,7 @@ export default async function EducationAdmissionsPage({
                   </form>}
                   {application.status === "under_review" && canApprove && <>
                     {hasActiveOffer
-                      ? <form action={updateEducationAdmissionStatus}>
-                        <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="admitted" />
-                        <EducationSubmitButton pendingLabel="Updating application..." className="rounded-md bg-emerald-700 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-800">Accept offer and admit</EducationSubmitButton>
-                      </form>
+                      ? <p className="max-w-xs text-xs text-slate-600">Offer recorded. Complete the admission decision in Approvals &amp; attention.</p>
                       : <form action={recordEducationAdmissionOffer} className="grid w-56 gap-1.5 rounded-md border border-blue-100 bg-blue-50 p-2">
                         <input type="hidden" name="admission_id" value={application.id} />
                         <label className="text-xs font-medium text-slate-700">Offer expiry
@@ -415,30 +422,22 @@ export default async function EducationAdmissionsPage({
                         <EducationSubmitButton pendingLabel="Recording offer..." className="rounded-md bg-blue-700 px-2 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">{offer ? "Reissue offer" : "Record offer sent"}</EducationSubmitButton>
                         <p className="text-[11px] leading-4 text-slate-600">This records an offer sent outside the system; it does not send an email.</p>
                       </form>}
-                    <form action={updateEducationAdmissionStatus} className="flex flex-col gap-1">
-                      <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="rejected" />
-                      <input required name="decision_note" maxLength={1000} placeholder="Reason required" aria-label="Rejection reason" className="w-40 rounded-md border border-slate-300 px-2 py-1 text-xs" />
-                      <EducationSubmitButton pendingLabel="Saving decision..." className="rounded-md border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</EducationSubmitButton>
-                    </form>
                   </>}
                 </div>}
-                {application.status === "admitted" && canEnroll && (!application.guardian_first_name || canCreateGuardian) && <form action={updateEducationAdmissionStatus} className="mt-3 grid max-w-xs gap-2">
-                  <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="enrolled" />
-                  <p className="text-xs text-slate-600">A student number will be generated automatically when enrolling.</p>
-                  <label className="text-xs font-medium text-slate-700">Active class
-                    <select required name="class_id" defaultValue={application.requested_class_id ?? ""} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
-                      <option value="" disabled>Select a class</option>
-                      {classes.filter((classroom) => classroom.branch_id === application.branch_id).map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}{classroom.level_name ? ` · ${classroom.level_name}` : ""}{classroom.capacity ? ` (${classroom.capacity} capacity)` : ""}</option>)}
-                    </select>
-                  </label>
-                  <EducationSubmitButton
-                    disabled={!classes.some((classroom) => classroom.branch_id === application.branch_id)}
-                    pendingLabel="Enrolling student..."
-                    className="rounded-md bg-blue-700 px-2 py-1.5 text-xs font-semibold text-white enabled:hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    Enroll and create student
-                  </EducationSubmitButton>
-                </form>}
+                {application.status === "admitted" && canEnroll && (!application.guardian_first_name || canCreateGuardian) && <AdmissionEnrollmentModal
+                  application={{
+                    id: application.id,
+                    applicationNumber: application.application_number,
+                    firstName: application.applicant_first_name,
+                    otherNames: application.applicant_other_names,
+                    lastName: application.applicant_last_name,
+                    requestedClassId: application.requested_class_id,
+                  }}
+                  classes={classes.filter((classroom) => classroom.branch_id === application.branch_id).map((classroom) => ({
+                    id: classroom.id,
+                    label: `${classroom.name}${classroom.level_name ? ` · ${classroom.level_name}` : ""}${classroom.capacity ? ` (${classroom.capacity} capacity)` : ""}`,
+                  }))}
+                />}
                 {application.status === "admitted" && canEnroll && application.guardian_first_name && !canCreateGuardian && <p className="mt-2 max-w-xs text-xs text-amber-800">Guardian creation permission is required before enrolling this applicant with guardian details.</p>}
                 {["pending", "under_review", "admitted"].includes(application.status) && canEdit && <form action={updateEducationAdmissionStatus} className="mt-2 flex flex-col gap-1">
                   <input type="hidden" name="admission_id" value={application.id} /><input type="hidden" name="status" value="withdrawn" />

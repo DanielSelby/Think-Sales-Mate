@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, Loader2, Plus, Trash2, X, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -299,7 +300,8 @@ export function AddExpenseForm({
 
       {isEdit && (
         <div className="flex items-center gap-2 rounded-md border border-signal/30 bg-signal-soft px-4 py-2.5 text-sm text-ink-900 dark:bg-signal/10 dark:text-white">
-          Status, payment status, and approval decisions can&apos;t be changed here — use Approve / Reject / Mark as Paid from the expense list actions.
+          Status and approval decisions can&apos;t be changed here. Manage approval decisions in the{" "}
+          <Link href="/approvals?type=expense" className="font-semibold text-signal hover:underline">Approval Center</Link>.
         </div>
       )}
 

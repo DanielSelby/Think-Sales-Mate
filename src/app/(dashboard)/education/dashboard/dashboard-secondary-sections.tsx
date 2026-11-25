@@ -2,6 +2,12 @@ import Link from "next/link";
 import { Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import {
+  AttendanceStatusLineChart,
+  StudentGenderDonutChart,
+  type AttendanceStatusPoint,
+  type StudentGenderSlice,
+} from "./dashboard-charts";
 
 type Campus = {
   id: string;
@@ -17,7 +23,7 @@ function SectionError({ section }: { section: string }) {
   </p>;
 }
 
-export async function AttendanceTrendSection({
+export async function AttendanceStatusCard({
   orgId,
   branchIds,
   today,
@@ -28,51 +34,77 @@ export async function AttendanceTrendSection({
   today: string;
   canReadAttendance: boolean;
 }) {
+  const header = <div>
+    <h2 className="text-lg font-bold text-slate-950">Attendance by status</h2>
+    <p className="mt-1 text-sm text-slate-500">Daily present, late, and absent counts across your selected campuses for the last seven days.</p>
+  </div>;
   if (!canReadAttendance) {
-    return <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include attendance reporting access.</p>;
+    return <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include attendance reporting access.</p>
+    </section>;
   }
   if (branchIds.length === 0) {
-    return <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see attendance trends.</p>;
+    return <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see attendance trends.</p>
+    </section>;
   }
 
   const firstDay = new Date(`${today}T00:00:00.000Z`);
   firstDay.setUTCDate(firstDay.getUTCDate() - 6);
   const from = firstDay.toISOString().slice(0, 10);
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("education_get_dashboard_attendance_trend", {
-    p_org_id: orgId,
-    p_branch_ids: branchIds,
-    p_from: from,
-    p_to: today,
-  });
-  if (error) {
-    console.error("Could not load Think Education dashboard attendance trend:", error);
-    return <SectionError section="the attendance trend" />;
+  const countsByDate = new Map<string, { present: number; late: number; absent: number }>();
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from("education_attendance")
+      .select("id, attendance_date, status")
+      .eq("org_id", orgId).in("branch_id", branchIds)
+      .gte("attendance_date", from).lte("attendance_date", today)
+      .in("status", ["present", "late", "absent"])
+      .order("attendance_date").order("id")
+      .range(offset, offset + pageSize - 1);
+    if (error) {
+      console.error("Could not load Think Education dashboard attendance statuses:", error);
+      return <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<SectionError section="attendance status trends" />
+      </section>;
+    }
+    const page = data ?? [];
+    if (offset >= 100_000 && page.length > 0) {
+      console.error("Think Education attendance chart exceeded its 100,000-record processing limit.");
+      return <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Attendance volume exceeds the chart limit. Narrow your campus access to view this trend.</p>
+      </section>;
+    }
+    for (const record of page) {
+      const current = countsByDate.get(record.attendance_date) ?? { present: 0, late: 0, absent: 0 };
+      if (record.status === "present") current.present += 1;
+      if (record.status === "late") current.late += 1;
+      if (record.status === "absent") current.absent += 1;
+      countsByDate.set(record.attendance_date, current);
+    }
+    if (page.length < pageSize) break;
   }
 
-  const rows = data ?? [];
-  const rowsByDate = new Map(rows.map((row) => [row.attendance_date, row]));
-  const trend = Array.from({ length: 7 }, (_, index) => {
+  const trend: AttendanceStatusPoint[] = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${from}T00:00:00.000Z`);
     date.setUTCDate(date.getUTCDate() + index);
     const dateKey = date.toISOString().slice(0, 10);
-    const row = rowsByDate.get(dateKey);
-    const total = Number(row?.total_count ?? 0);
-    const present = Number(row?.present_count ?? 0);
-    return { date: dateKey, total, present, rate: total ? Math.round((present / total) * 100) : null };
+    const counts = countsByDate.get(dateKey) ?? { present: 0, late: 0, absent: 0 };
+    return {
+      date: dateKey,
+      label: new Date(`${dateKey}T12:00:00.000Z`).toLocaleDateString(undefined, { weekday: "short" }),
+      ...counts,
+    };
   });
 
-  return trend.every((day) => day.total === 0)
-    ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">No attendance has been recorded in the last seven days.</p>
-    : <div className="mt-5 grid grid-cols-7 gap-2 sm:gap-4">
-      {trend.map((day) => <div key={day.date} className="flex min-w-0 flex-col items-center gap-2">
-        <span className="text-xs font-semibold tabular-nums text-slate-700">{day.rate === null ? "—" : `${day.rate}%`}</span>
-        <div className="flex h-32 w-full items-end justify-center rounded-lg bg-slate-50 p-2" role="img" aria-label={`${day.date}: ${day.present} present out of ${day.total} marked`}>
-          <span className="w-full rounded-t-md bg-blue-600" style={{ height: `${day.rate ?? 0}%`, minHeight: day.rate === null ? 0 : "0.375rem" }} />
-        </div>
-        <span className="text-center text-[11px] text-slate-500">{new Date(`${day.date}T12:00:00.000Z`).toLocaleDateString(undefined, { weekday: "short" })}</span>
-      </div>)}
-    </div>;
+  return <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      {header}
+      <Link href={getProductAppPath("think-education", "/attendance")} className="text-sm font-semibold text-blue-700">Open attendance</Link>
+    </div>
+    <AttendanceStatusLineChart data={trend} />
+  </section>;
 }
 
 export async function StudentDistributionSection({
@@ -184,5 +216,78 @@ export function StudentDistributionCard({
       studentCount={studentCount}
       canReadStudents={canReadStudents}
     />
+  </article>;
+}
+
+export async function StudentGenderCard({
+  orgId,
+  branchIds,
+  canReadStudents,
+}: {
+  orgId: string;
+  branchIds: string[];
+  canReadStudents: boolean;
+}) {
+  const header = <div className="flex items-start justify-between gap-3">
+    <div>
+      <h2 className="text-lg font-bold text-slate-950">Students by gender</h2>
+      <p className="mt-1 text-sm text-slate-500">Active students in the selected campus scope.</p>
+    </div>
+    <Link href={getProductAppPath("think-education", "/students")} className="shrink-0 text-sm font-semibold text-blue-700">View students</Link>
+  </div>;
+
+  if (!canReadStudents) {
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include student reporting access.</p>
+    </article>;
+  }
+  if (branchIds.length === 0) {
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see student gender distribution.</p>
+    </article>;
+  }
+
+  const supabase = await createClient();
+  const genderCounts = new Map<string, number>();
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from("education_students")
+      .select("id, gender")
+      .eq("org_id", orgId).in("branch_id", branchIds).eq("status", "active")
+      .order("id").range(offset, offset + pageSize - 1);
+    if (error) {
+      console.error("Could not load Think Education student gender counts:", error);
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<SectionError section="student gender distribution" />
+      </article>;
+    }
+    const page = data ?? [];
+    if (offset >= 100_000 && page.length > 0) {
+      console.error("Think Education student gender chart exceeded its 100,000-record processing limit.");
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Student volume exceeds the chart limit. Narrow your campus access to view this distribution.</p>
+      </article>;
+    }
+    for (const student of page) {
+      const normalized = (student.gender ?? "").trim().toLowerCase();
+      const group = normalized === "male" || normalized === "m" || normalized === "man"
+        ? "Male"
+        : normalized === "female" || normalized === "f" || normalized === "woman"
+          ? "Female"
+          : normalized ? "Other / self-described" : "Not recorded";
+      genderCounts.set(group, (genderCounts.get(group) ?? 0) + 1);
+    }
+    if (page.length < pageSize) break;
+  }
+
+  const preferredOrder = ["Male", "Female", "Other / self-described", "Not recorded"];
+  const genderData: StudentGenderSlice[] = preferredOrder.flatMap((name) => {
+    const value = genderCounts.get(name) ?? 0;
+    return value > 0 ? [{ name, value }] : [];
+  });
+
+  return <article data-education-dashboard-card data-education-student-gender className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    {header}
+    <StudentGenderDonutChart data={genderData} />
   </article>;
 }

@@ -38,7 +38,6 @@ interface Props {
 }
 
 const titles: Record<Props["view"], string> = {
-  approvals: "Expense Approval Queue",
   recurring: "Recurring Expenses",
   budgets: "Expense Budget Control",
   reports: "Expense Reports & Analytics",
@@ -68,7 +67,6 @@ export function ExpenseWorkspaceView({ view, expenses, kpis, currency, categoryB
           {view === "reports" && "Review expense totals and category spending using the records available to you."}
           {view === "attachments" && "Open files attached to expenses you are permitted to view."}
           {view === "settings" && "Manage expense categories, budgets, and approval workflows in their existing settings pages."}
-          {view === "approvals" && "Review expenses awaiting approval and take action from the expense list."}
         </p>
       </header>
 
@@ -209,16 +207,6 @@ export function ExpenseWorkspaceView({ view, expenses, kpis, currency, categoryB
         </div>
       )}
 
-      {view === "approvals" && (
-        <div className="rounded-2xl border border-ledger-100 bg-white p-5 shadow-card dark:border-ledger-700 dark:bg-ink-900">
-          <p className="text-sm text-ledger-600 dark:text-ledger-200">
-            {expenses.filter((expense) => expense.status === "pending_approval").length} expense(s) are awaiting approval.
-          </p>
-          <Link href="/expenses?status=pending_approval" className="mt-3 inline-flex items-center gap-2 rounded-lg bg-signal px-4 py-2 text-sm font-semibold text-white hover:brightness-105">
-            <FileText className="h-4 w-4" /> Open pending expenses
-          </Link>
-        </div>
-      )}
     </section>
   );
 }

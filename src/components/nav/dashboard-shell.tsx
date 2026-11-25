@@ -79,6 +79,23 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
     if (roleTheme) setTheme(roleTheme);
   }, [roleTheme, setTheme]);
   const theme = THEMES[activeTheme];
+  React.useEffect(() => {
+    const root = document.documentElement;
+    const themeVariables = {
+      "--theme-primary": theme.colors.primary,
+      "--theme-primary-pale": theme.colors.primaryPale,
+      "--theme-surface": theme.colors.surface,
+      "--theme-background": theme.colors.background,
+      "--theme-text": theme.colors.text,
+      "--theme-text-muted": theme.colors.textMuted,
+    };
+    for (const [name, value] of Object.entries(themeVariables)) {
+      root.style.setProperty(name, value);
+    }
+    return () => {
+      for (const name of Object.keys(themeVariables)) root.style.removeProperty(name);
+    };
+  }, [theme]);
   const productScope = getProductNavigationScope(pathname);
   const isEducationProduct = productScope === "think-education";
   const displayedOrgName = isEducationProduct ? educationInstitutionName || orgName : orgName;

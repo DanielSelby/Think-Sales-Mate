@@ -45,6 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Transfer Register", href: "/education/transfers", icon: Truck, section: "Students & Admissions" },
       { label: "Request Student Transfer", href: "/education/transfers/request", icon: PlusCircle, section: "Students & Admissions" },
       { label: "Academic Management", href: "/education/academics", icon: GraduationCap, section: "Teaching & Academics" },
+      { label: "Classes & Sections", href: "/education/academics?tab=classes", icon: Users2, section: "Teaching & Academics" },
       { label: "Departments", href: "/education/academics/departments", icon: Building2, section: "Teaching & Academics" },
       { label: "Student Attendance", href: "/education/attendance", icon: CalendarClock, section: "Teaching & Academics" },
       { label: "Staff Attendance", href: "/education/attendance/staff", icon: CalendarClock, section: "Teaching & Academics" },
@@ -58,7 +59,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Request Staff Transfer", href: "/education/staff/transfers/request", icon: PlusCircle, section: "Campus Operations" },
       { label: "Library", href: "/education/library", icon: List, section: "Campus Operations" },
       { label: "Transport", href: "/education/transport", icon: Truck, section: "Campus Operations" },
-      { label: "Inventory & Assets", href: "/education/inventory", icon: Package, section: "Campus Operations" },
+      { label: "Inventory List", href: "/education/inventory", icon: Package, section: "Campus Operations" },
       { label: "Fees & Finance", href: "/education/finance", icon: Wallet, section: "Finance" },
       { label: "Fee Payments", href: "/education/finance/payments", icon: CreditCard, section: "Finance" },
       { label: "Accounting", href: "/education/accounting", icon: Landmark, section: "Finance", alwaysVisible: true },
@@ -194,7 +195,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: "Expenses", href: "/expenses", icon: Tag, status: "live",
     children: [
-      { label: "All Expenses", href: "/expenses", icon: List },
+      { label: "List Expenses", href: "/expenses/list", icon: List },
       { label: "Add Expense", href: "/expenses/new", icon: PlusCircle },
       { label: "Expense Categories", href: "/expenses/categories", icon: LayoutGrid },
     ],

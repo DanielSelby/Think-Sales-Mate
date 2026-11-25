@@ -642,8 +642,11 @@ type EducationClass = {
   academic_year_id: string;
   department_id: string | null;
   name: string;
+  class_code: string | null;
   level_name: string | null;
   stream_name: string | null;
+  curriculum_stage: string | null;
+  medium: string | null;
   class_teacher_id: string | null;
   capacity: number | null;
   status: "active" | "inactive" | "archived";

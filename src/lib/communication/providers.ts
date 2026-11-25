@@ -2,6 +2,7 @@ import "server-only";
 
 export type DeliveryChannel = "WhatsApp" | "SMS" | "Email";
 export type ProviderResult = { sent: boolean; provider: string; reason?: string; fallback?: boolean };
+export type EmailAttachment = { filename: string; content: string };
 
 const configured = (...names: string[]) => names.map((name) => process.env[name]).find(Boolean);
 const formPost = async (url: string, headers: Record<string, string>, values: Record<string, string>) =>
@@ -90,6 +91,7 @@ async function sendWhatsApp(recipient: string, content: string): Promise<Provide
 export async function deliverMessage(input: {
   channel: DeliveryChannel; recipient: string; subject?: string | null; content: string;
   fallbackToSms?: boolean; smsRecipient?: string | null;
+  attachments?: EmailAttachment[];
 }): Promise<ProviderResult> {
   try {
     if (input.channel === "SMS") return await sendSms(input.recipient, input.content);
@@ -105,7 +107,13 @@ export async function deliverMessage(input: {
     if (resendKey && process.env.RESEND_FROM_EMAIL) {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST", headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: process.env.RESEND_FROM_EMAIL, to: [input.recipient], subject: input.subject || "Message", text: input.content }),
+        body: JSON.stringify({
+          from: process.env.RESEND_FROM_EMAIL,
+          to: [input.recipient],
+          subject: input.subject || "Message",
+          text: input.content,
+          ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+        }),
       });
       return { sent: response.ok, provider: "resend", reason: response.ok ? undefined : "Resend rejected the email." };
     }

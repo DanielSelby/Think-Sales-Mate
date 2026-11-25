@@ -6,7 +6,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { createEducationStaffLeaveRequest, decideEducationStaffLeaveRequest } from "../../actions";
+import { createEducationStaffLeaveRequest } from "../../actions";
 
 const PAGE_SIZE = 50;
 const MAX_FORM_STAFF = 500;
@@ -57,9 +57,8 @@ export default async function EducationStaffLeavePage({
   const status = (STATUSES.includes(requestedStatus as LeaveStatus) ? requestedStatus : "") as LeaveStatus | "";
   const parsedPage = Number.parseInt(getParam(params, "page"), 10);
   const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? Math.min(parsedPage, 2001) : 1;
-  const [canCreate, canApprove, canExport] = await Promise.all([
+  const [canCreate, canExport] = await Promise.all([
     canTabPermission("education_staff", "staff", "leave", "create"),
-    canTabPermission("education_staff", "staff", "leave", "approve"),
     canTabPermission("education_staff", "staff", "leave", "export"),
   ]);
   const supabase = await createClient();
@@ -248,7 +247,6 @@ export default async function EducationStaffLeavePage({
         : <ul className="divide-y divide-slate-100">
           {requests.map((request) => {
             const staffMember = staffById.get(request.staff_id);
-            const canDecide = canApprove && request.status === "pending" && request.requested_by !== context.userId;
             return <li key={request.id} className="space-y-3 p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -263,20 +261,6 @@ export default async function EducationStaffLeavePage({
               <p className="whitespace-pre-wrap text-sm text-slate-700">{request.reason}</p>
               <p className="text-xs text-slate-500">Submitted by {actorNameById.get(request.requested_by) ?? "Staff"} · {new Date(request.created_at).toLocaleString()}</p>
               {request.decision_note && <p className="text-sm text-slate-600">Decision note: {request.decision_note}</p>}
-              {canDecide && <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
-                <form action={decideEducationStaffLeaveRequest}>
-                  <input type="hidden" name="request_id" value={request.id} />
-                  <input type="hidden" name="decision" value="approved" />
-                  <button type="submit" className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800">Approve</button>
-                </form>
-                <form action={decideEducationStaffLeaveRequest} className="flex min-w-[min(100%,360px)] flex-1 gap-2">
-                  <input type="hidden" name="request_id" value={request.id} />
-                  <input type="hidden" name="decision" value="rejected" />
-                  <label className="sr-only" htmlFor={`decision-${request.id}`}>Rejection reason</label>
-                  <input required name="decision_note" id={`decision-${request.id}`} maxLength={1000} placeholder="Reason for rejection" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                  <button type="submit" className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
-                </form>
-              </div>}
             </li>;
           })}
         </ul>}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
-import { ArrowLeft, Banknote, ClipboardCheck, Receipt, Wallet } from "lucide-react";
+import { ArrowLeft, Banknote, Receipt, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { formatCurrencyAmount } from "@/lib/currency";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
@@ -20,7 +20,6 @@ import {
   createEducationExpense,
   deleteEducationExpense,
   markEducationExpensePaid,
-  reviewEducationExpense,
   updateEducationExpense,
 } from "../actions";
 import { EducationSubmitButton } from "../submit-button";
@@ -61,9 +60,8 @@ export default async function EducationExpensesPage({
   const currentPage = Math.min(1_000_000, Math.max(1, Number.parseInt(
     typeof params.page === "string" ? params.page : "1", 10
   ) || 1));
-  const [canCreate, canApprove, canEdit, canDelete, canExport, { campuses }] = await Promise.all([
+  const [canCreate, canEdit, canDelete, canExport, { campuses }] = await Promise.all([
     canTabPermission("education_expenses", "expenses", "records", "create"),
-    canTabPermission("education_expenses", "expenses", "records", "approve"),
     canTabPermission("education_expenses", "expenses", "records", "edit"),
     canTabPermission("education_expenses", "expenses", "records", "delete"),
     canTabPermission("education_expenses", "expenses", "records", "export"),
@@ -347,24 +345,6 @@ export default async function EducationExpensesPage({
             <ConfirmDeleteButton />
             <p className="mt-1 text-xs text-slate-500">Only pending or rejected expenses can be deleted. Deletion is retained in the audit log.</p>
           </form>}
-
-          {expense.status === "pending_approval" && canApprove && <div className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-3">
-            <form action={reviewEducationExpense}>
-              <input type="hidden" name="expense_id" value={expense.id} />
-              <input type="hidden" name="decision" value="approved" />
-              {isPettyCashMode && <input type="hidden" name="return_to" value="petty_cash" />}
-              <button type="submit" className="inline-flex items-center gap-1 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800"><ClipboardCheck className="h-4 w-4" /> Approve</button>
-            </form>
-            <form action={reviewEducationExpense} className="flex flex-1 flex-wrap items-end gap-2">
-              <input type="hidden" name="expense_id" value={expense.id} />
-              <input type="hidden" name="decision" value="rejected" />
-              {isPettyCashMode && <input type="hidden" name="return_to" value="petty_cash" />}
-              <label className="min-w-60 flex-1 text-xs font-medium text-slate-600">Rejection reason
-                <input required name="reason" minLength={3} maxLength={500} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
-              </label>
-              <button type="submit" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">Reject</button>
-            </form>
-          </div>}
 
           {expense.status === "approved" && expense.payment_status === "unpaid" && canEdit && <form action={markEducationExpensePaid} className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-3">
             <input type="hidden" name="expense_id" value={expense.id} />

@@ -405,7 +405,7 @@ export function Sidebar({
         mobileOpen
           ? "fixed inset-y-0 left-0 z-[60] flex w-[min(86vw,320px)] shadow-2xl md:relative md:inset-auto md:z-auto md:h-screen md:shadow-none"
           : "hidden md:flex",
-        mobileOpen ? "md:w-60" : collapsed ? "md:w-16" : "md:w-60"
+        mobileOpen ? "md:w-72" : collapsed ? "md:w-16" : "md:w-72"
       )}
       style={{ background: sidebar.background, borderRight: `1px solid ${sidebar.borderColor}` }}
     >

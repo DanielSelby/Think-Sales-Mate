@@ -3,8 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, Pencil, Printer, MoreVertical, CheckCircle2, XCircle, Wallet, Trash2, Loader2 } from "lucide-react";
-import { approveExpense, rejectExpense, markExpensePaid, deleteExpense } from "@/app/(dashboard)/expenses/actions";
+import { Eye, Pencil, Printer, MoreVertical, Wallet, Trash2, Loader2 } from "lucide-react";
+import { markExpensePaid, deleteExpense } from "@/app/(dashboard)/expenses/actions";
 import { formatExpenseNumber } from "@/lib/expenses/format";
 import { formatCurrency } from "@/lib/sales/format";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
@@ -82,16 +82,6 @@ export function ExpenseRowMenu({
         </button>
         {menuOpen && (
           <div role="menu" className="absolute right-0 top-8 z-40 w-48 overflow-hidden rounded-md border border-ledger-100 bg-white py-1 shadow-card-hover dark:border-ledger-700 dark:bg-ink-900">
-            {status === "pending_approval" && (
-              <>
-                <button onClick={() => run(() => approveExpense(expenseId), `${formatExpenseNumber(expenseNumber)} approved`)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.06]">
-                  <CheckCircle2 className="h-4 w-4 text-signal" /> Approve
-                </button>
-                <button onClick={() => run(() => rejectExpense(expenseId), `${formatExpenseNumber(expenseNumber)} rejected`)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-alert hover:bg-alert-soft">
-                  <XCircle className="h-4 w-4" /> Reject
-                </button>
-              </>
-            )}
             {status === "approved" && paymentStatus === "unpaid" && (
               <button onClick={() => run(() => markExpensePaid(expenseId), `${formatExpenseNumber(expenseNumber)} marked paid`)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-900 hover:bg-ledger-50 dark:text-white dark:hover:bg-white/[0.06]">
                 <Wallet className="h-4 w-4 text-ledger-400" /> Mark as Paid

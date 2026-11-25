@@ -2499,11 +2499,14 @@ export async function recordEducationStaffEmployment(formData: FormData) {
   redirect(`${getProductAppPath("think-education", `/staff/${staffId}`)}?employment=1`);
 }
 
-export async function createEducationAdmission(formData: FormData) {
+export async function createEducationAdmission(formData: FormData): Promise<
+  { success: true; applicationNumber: string }
+  | { error: "invalid" | "permission" | "database_permission" | "campus" | "duplicate" | "class" | "save" }
+> {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
   if (!await canTabPermission("education_admissions", "admissions", "applications", "create")) {
-    throw new Error("You do not have permission to create Think Education applications.");
+    return { error: "permission" };
   }
 
   const branchId = String(formData.get("branch_id") ?? "");
@@ -2525,7 +2528,6 @@ export async function createEducationAdmission(formData: FormData) {
     guardianFirstName || guardianLastName || guardianEmail || guardianPhone || guardianRelationship,
   );
   const requestedClassId = String(formData.get("requested_class_id") ?? "").trim();
-  const createPath = getProductAppPath("think-education", "/admissions/new");
   if (!branchId || !/^[A-Za-z0-9._/-]{1,32}$/.test(applicationNumber)
     || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
     || otherNames.length > 100
@@ -2542,30 +2544,36 @@ export async function createEducationAdmission(formData: FormData) {
     || guardianEmail.length > 254 || (guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmail))
     || guardianPhone.length > 40
     || (requestedClassId && !/^[0-9a-f-]{36}$/i.test(requestedClassId))) {
-    redirect(`${createPath}?error=invalid`);
+    return { error: "invalid" };
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (!campuses.some((campus) => campus.id === branchId)) {
-    throw new Error("You cannot create an application outside your assigned Think Education campuses.");
+    return { error: "campus" };
   }
 
   const supabase = await createClient();
   if (requestedClassId) {
     if (!await canTabPermission("education_academics", "academics", "classes", "view")) {
-      throw new Error("Academic class access is required to select a requested class.");
+      return { error: "permission" };
     }
     const { data: requestedClass, error: classError } = await supabase.from("education_classes")
       .select("id, academic_year_id")
       .eq("org_id", context.orgId).eq("id", requestedClassId)
       .eq("branch_id", branchId).eq("status", "active").maybeSingle();
-    if (classError) throw new Error(`Could not verify the requested admission class: ${classError.message}`);
-    if (!requestedClass) redirect(`${createPath}?error=class`);
+    if (classError) {
+      console.error("Could not verify the requested admission class:", classError.message);
+      return { error: "save" };
+    }
+    if (!requestedClass) return { error: "class" };
     const { data: academicYear, error: yearError } = await supabase.from("education_academic_years")
       .select("id").eq("org_id", context.orgId)
       .eq("id", requestedClass.academic_year_id).eq("status", "active").maybeSingle();
-    if (yearError) throw new Error(`Could not verify the requested class academic year: ${yearError.message}`);
-    if (!academicYear) redirect(`${createPath}?error=class`);
+    if (yearError) {
+      console.error("Could not verify the requested class academic year:", yearError.message);
+      return { error: "save" };
+    }
+    if (!academicYear) return { error: "class" };
   }
   const { error } = await supabase.from("education_admissions").insert({
     org_id: context.orgId,
@@ -2587,13 +2595,15 @@ export async function createEducationAdmission(formData: FormData) {
     requested_class_id: requestedClassId || null,
   });
   if (error) {
-    if (error.code === "23505") redirect(`${createPath}?error=duplicate`);
+    if (error.code === "23505") return { error: "duplicate" };
+    if (error.code === "42501") return { error: "database_permission" };
+    if (error.code === "23514" || error.code === "23502") return { error: "invalid" };
     console.error("Could not create Think Education application:", error.message);
-    redirect(`${createPath}?error=save`);
+    return { error: "save" };
   }
 
   revalidatePath("/education/admissions");
-  redirect(`${getProductAppPath("think-education", "/admissions")}?created=1`);
+  return { success: true, applicationNumber };
 }
 
 export async function recordEducationAdmissionOffer(formData: FormData) {
@@ -2640,10 +2650,15 @@ export async function updateEducationAdmissionStatus(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
 
+  const returnToApprovals = formData.get("return_to") === "approvals";
+  const admissionsPath = getProductAppPath("think-education", returnToApprovals ? "/approvals" : "/admissions");
+  const admissionsReturn = (query: string) => `${admissionsPath}?${query}`;
   const admissionId = String(formData.get("admission_id") ?? "");
   const status = String(formData.get("status") ?? "");
   const decisionNote = String(formData.get("decision_note") ?? "").trim();
-  const studentNumber = String(formData.get("student_number") ?? "").trim() || generateEducationRecordNumber("STU");
+  const studentNumber = status === "enrolled"
+    ? String(formData.get("student_number") ?? "").trim() || generateEducationRecordNumber("STU")
+    : "";
   const classId = String(formData.get("class_id") ?? "").trim();
   if (!/^[0-9a-f-]{36}$/i.test(admissionId)
     || !["under_review", "admitted", "rejected", "withdrawn", "enrolled"].includes(status)
@@ -2651,7 +2666,7 @@ export async function updateEducationAdmissionStatus(formData: FormData) {
     || (["rejected", "withdrawn"].includes(status) && !decisionNote)
     || (status === "enrolled" && (!/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber) || !/^[0-9a-f-]{36}$/i.test(classId)))
     || (status !== "enrolled" && (studentNumber || classId))) {
-    redirect(`${getProductAppPath("think-education", "/admissions")}?error=invalid`);
+    redirect(admissionsReturn("error=invalid"));
   }
   const action = ["admitted", "rejected", "enrolled"].includes(status) ? "approve" : "edit";
   if (!await canTabPermission("education_admissions", "admissions", "applications", action)) {
@@ -2677,25 +2692,25 @@ export async function updateEducationAdmissionStatus(formData: FormData) {
   if (error) {
     if (error.code === "42501") throw new Error(`Admission workflow was not authorized: ${error.message}`);
     if (error.code === "23505") {
-      redirect(`${getProductAppPath("think-education", "/admissions")}?error=student-number`);
+      redirect(admissionsReturn("error=student-number"));
     }
     if (error.code === "23514") {
-      redirect(`${getProductAppPath("think-education", "/admissions")}?error=capacity`);
+      redirect(admissionsReturn("error=capacity"));
     }
     if (error.code === "22023") {
       if (error.message.includes("selected class")) {
-        redirect(`${getProductAppPath("think-education", "/admissions")}?error=class`);
+        redirect(admissionsReturn("error=class"));
       }
       if (error.message.includes("offer")) {
-        redirect(`${getProductAppPath("think-education", "/admissions")}?error=offer`);
+        redirect(admissionsReturn("error=offer"));
       }
-      redirect(`${getProductAppPath("think-education", "/admissions")}?error=transition`);
+      redirect(admissionsReturn("error=transition"));
     }
     if (error.code === "P0002") {
-      redirect(`${getProductAppPath("think-education", "/admissions")}?error=not-found`);
+      redirect(admissionsReturn("error=not-found"));
     }
     console.error("Could not process Think Education application:", error.message);
-    redirect(`${getProductAppPath("think-education", "/admissions")}?error=save`);
+    redirect(admissionsReturn("error=save"));
   }
   revalidatePath("/education/students");
   if (status === "enrolled") revalidatePath("/education/guardians");
@@ -2703,7 +2718,8 @@ export async function updateEducationAdmissionStatus(formData: FormData) {
   revalidatePath("/education/attendance");
   revalidatePath("/education/finance");
   revalidatePath("/education/admissions");
-  redirect(`${getProductAppPath("think-education", "/admissions")}?updated=1${status === "enrolled" ? "&enrolled=1" : ""}`);
+  revalidatePath("/education/approvals");
+  redirect(admissionsReturn(`updated=1${status === "enrolled" ? "&enrolled=1" : ""}`));
 }
 
 export async function createEducationSubject(formData: FormData) {
@@ -3073,12 +3089,16 @@ export async function createEducationClass(formData: FormData) {
   const academicYearId = String(formData.get("academic_year_id") ?? "");
   const classTeacherId = String(formData.get("class_teacher_id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
+  const classCode = String(formData.get("class_code") ?? "").trim();
   const levelName = String(formData.get("level_name") ?? "").trim();
   const streamName = String(formData.get("stream_name") ?? "").trim();
+  const curriculumStage = String(formData.get("curriculum_stage") ?? "").trim();
+  const medium = String(formData.get("medium") ?? "").trim();
   const capacityValue = String(formData.get("capacity") ?? "").trim();
   const capacity = capacityValue ? Number(capacityValue) : null;
-  if (!branchId || !academicYearId || !name || name.length > 100 || levelName.length > 80
-    || streamName.length > 80
+  if (!branchId || !academicYearId || !name || name.length > 100 || classCode.length > 40
+    || levelName.length > 80 || streamName.length > 80
+    || curriculumStage.length > 80 || medium.length > 80
     || (classTeacherId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(classTeacherId))
     || (capacity !== null && (!Number.isInteger(capacity) || capacity < 1))) {
     redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=invalid`);
@@ -3114,12 +3134,18 @@ export async function createEducationClass(formData: FormData) {
     academic_year_id: academicYearId,
     class_teacher_id: classTeacherId || null,
     name,
+    class_code: classCode || null,
     level_name: levelName || null,
     stream_name: streamName || null,
+    curriculum_stage: curriculumStage || null,
+    medium: medium || null,
     capacity,
   });
   if (error) {
-    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=duplicate`);
+    if (error.code === "23505") {
+      const duplicateCode = `${error.message} ${error.details ?? ""}`.includes("education_classes_class_code_unique");
+      redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=${duplicateCode ? "duplicate-code" : "duplicate"}`);
+    }
     console.error("Could not create Think Education class:", error.message);
     redirect(`${getProductAppPath("think-education", "/academics?tab=classes")}&error=save`);
   }
@@ -3139,10 +3165,10 @@ export async function setEducationClassTeacher(formData: FormData) {
 
   const classId = String(formData.get("class_id") ?? "").trim();
   const classTeacherId = String(formData.get("class_teacher_id") ?? "").trim();
-  const classPath = getProductAppPath("think-education", "/academics");
+  const classPath = `${getProductAppPath("think-education", "/academics")}?tab=classes`;
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (!uuidPattern.test(classId) || (classTeacherId && !uuidPattern.test(classTeacherId))) {
-    redirect(`${classPath}?error=invalid`);
+    redirect(`${classPath}&error=invalid`);
   }
 
   const supabase = await createClient();
@@ -3153,13 +3179,13 @@ export async function setEducationClassTeacher(formData: FormData) {
     .maybeSingle();
   if (classError) {
     console.error("Could not load the Think Education class for teacher assignment:", classError.message);
-    redirect(`${classPath}?error=save`);
+    redirect(`${classPath}&error=save`);
   }
-  if (!classroom) redirect(`${classPath}?error=class`);
+  if (!classroom) redirect(`${classPath}&error=class`);
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   if (!campuses.some((campus) => campus.id === classroom.branch_id)) {
-    throw new Error("You cannot update a class outside your assigned Think Education campuses.");
+    redirect(`${classPath}&error=campus`);
   }
 
   if (classTeacherId && classTeacherId !== classroom.class_teacher_id) {
@@ -3173,9 +3199,9 @@ export async function setEducationClassTeacher(formData: FormData) {
       .maybeSingle();
     if (teacherError) {
       console.error("Could not validate the class teacher:", teacherError.message);
-      redirect(`${classPath}?error=save`);
+      redirect(`${classPath}&error=save`);
     }
-    if (!teacher) redirect(`${classPath}?error=teacher`);
+    if (!teacher) redirect(`${classPath}&error=teacher`);
   }
 
   const { data: updatedClass, error: updateError } = await supabase.from("education_classes")
@@ -3187,14 +3213,14 @@ export async function setEducationClassTeacher(formData: FormData) {
     .maybeSingle();
   if (updateError) {
     console.error("Could not update the Think Education class teacher:", updateError.message);
-    redirect(`${classPath}?error=save`);
+    redirect(`${classPath}&error=save`);
   }
-  if (!updatedClass) redirect(`${classPath}?error=class`);
+  if (!updatedClass) redirect(`${classPath}&error=class`);
 
   revalidatePath("/education/academics");
   revalidatePath("/education/academics/curriculum");
   revalidatePath("/education/students", "layout");
-  redirect(`${classPath}?classTeacherSaved=1`);
+  redirect(`${classPath}&classTeacherSaved=1`);
 }
 
 export async function saveEducationClassSubject(formData: FormData) {
@@ -3477,14 +3503,22 @@ export async function decideEducationStaffLeaveRequest(formData: FormData) {
     throw new Error("You do not have permission to decide Think Education staff leave requests.");
   }
 
+  const returnToApprovals = formData.get("return_to") === "approvals";
+  const leavePath = getProductAppPath("think-education", returnToApprovals ? "/approvals" : "/staff/leave");
+  const leaveReturn = (query: string) => `${leavePath}?${query}`;
   const requestId = String(formData.get("request_id") ?? "");
   const decision = String(formData.get("decision") ?? "");
   const decisionNote = String(formData.get("decision_note") ?? "").trim();
-  if (!requestId || !["approved", "rejected"].includes(decision)
+  if (!EDUCATION_COMMUNICATION_UUID_PATTERN.test(requestId) || !["approved", "rejected"].includes(decision)
     || decisionNote.length > 1000 || (decision === "rejected" && !decisionNote)) {
-    redirect(`${getProductAppPath("think-education", "/staff/leave")}?error=invalid`);
+    redirect(leaveReturn("error=invalid"));
   }
   const supabase = await createClient();
+  const { data: request, error: requestError } = await supabase.from("education_staff_leave_requests")
+    .select("requested_by").eq("org_id", context.orgId).eq("id", requestId).maybeSingle();
+  if (requestError) throw new Error(`Could not load the Think Education leave request: ${requestError.message}`);
+  if (!request) redirect(leaveReturn("error=transition"));
+  if (request.requested_by === context.userId) redirect(leaveReturn("error=permission"));
   const { error } = await supabase.rpc("education_staff_leave_decide", {
     p_org_id: context.orgId,
     p_request_id: requestId,
@@ -3492,15 +3526,16 @@ export async function decideEducationStaffLeaveRequest(formData: FormData) {
     p_decision_note: decisionNote || null,
   });
   if (error) {
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/staff/leave")}?error=invalid`);
-    if (error.code === "42501") redirect(`${getProductAppPath("think-education", "/staff/leave")}?error=permission`);
-    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/staff/leave")}?error=overlap`);
-    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/staff/leave")}?error=transition`);
+    if (error.code === "22023") redirect(leaveReturn("error=invalid"));
+    if (error.code === "42501") redirect(leaveReturn("error=permission"));
+    if (error.code === "23505") redirect(leaveReturn("error=overlap"));
+    if (error.code === "P0002") redirect(leaveReturn("error=transition"));
     console.error("Could not decide Think Education staff leave request:", error.message);
-    redirect(`${getProductAppPath("think-education", "/staff/leave")}?error=save`);
+    redirect(leaveReturn("error=save"));
   }
   revalidatePath("/education/staff/leave");
-  redirect(`${getProductAppPath("think-education", "/staff/leave")}?updated=1`);
+  revalidatePath("/education/approvals");
+  redirect(leaveReturn("updated=1"));
 }
 
 export async function createEducationStaffTransfer(formData: FormData) {
@@ -4116,10 +4151,13 @@ export async function createEducationStudentTransfer(formData: FormData) {
 export async function transitionEducationStudentTransfer(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
+  const returnToApprovals = formData.get("return_to") === "approvals";
+  const transfersPath = getProductAppPath("think-education", returnToApprovals ? "/approvals" : "/transfers");
+  const transferReturn = (query: string) => `${transfersPath}?${query}`;
   const transferId = String(formData.get("transfer_id") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!transferId || !["approved", "rejected", "completed"].includes(status)) {
-    redirect(`${getProductAppPath("think-education", "/transfers")}?error=invalid`);
+    redirect(transferReturn("error=invalid"));
   }
   const nextStatus = status as "approved" | "rejected" | "completed";
   const action = nextStatus === "approved" || nextStatus === "rejected" ? "approve" : "edit";
@@ -4142,7 +4180,7 @@ export async function transitionEducationStudentTransfer(formData: FormData) {
   const validTransition = nextStatus === "completed"
     ? transfer.status === "approved"
     : transfer.status === "pending";
-  if (!validTransition) redirect(`${getProductAppPath("think-education", "/transfers")}?error=transition`);
+  if (!validTransition) redirect(transferReturn("error=transition"));
 
   const { error } = await supabase.rpc("education_transition_student_transfer", {
     p_transfer_id: transferId,
@@ -4150,16 +4188,17 @@ export async function transitionEducationStudentTransfer(formData: FormData) {
   });
   if (error) {
     if (error.code === "42501") throw new Error(`Transfer was not authorized: ${error.message}`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/transfers")}?error=transition`);
+    if (error.code === "22023") redirect(transferReturn("error=transition"));
     console.error("Could not process Think Education student transfer:", error.message);
-    redirect(`${getProductAppPath("think-education", "/transfers")}?error=save`);
+    redirect(transferReturn("error=save"));
   }
   revalidatePath("/education/transfers");
   revalidatePath("/education/transfers/request");
   revalidatePath("/education/students");
   revalidatePath("/education/attendance");
   revalidatePath("/education/academics");
-  redirect(`${getProductAppPath("think-education", "/transfers")}?updated=1&status=${nextStatus}`);
+  revalidatePath("/education/approvals");
+  redirect(transferReturn(`updated=1&status=${nextStatus}`));
 }
 
 export async function createEducationExpense(formData: FormData) {
@@ -4293,14 +4332,18 @@ export async function reviewEducationExpense(formData: FormData) {
     throw new Error("You do not have permission to approve or reject Think Education expenses.");
   }
 
+  const returnToApprovals = formData.get("return_to") === "approvals";
+  const pettyCash = formData.get("return_to") === "petty_cash";
+  const expenseReturn = (query: string) => returnToApprovals
+    ? `${getProductAppPath("think-education", "/approvals")}?${query}`
+    : educationExpenseReturnPath(pettyCash, query);
   const expenseId = String(formData.get("expense_id") ?? "");
   const decision = String(formData.get("decision") ?? "");
-  const pettyCash = formData.get("return_to") === "petty_cash";
   const reason = String(formData.get("reason") ?? "").trim();
   if (!expenseId || !["approved", "rejected"].includes(decision)
     || (decision === "rejected" && (reason.length < 3 || reason.length > 500))
     || (decision === "approved" && reason.length > 500)) {
-    redirect(educationExpenseReturnPath(pettyCash, "error=invalid"));
+    redirect(expenseReturn("error=invalid"));
   }
 
   const supabase = await createClient();
@@ -4311,20 +4354,21 @@ export async function reviewEducationExpense(formData: FormData) {
     p_reason: reason || null,
   });
   if (error) {
-    if (error.code === "23514") redirect(educationExpenseReturnPath(pettyCash, "error=accounting-mapping"));
-    if (error.message.includes("open fiscal period")) redirect(educationExpenseReturnPath(pettyCash, "error=accounting-period"));
-    if (error.code === "22023") redirect(educationExpenseReturnPath(pettyCash, "error=transition"));
-    if (error.code === "P0002") redirect(educationExpenseReturnPath(pettyCash, "error=not-found"));
+    if (error.code === "23514") redirect(expenseReturn("error=accounting-mapping"));
+    if (error.message.includes("open fiscal period")) redirect(expenseReturn("error=accounting-period"));
+    if (error.code === "22023") redirect(expenseReturn("error=transition"));
+    if (error.code === "P0002") redirect(expenseReturn("error=not-found"));
     if (error.code === "42501") throw new Error("You are not authorized to review this expense at its campus.");
     console.error("Could not review Think Education expense:", error.message);
-    redirect(educationExpenseReturnPath(pettyCash, "error=save"));
+    redirect(expenseReturn("error=save"));
   }
   revalidatePath("/education/expenses");
   revalidatePath("/education/accounting");
   revalidatePath("/education/accounting/journal-entries");
   revalidatePath("/education/accounting/general-ledger");
   revalidatePath("/education/accounting/reports");
-  redirect(educationExpenseReturnPath(pettyCash, `reviewed=${decision}`));
+  revalidatePath("/education/approvals");
+  redirect(expenseReturn(`reviewed=${decision}`));
 }
 
 export async function markEducationExpensePaid(formData: FormData) {

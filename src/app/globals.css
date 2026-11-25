@@ -2,6 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
+[role="dialog"]:not([class*="fixed"]),
+[role="dialog"] > section {
+  border-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 22%, #cbd5e1);
+  border-radius: 1rem;
+  box-shadow: 0 24px 60px rgb(15 23 42 / 0.3), 0 4px 12px rgb(15 23 42 / 0.12);
+}
+
+[role="dialog"] > header,
+[role="dialog"] > section > header,
+[role="dialog"] > div > header {
+  background-color: var(--theme-primary, #1d4ed8) !important;
+  border-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 80%, white) !important;
+  color: #fff !important;
+}
+
+[role="dialog"] > header :is(h1, h2, h3, p),
+[role="dialog"] > section > header :is(h1, h2, h3, p),
+[role="dialog"] > div > header :is(h1, h2, h3, p) {
+  color: rgb(255 255 255 / 0.92) !important;
+}
+
+[role="dialog"] > header :is(h1, h2, h3),
+[role="dialog"] > section > header :is(h1, h2, h3),
+[role="dialog"] > div > header :is(h1, h2, h3) {
+  color: #fff !important;
+}
+
+[role="dialog"] > header svg,
+[role="dialog"] > section > header svg,
+[role="dialog"] > div > header svg {
+  color: #fff !important;
+}
+
+[role="dialog"] > header button:hover,
+[role="dialog"] > section > header button:hover,
+[role="dialog"] > div > header button:hover {
+  background-color: rgb(255 255 255 / 0.14) !important;
+}
+
+[role="dialog"] button[class~="bg-blue-700"],
+[role="dialog"] button[class~="bg-blue-600"],
+[role="dialog"] button[class~="bg-blue-800"] {
+  background-color: var(--theme-primary, #1d4ed8) !important;
+  border-color: var(--theme-primary, #1d4ed8) !important;
+  color: #fff !important;
+}
+
+[role="dialog"] button[class~="bg-blue-700"]:hover,
+[role="dialog"] button[class~="bg-blue-600"]:hover,
+[role="dialog"] button[class~="bg-blue-800"]:hover {
+  background-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 88%, black) !important;
+}
+
+[role="dialog"] [class~="bg-blue-50"] {
+  background-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 8%, white) !important;
+  border-color: color-mix(in srgb, var(--theme-primary, #1d4ed8) 24%, white) !important;
+}
+
+[role="dialog"] :is(input, select, textarea):focus-visible {
+  border-color: var(--theme-primary, #1d4ed8) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-primary, #1d4ed8) 18%, transparent);
+  outline: none;
+}
+
+html.dark [role="dialog"]:not([class*="fixed"]),
+html.dark [role="dialog"] > section {
+  background-color: #0f1d2d !important;
+  color: #f1f5f9;
+}
+
 .education-page-content > main {
   width: 100%;
   max-width: none !important;

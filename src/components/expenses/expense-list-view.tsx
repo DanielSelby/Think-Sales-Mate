@@ -22,7 +22,7 @@ import {
 import { ExpenseRowMenu } from "@/components/expenses/expense-row-menu";
 import { TransactionFeedback } from "@/components/transactions/transaction-feedback";
 import { useAppStore, THEMES } from "@/store/useAppStore";
-import { bulkApproveExpenses, bulkDeleteExpenses } from "@/app/(dashboard)/expenses/actions";
+import { bulkDeleteExpenses } from "@/app/(dashboard)/expenses/actions";
 import type { ExpenseStatus, ExpensePaymentStatus } from "@/types/database";
 import { ExpenseNavigation, type ExpenseWorkspaceView } from "@/components/expenses/expense-navigation";
 import { ExpenseWorkspaceView as ExpenseWorkspaceContent, type ExpenseAttachmentRow, type ExpenseBudgetRow } from "@/components/expenses/expense-workspace-view";
@@ -91,7 +91,7 @@ export function ExpenseListView({
   const router = useRouter();
   const { activeTheme } = useAppStore();
   const theme = THEMES[activeTheme];
-  const [activeTab, setActiveTab] = React.useState<"all" | DisplayStatus>(view === "approvals" ? "pending_approval" : "all");
+  const [activeTab, setActiveTab] = React.useState<"all" | DisplayStatus>("all");
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState(initialCategory);
   const [paymentMethod, setPaymentMethod] = React.useState("all");
@@ -180,16 +180,6 @@ export function ExpenseListView({
     URL.revokeObjectURL(url);
   }
 
-  async function handleBulkApprove() {
-    setBulkPending(true);
-    const result = await bulkApproveExpenses(selected);
-    setBulkPending(false);
-    if (!result.ok) return showNotice(result.error ?? "Something went wrong.", "error");
-    showNotice(`Approved ${result.affected} expense(s)`);
-    setSelected([]);
-    router.refresh();
-  }
-
   async function handleBulkDelete() {
     setBulkPending(true);
     const result = await bulkDeleteExpenses(selected);
@@ -203,7 +193,7 @@ export function ExpenseListView({
   const donutTotal = categoryBreakdown.reduce((sum, c) => sum + c.total, 0);
   const maxCategoryTotal = Math.max(1, ...categoryBreakdown.map((c) => c.total));
 
-  if (view !== "list" && view !== "approvals") {
+  if (view !== "list") {
     return (
       <div className="space-y-5 pb-16">
         <ExpenseNavigation active={view} />
@@ -224,8 +214,8 @@ export function ExpenseListView({
     <div className="expenses-page space-y-6 animate-in fade-in duration-150 pb-16">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ledger-100 pb-5 dark:border-ledger-700">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">{view === "approvals" ? "Expense Approval Queue" : "Expenses"}</h1>
-          <p className="mt-0.5 text-xs text-ledger-400">{view === "approvals" ? `${counts.pending_approval} awaiting approval` : `${expenses.length} expenses recorded`}</p>
+          <h1 className="font-display text-2xl font-bold text-ink-900 dark:text-white">Expenses</h1>
+          <p className="mt-0.5 text-xs text-ledger-400">{expenses.length} expenses recorded</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="md" className="h-10 gap-1.5 rounded-xl"><Upload className="h-4 w-4" /> Import</Button>
@@ -312,7 +302,6 @@ export function ExpenseListView({
             {selected.length > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-ledger-500">{selected.length} selected</span>
-                <Button variant="outline" size="md" onClick={handleBulkApprove} disabled={bulkPending}>Approve</Button>
                 <Button variant="destructive" size="md" onClick={handleBulkDelete} disabled={bulkPending}>Delete</Button>
               </div>
             )}
