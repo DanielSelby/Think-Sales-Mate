@@ -43,7 +43,7 @@ export default async function EducationNotificationsPage({
   const [notificationsResult, preferencesResult, outboundPreferencesResult] = await Promise.all([
     branchIds.length
       ? supabase.from("education_notifications")
-        .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, delivery_status, read_at, created_at")
+        .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, assignment_id, assignment_event_key, delivery_status, read_at, created_at")
         .eq("org_id", context.orgId)
         .eq("user_id", context.userId)
         .in("branch_id", branchIds)

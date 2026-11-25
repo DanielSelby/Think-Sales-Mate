@@ -11,7 +11,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getEducationRolePreset } from "@/lib/rbac/education-roles";
-import { createStaffAccount, setMemberProductRole } from "@/app/(dashboard)/settings/organization/actions";
+import { withOrganizationCapacity } from "@/lib/organizations/capacity";
+import {
+  createStaffAccount,
+  setMemberProductRole,
+  setOrganizationProductAssignments,
+} from "@/app/(dashboard)/settings/organization/actions";
 import { EDUCATION_COMMUNICATION_AUDIENCES } from "@/lib/education/communications";
 import {
   EDUCATION_EXPENSE_CATEGORIES,
@@ -1073,6 +1078,96 @@ async function setEducationPortalTemporaryPassword({
   return { userId, created: false };
 }
 
+async function ensureEducationPortalProductAccess({
+  orgId,
+  userId,
+  email,
+  roleKey,
+  branchId,
+}: {
+  orgId: string;
+  userId: string;
+  email: string;
+  roleKey: string;
+  branchId?: string | null;
+}): Promise<{ error?: string }> {
+  const admin = createAdminClient();
+  const { data: existingMember, error: memberError } = await admin.from("organization_members")
+    .select("status")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (memberError) return { error: `Could not verify the portal account membership: ${memberError.message}` };
+  if (existingMember && existingMember.status !== "active") {
+    return { error: "This account has an inactive organization membership. Ask an organization owner to restore access before issuing portal credentials." };
+  }
+
+  const createdMember = !existingMember;
+  if (createdMember) {
+    try {
+      await withOrganizationCapacity(orgId, "users", async () => {
+        const { error } = await admin.from("organization_members").insert({
+          org_id: orgId,
+          user_id: userId,
+          invited_email: email,
+          role: "staff",
+          status: "active",
+          location_id: branchId ?? null,
+          branch_scope: branchId ? "single" : "assigned",
+          secondary_location_ids: [],
+          access_permissions: {
+            role_key: "staff",
+            permissions_mode: "custom",
+            permissions: {},
+            role_defaults_fallback: {},
+          },
+          must_change_password: true,
+        });
+        if (error) throw new Error(error.message);
+      });
+    } catch (error) {
+      return { error: `Could not add the portal account to this organization: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  }
+
+  const { data: assignmentRows, error: assignmentsError } = await admin
+    .from("organization_product_access_assignments")
+    .select("product_slug")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .eq("is_active", true);
+  if (assignmentsError) return { error: `Could not load the portal account's product access: ${assignmentsError.message}` };
+  const productSlugs = new Set((assignmentRows ?? []).map((assignment) => assignment.product_slug));
+  productSlugs.add("think-education");
+
+  const assignmentResult = await setOrganizationProductAssignments(userId, [...productSlugs]);
+  if (assignmentResult.error) return { error: assignmentResult.error };
+
+  if (createdMember) {
+    const roleResult = await setMemberProductRole(userId, "think-education", roleKey);
+    if (roleResult.error) return { error: roleResult.error };
+  }
+
+  if (createdMember && branchId) {
+    const { data: scopes, error: scopesError } = await admin.from("education_member_branch_scopes")
+      .select("scope_type, branch_id")
+      .eq("org_id", orgId)
+      .eq("user_id", userId);
+    if (scopesError) return { error: `Could not load the portal account's campus access: ${scopesError.message}` };
+    if (!scopes?.some((scope) => scope.scope_type === "organization" || scope.branch_id === branchId)) {
+      const { error } = await admin.from("education_member_branch_scopes").insert({
+        org_id: orgId,
+        user_id: userId,
+        scope_type: "branch",
+        branch_id: branchId,
+      });
+      if (error) return { error: `Could not assign the portal account to its campus: ${error.message}` };
+    }
+  }
+
+  return {};
+}
+
 async function createEducationAccountForRecord({
   orgId,
   branchId,
@@ -1106,6 +1201,7 @@ async function createEducationAccountForRecord({
   accountForm.set("employee_id", employeeId);
   accountForm.set("department", "Think Education");
   accountForm.set("role", "staff");
+  accountForm.set("product_role", roleKey);
   accountForm.set("location_id", branchId);
   accountForm.set("branch_scope", "single");
   accountForm.set("secondary_location_ids", "");
@@ -1174,6 +1270,7 @@ export async function issueEducationPortalTemporaryPassword(
   const admin = createAdminClient();
   const temporaryPassword = `${randomBytes(20).toString("hex")}Aa1!`;
   let userId: string | null = null;
+  let branchId: string | null = null;
   let previousStaffUserId: string | null = null;
   let staffRecordId: string | null = null;
 
@@ -1189,6 +1286,7 @@ export async function issueEducationPortalTemporaryPassword(
     }
 
     userId = record.user_id;
+    branchId = record.branch_id;
     if (!userId) {
       const portalAccount = await setEducationPortalTemporaryPassword({
         admin,
@@ -1209,11 +1307,19 @@ export async function issueEducationPortalTemporaryPassword(
         if (linkError) console.error("Could not link the student portal account:", linkError.message);
         return { error: "The student account could not be linked. Please try again." };
       }
+      const accessResult = await ensureEducationPortalProductAccess({
+        orgId: context.orgId,
+        userId: portalAccount.userId,
+        email,
+        roleKey: "education_student",
+        branchId,
+      });
+      if (accessResult.error) return { error: `The student account was linked, but portal access could not be prepared: ${accessResult.error}` };
       return { success: true, email, temporaryPassword };
     }
   } else if (portalType === "staff") {
     const { data: rows, error } = await admin.from("education_staff")
-      .select("id, user_id, first_name, last_name, email")
+      .select("id, user_id, branch_id, first_name, last_name, email")
       .eq("org_id", context.orgId).ilike("email", email.replace(/[\\%_]/g, "\\$&"))
       .eq("status", "active").eq("staff_category", "teaching").limit(2);
     if (error) return { error: `Could not find the teaching staff record: ${error.message}` };
@@ -1224,6 +1330,7 @@ export async function issueEducationPortalTemporaryPassword(
 
     staffRecordId = record.id;
     userId = record.user_id;
+    branchId = record.branch_id;
     if (userId) {
       const { data: linkedAccount, error: linkedAccountError } = await admin.auth.admin.getUserById(userId);
       if (linkedAccountError || !linkedAccount.user) {
@@ -1285,6 +1392,14 @@ export async function issueEducationPortalTemporaryPassword(
         if (linkError) console.error("Could not link the teacher portal account:", linkError.message);
         return { error: "The staff account could not be linked. Please try again." };
       }
+      const accessResult = await ensureEducationPortalProductAccess({
+        orgId: context.orgId,
+        userId: portalAccount.userId,
+        email,
+        roleKey: "education_teacher",
+        branchId,
+      });
+      if (accessResult.error) return { error: `The teacher account was linked, but portal access could not be prepared: ${accessResult.error}` };
       return { success: true, email, temporaryPassword };
     }
   } else {
@@ -1319,6 +1434,13 @@ export async function issueEducationPortalTemporaryPassword(
         if (linkError) console.error("Could not link the guardian portal account:", linkError.message);
         return { error: "The guardian account could not be linked. Please try again." };
       }
+      const accessResult = await ensureEducationPortalProductAccess({
+        orgId: context.orgId,
+        userId: portalAccount.userId,
+        email,
+        roleKey: "education_guardian",
+      });
+      if (accessResult.error) return { error: `The guardian account was linked, but portal access could not be prepared: ${accessResult.error}` };
       return { success: true, email, temporaryPassword };
     }
   }
@@ -1341,6 +1463,20 @@ export async function issueEducationPortalTemporaryPassword(
     }
     return { error: portalAccount.error ?? "Could not set the temporary portal password." };
   }
+
+  const roleKey = portalType === "student"
+    ? "education_student"
+    : portalType === "staff"
+      ? "education_teacher"
+      : "education_guardian";
+  const accessResult = await ensureEducationPortalProductAccess({
+    orgId: context.orgId,
+    userId: portalAccount.userId,
+    email,
+    roleKey,
+    branchId,
+  });
+  if (accessResult.error) return { error: `The password was set, but portal access could not be prepared: ${accessResult.error}` };
 
   return { success: true, email, temporaryPassword };
 }

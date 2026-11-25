@@ -20,13 +20,17 @@ export async function submitEducationAssignment(formData: FormData) {
   if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
   if (!user) redirect(`/login?next=${encodeURIComponent(PORTAL_PATH)}`);
 
-  const { error } = await supabase.rpc("education_student_submit_assignment", {
+  const { data: submissionId, error } = await supabase.rpc("education_student_submit_assignment", {
     p_assignment_id: input.data.assignmentId,
     p_student_id: input.data.studentId,
     p_submission_text: input.data.submissionText,
   });
   if (error) {
     console.error("Could not submit education assignment:", error.message);
+    redirect(`${PORTAL_PATH}?assignment=error`);
+  }
+  if (!submissionId) {
+    console.error("Could not submit education assignment: no submission ID was returned.");
     redirect(`${PORTAL_PATH}?assignment=error`);
   }
   revalidatePath(PORTAL_PATH);

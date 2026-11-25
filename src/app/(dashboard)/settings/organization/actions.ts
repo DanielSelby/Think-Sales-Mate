@@ -212,7 +212,8 @@ export async function setMemberProductRole(
         : defaultPermissionMatrixForRole(normalizedRoleKey);
     }
     const productPermissions = filterPermissionMatrixForProduct(sourcePermissions ?? {}, productSlug);
-    if (!Object.keys(productPermissions).length && normalizedRoleKey !== "education_student") {
+    if (!Object.keys(productPermissions).length
+      && !["education_student", "education_guardian"].includes(normalizedRoleKey)) {
       return { error: "This role has no permission template yet. Save its product permissions before assigning it." };
     }
     const { error: seedError } = await supabase.rpc("set_organization_product_role_permissions", {
@@ -248,10 +249,7 @@ export async function setMemberProductRole(
 }
 
 function requestedProductSlugIsValid(value: string): value is PlatformProductSlug {
-  return value === "thinksales-erp"
-    || value === "restaurant"
-    || value === "think-service-repairs"
-    || value === "think-education";
+  return isPlatformProductSlug(value);
 }
 
 function submittedApprovalPermissions(formData: FormData): Record<string, boolean | number> | null | undefined {
@@ -461,6 +459,10 @@ export async function createStaffAccount(formData: FormData) {
       productToAssign = activeProductSlug;
     }
   }
+  const submittedProductRole = String(formData.get("product_role") ?? "").trim();
+  if (productToAssign && !submittedProductRole) {
+    return { error: "Select a product-specific role before creating this account." };
+  }
   if (!canGrantSuperAdminRole(context.role, requestedRole)) {
     return { error: "Only an organization owner can grant Super Admin access." };
   }
@@ -629,6 +631,18 @@ export async function createStaffAccount(formData: FormData) {
       });
       if (assignmentError) {
         warning = `Staff account created, but access to ${productToAssign} could not be assigned: ${assignmentError.message}`;
+      } else {
+        const roleResult = await setMemberProductRole(authData.user.id, productToAssign, submittedProductRole);
+        if (roleResult.error) {
+          const { error: rollbackError } = await supabase.rpc("set_organization_product_assignments", {
+            p_org_id: context.orgId,
+            p_user_id: authData.user.id,
+            p_product_slugs: [],
+          });
+          warning = rollbackError
+            ? `Staff account created, but its ${productToAssign} role could not be assigned (${roleResult.error}) and product access could not be rolled back (${rollbackError.message}).`
+            : `Staff account created, but its ${productToAssign} role could not be assigned. Product access was not granted: ${roleResult.error}`;
+        }
       }
     } else {
       warning = "Staff account created, but the currently open product is not available to this organization, so access was not assigned.";

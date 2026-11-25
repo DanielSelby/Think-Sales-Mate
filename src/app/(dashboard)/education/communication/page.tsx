@@ -18,6 +18,7 @@ import {
   retryEducationCommunicationDelivery,
   updateEducationCommunicationDraft,
 } from "../actions";
+import { createEducationCommunicationEventDraft } from "./event-actions";
 
 const AUDIENCE_LABELS = Object.fromEntries(EDUCATION_COMMUNICATION_AUDIENCES);
 const STATUS_LABELS: Record<string, string> = {
@@ -172,7 +173,44 @@ export default async function EducationCommunicationPage({
     {params.published === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Announcement published to the selected audience.</p>}
     {params.archived === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Announcement archived.</p>}
     {params.error && errorMessage && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errorMessage}</p>}
+    {params.event === "created" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Event saved as a draft. Publish it to make it visible in guardian schedules.</p>}
+    {(params.event === "invalid" || params.event === "denied" || params.event === "error") && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      {params.event === "invalid" ? "Check the event details and date range." : params.event === "denied" ? "You do not have permission to create an event at that campus." : "The event could not be saved. Please try again."}
+    </p>}
     {deliveryMessage && <p role={params.delivery === "failed" || params.delivery === "unconfigured" ? "alert" : "status"} className={`rounded-lg border px-4 py-3 text-sm ${params.delivery === "failed" || params.delivery === "unconfigured" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>{deliveryMessage}</p>}
+
+    {canCreate && <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 shadow-sm">
+      <h2 className="font-semibold text-slate-950">Schedule a school event</h2>
+      <p className="mt-1 text-sm text-slate-600">Events are saved as guardian-facing announcement drafts. Publish them to show their dates in the family portal and send the usual notifications.</p>
+      {!campuses.length ? <p className="mt-4 rounded-lg bg-white p-4 text-sm text-slate-600">You need an assigned Think Education campus before scheduling events.</p> : <form action={createEducationCommunicationEventDraft} className="mt-4 grid gap-3 md:grid-cols-2">
+        <label className="text-sm font-medium text-slate-700">Campus
+          <select required name="branch_id" defaultValue={selectedBranch || campuses[0]?.id || ""} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
+            {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700">Audience
+          <select required name="audience" defaultValue="guardians" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
+            <option value="guardians">Guardians</option>
+            <option value="all">Everyone</option>
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700 md:col-span-2">Event name
+          <input required name="title" maxLength={160} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Starts at
+          <input required type="datetime-local" name="starts_at" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Ends at
+          <input required type="datetime-local" name="ends_at" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700 md:col-span-2">Details
+          <textarea required name="body" maxLength={5000} rows={3} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
+        </label>
+        <div className="md:col-span-2">
+          <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">Save event draft</button>
+        </div>
+      </form>}
+    </section>}
 
     {canCreate && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="font-semibold text-slate-950">Create announcement draft</h2>

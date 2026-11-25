@@ -10,6 +10,8 @@ const notification = {
   title: "Term opening",
   message: "School opens Monday.",
   announcement_id: "12235979-07d6-4f82-b29a-9d0b55076442",
+  assignment_id: null,
+  assignment_event_key: null,
   delivery_status: "delivered",
   read_at: null,
   created_at: "2026-09-01T10:00:00Z",
@@ -35,5 +37,15 @@ describe("Think Education notifications", () => {
       ...notification,
       branch_id: "not-a-uuid",
     }).success).toBe(false);
+  });
+
+  it("accepts assignment notifications linked to assignment events", () => {
+    expect(educationNotificationSchema.safeParse({
+      ...notification,
+      notification_type: "assignment",
+      announcement_id: null,
+      assignment_id: "62235979-07d6-4f82-b29a-9d0b55076442",
+      assignment_event_key: "published:assignment:student",
+    }).success).toBe(true);
   });
 });

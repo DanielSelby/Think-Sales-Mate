@@ -1,20 +1,27 @@
+import Link from "next/link";
 import { BookOpen, CalendarDays, GraduationCap, Users } from "lucide-react";
 import { educationTeacherPortalSchema, type EducationTeacherPortal } from "@/lib/education/teacher-portal";
 import {
   educationAssignmentsSchema,
   educationAssignmentSubmissionsSchema,
+  educationAssignmentSubmissionVersionsSchema,
   educationAssignmentTargetsSchema,
+  educationAssignmentAttachmentsSchema,
   type EducationAssignment,
+  type EducationAssignmentAttachment,
   type EducationAssignmentSubmission,
+  type EducationAssignmentSubmissionVersion,
   type EducationAssignmentTarget,
 } from "@/lib/education/assignments";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
 import { EducationPortalShell } from "@/components/education/education-portal-shell";
 import { TeacherAssignments } from "./teacher-assignments";
+import { TeacherAiAssistant } from "./teacher-ai-assistant";
 import { claimEducationTeacherPortalAccount, recordEducationTeacherAttendance, signInToEducationTeacherPortal } from "./actions";
 
 export const dynamic = "force-dynamic";
+const ASSIGNMENTS_PAGE_SIZE = 20;
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function messageFor(params: Record<string, string | string[] | undefined>) {
@@ -26,7 +33,11 @@ function messageFor(params: Record<string, string | string[] | undefined>) {
   if (params.attendance === "saved") return "Attendance saved.";
   if (params.attendance === "error") return "Attendance could not be saved. Check the class assignment and try again.";
   if (params.assignment === "created") return "Assignment published to the selected students.";
+  if (params.assignment === "attachment-uploaded") return "Assignment resource uploaded.";
+  if (params.assignment === "attachment-error") return "The attachment could not be uploaded. Check your class access and the file type and size, then try again.";
   if (params.assignment === "graded") return "Submission grade saved.";
+  if (params.assignment === "revision-requested") return "The student has been asked to revise this submission.";
+  if (params.assignment === "revision-error") return "The revision request could not be saved. Confirm that the submission is graded and belongs to one of your classes.";
   if (params.assignment === "invalid") return "Check the assignment details and try again.";
   if (params.assignment === "grade-error") return "The grade could not be saved. Confirm that the submission belongs to one of your classes.";
   if (params.assignment === "error") return "The assignment could not be saved. Confirm your class access and try again.";
@@ -38,12 +49,23 @@ export default async function EducationTeacherPortalPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const params = await searchParams;
+  const requestedPageValue = Number.parseInt(
+    typeof params.assignmentPage === "string" ? params.assignmentPage : "1",
+    10
+  );
+  const assignmentPage = Number.isSafeInteger(requestedPageValue)
+    ? Math.min(100_000, Math.max(1, requestedPageValue))
+    : 1;
   const supabase = await createClient();
   const user = getOptionalAuthUser(await supabase.auth.getUser(), "the teacher portal");
   let portal: EducationTeacherPortal = [];
   let assignments: EducationAssignment[] = [];
   let assignmentTargets: EducationAssignmentTarget[] = [];
   let assignmentSubmissions: EducationAssignmentSubmission[] = [];
+  let assignmentSubmissionVersions: EducationAssignmentSubmissionVersion[] = [];
+  let assignmentAttachments: EducationAssignmentAttachment[] = [];
+  let assignmentTotalCount = 0;
   if (user) {
     const { data, error } = await supabase.rpc("education_get_teacher_portal");
     if (error) throw new Error(`Could not load the teacher portal: ${error.message}`);
@@ -55,14 +77,16 @@ export default async function EducationTeacherPortalPage({
     portal = parsed.data;
     const orgIds = [...new Set(portal.map((teacher) => teacher.organizationId))];
     if (orgIds.length) {
-      const { data: assignmentRows, error: assignmentError } = await supabase
+      const { data: assignmentRows, error: assignmentError, count: assignmentCount } = await supabase
         .from("education_assignments")
-        .select("id, org_id, class_id, title, description, due_on, max_score, status, created_by, created_at, updated_at")
+        .select("id, org_id, class_id, title, description, due_on, max_score, status, created_by, created_at, updated_at", { count: "exact" })
         .in("org_id", orgIds)
         .neq("status", "archived")
         .order("due_on", { ascending: false })
-        .limit(200);
+        .order("id", { ascending: true })
+        .range((assignmentPage - 1) * ASSIGNMENTS_PAGE_SIZE, assignmentPage * ASSIGNMENTS_PAGE_SIZE - 1);
       if (assignmentError) throw new Error(`Could not load teacher assignments: ${assignmentError.message}`);
+      assignmentTotalCount = assignmentCount ?? 0;
       const parsedAssignments = educationAssignmentsSchema.safeParse(assignmentRows ?? []);
       if (!parsedAssignments.success) {
         console.error("Think Education assignments returned unexpected data:", parsedAssignments.error.flatten());
@@ -71,17 +95,21 @@ export default async function EducationTeacherPortalPage({
       assignments = parsedAssignments.data;
       const assignmentIds = assignments.map((assignment) => assignment.id);
       if (assignmentIds.length) {
-        const [targetResult, submissionResult] = await Promise.all([
+        const [targetResult, submissionResult, attachmentResult] = await Promise.all([
           supabase.from("education_assignment_targets")
             .select("org_id, assignment_id, student_id, created_at")
             .in("assignment_id", assignmentIds),
           supabase.from("education_assignment_submissions")
-            .select("id, org_id, assignment_id, student_id, submission_text, submitted_at, score, feedback, graded_by, graded_at, updated_at")
+            .select("id, org_id, assignment_id, student_id, submission_text, submitted_at, score, feedback, graded_by, graded_at, revision_requested_at, revision_requested_by, revision_request_note, updated_at")
             .in("assignment_id", assignmentIds)
             .order("submitted_at", { ascending: false }),
+          supabase.from("education_assignment_attachments")
+            .select("id, org_id, assignment_id, submission_id, kind, file_name, content_type, file_size, storage_path, created_at")
+            .in("assignment_id", assignmentIds),
         ]);
         if (targetResult.error) throw new Error(`Could not load assignment recipients: ${targetResult.error.message}`);
         if (submissionResult.error) throw new Error(`Could not load assignment submissions: ${submissionResult.error.message}`);
+        if (attachmentResult.error) throw new Error(`Could not load assignment attachments: ${attachmentResult.error.message}`);
         const parsedTargets = educationAssignmentTargetsSchema.safeParse(targetResult.data ?? []);
         if (!parsedTargets.success) {
           console.error("Think Education assignment recipients returned unexpected data:", parsedTargets.error.flatten());
@@ -94,11 +122,36 @@ export default async function EducationTeacherPortalPage({
         }
         assignmentTargets = parsedTargets.data;
         assignmentSubmissions = parsedSubmissions.data;
+        const parsedAttachments = educationAssignmentAttachmentsSchema.safeParse(attachmentResult.data ?? []);
+        if (!parsedAttachments.success) {
+          console.error("Think Education assignment attachments returned unexpected data:", parsedAttachments.error.flatten());
+          throw new Error("Assignment attachments could not be safely displayed.");
+        }
+        assignmentAttachments = parsedAttachments.data;
+        const submissionIds = assignmentSubmissions.map((submission) => submission.id);
+        const versionResults = await Promise.all(
+          Array.from({ length: Math.ceil(submissionIds.length / 100) }, (_, index) =>
+            supabase.rpc("education_get_assignment_submission_versions", {
+              p_submission_ids: submissionIds.slice(index * 100, (index + 1) * 100),
+            })
+          )
+        );
+        for (const result of versionResults) {
+          if (result.error) throw new Error(`Could not load assignment revision history: ${result.error.message}`);
+        }
+        const parsedVersions = educationAssignmentSubmissionVersionsSchema.safeParse(
+          versionResults.flatMap((result) => result.data ?? [])
+        );
+        if (!parsedVersions.success) {
+          console.error("Think Education assignment revision history returned unexpected data:", parsedVersions.error.flatten());
+          throw new Error("Assignment revision history could not be safely displayed.");
+        }
+        assignmentSubmissionVersions = parsedVersions.data;
       }
     }
   }
-  const params = await searchParams;
   const message = messageFor(params);
+  const assignmentTotalPages = Math.max(1, Math.ceil(assignmentTotalCount / ASSIGNMENTS_PAGE_SIZE));
 
   return <EducationPortalShell
     role="teacher"
@@ -107,7 +160,7 @@ export default async function EducationTeacherPortalPage({
     subtitle="Manage classwork alongside your classes, timetable, and daily attendance."
     userEmail={user?.email}
   >
-      {message && <p role={params.claim === "error" || params.signin === "error" || params.assignment === "error" || params.assignment === "grade-error" || params.assignment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
+      {message && <p role={params.claim === "error" || params.signin === "error" || params.assignment === "error" || params.assignment === "attachment-error" || params.assignment === "grade-error" || params.assignment === "revision-error" || params.assignment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
       {!user ? <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <h2 className="text-xl font-semibold">Sign in to your teacher account</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">Use the email address recorded in your school staff profile and the temporary password provided by your school.</p>
@@ -131,10 +184,30 @@ export default async function EducationTeacherPortalPage({
           <TeacherAssignments
             teachers={portal}
             assignments={assignments}
+            attachments={assignmentAttachments}
             targets={assignmentTargets}
             submissions={assignmentSubmissions}
+            versions={assignmentSubmissionVersions}
           />
         </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {portal.map((teacher) => (
+            <TeacherAiAssistant
+              key={teacher.organizationId}
+              orgId={teacher.organizationId}
+              schoolName={teacher.organizationName}
+            />
+          ))}
+        </div>
+        {assignmentTotalPages > 1 && <nav aria-label="Assignment pages" className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
+          {assignmentPage > 1
+            ? <Link href={`/teacher-education-portal?assignmentPage=${assignmentPage - 1}#assignments`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous assignments</Link>
+            : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400">Previous assignments</span>}
+          <span className="text-sm text-slate-600">Assignments page {assignmentPage} of {assignmentTotalPages}</span>
+          {assignmentPage < assignmentTotalPages
+            ? <Link href={`/teacher-education-portal?assignmentPage=${assignmentPage + 1}#assignments`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next assignments</Link>
+            : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400">Next assignments</span>}
+        </nav>}
         {portal.map((teacher) => {
           const classes = teacher.classes;
           const studentCount = classes.reduce((total, classroom) => total + classroom.students.length, 0);

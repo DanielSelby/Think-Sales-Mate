@@ -1,8 +1,34 @@
+import Link from "next/link";
 import { BookOpen, CalendarDays, GraduationCap, Wallet } from "lucide-react";
 import { z } from "zod";
 import { educationPortalCommunicationsSchema, type EducationPortalCommunication } from "@/lib/education/communications";
 import { markEducationNotificationRead } from "@/app/education-notifications/actions";
 import { educationGuardianPortalSchema, type EducationGuardianPortal } from "@/lib/education/guardian-portal";
+import {
+  educationGuardianAttendanceHistorySchema,
+  type EducationGuardianAttendanceRecord,
+} from "@/lib/education/guardian-attendance";
+import {
+  educationGuardianFeePaymentsSchema,
+  type EducationGuardianFeePayment,
+} from "@/lib/education/guardian-fee-payments";
+import {
+  educationGuardianContactProfilesSchema,
+  educationGuardianScheduleSchema,
+  type EducationGuardianScheduleItem,
+} from "@/lib/education/guardian-schedule";
+import {
+  educationAssignmentsSchema,
+  educationAssignmentSubmissionsSchema,
+  educationAssignmentSubmissionVersionsSchema,
+  educationAssignmentTargetsSchema,
+  educationAssignmentAttachmentsSchema,
+  type EducationAssignment,
+  type EducationAssignmentAttachment,
+  type EducationAssignmentSubmission,
+  type EducationAssignmentSubmissionVersion,
+  type EducationAssignmentTarget,
+} from "@/lib/education/assignments";
 import { educationNotificationsSchema } from "@/lib/education/notifications";
 import { formatCurrencyAmount, getCurrencyConfigFromSettings } from "@/lib/currency";
 import {
@@ -12,12 +38,16 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
 import { EducationPortalShell } from "@/components/education/education-portal-shell";
+import { EducationAssignmentAttachmentLinks } from "@/components/education/assignment-attachment-links";
+import { GuardianAiAssistant } from "./guardian-ai-assistant";
 import {
   claimEducationGuardianPortalAccount,
   signInToEducationGuardianPortal,
+  updateEducationGuardianContact,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
+const ASSIGNMENTS_PAGE_SIZE = 20;
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const guardianFeePaymentDataSchema = z.array(z.object({
@@ -66,10 +96,34 @@ export default async function EducationGuardianPortalPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const params = await searchParams;
+  const requestedAssignmentPageValue = Number.parseInt(
+    typeof params.assignmentPage === "string" ? params.assignmentPage : "1",
+    10
+  );
+  const assignmentPage = Number.isSafeInteger(requestedAssignmentPageValue)
+    ? Math.min(100_000, Math.max(1, requestedAssignmentPageValue))
+    : 1;
   const supabase = await createClient();
   const user = getOptionalAuthUser(await supabase.auth.getUser(), "the family portal");
 
   let portal: EducationGuardianPortal = [];
+  let guardianAttendanceHistory: EducationGuardianAttendanceRecord[] = [];
+  let guardianFeePaymentHistory: EducationGuardianFeePayment[] = [];
+  let guardianSchedule: EducationGuardianScheduleItem[] = [];
+  let guardianContacts: Array<{
+    org_id: string;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    phone: string | null;
+  }> = [];
+  let assignments: EducationAssignment[] = [];
+  let assignmentTargets: EducationAssignmentTarget[] = [];
+  let assignmentSubmissions: EducationAssignmentSubmission[] = [];
+  let assignmentTotalCount = 0;
+  let assignmentSubmissionVersions: EducationAssignmentSubmissionVersion[] = [];
+  let assignmentAttachments: EducationAssignmentAttachment[] = [];
   let announcements: EducationPortalCommunication[] = [];
   let notifications: Awaited<ReturnType<typeof educationNotificationsSchema.parse>> = [];
   let notificationPreferences: Array<{ org_id: string; notification_type: string; in_app_enabled: boolean }> = [];
@@ -90,6 +144,153 @@ export default async function EducationGuardianPortalPage({
       throw new Error("The guardian portal data could not be safely displayed.");
     }
     portal = parsedPortal.data;
+    const guardianOrgIds = portal.map((organization) => organization.organizationId);
+    const guardianStudentIds = portal.flatMap((organization) =>
+      organization.children.map((student) => student.id)
+    );
+    const { data: contactRows, error: contactError } = await supabase.rpc(
+      "education_get_guardian_contact_profiles"
+    );
+    if (contactError) throw new Error(`Could not load guardian contact details: ${contactError.message}`);
+    const parsedContacts = educationGuardianContactProfilesSchema.safeParse(contactRows);
+    if (!parsedContacts.success) {
+      console.error("Think Education guardian contact details returned unexpected data:", parsedContacts.error.flatten());
+      throw new Error("Guardian contact details could not be safely displayed.");
+    }
+    guardianContacts = parsedContacts.data;
+    for (let offset = 0; offset < guardianStudentIds.length; offset += 100) {
+      const { data: scheduleRows, error: scheduleError } = await supabase.rpc(
+        "education_get_guardian_schedule",
+        { p_student_ids: guardianStudentIds.slice(offset, offset + 100) }
+      );
+      if (scheduleError) throw new Error(`Could not load exam and event schedules: ${scheduleError.message}`);
+      const parsedSchedule = educationGuardianScheduleSchema.safeParse(scheduleRows);
+      if (!parsedSchedule.success) {
+        console.error("Think Education guardian schedule returned unexpected data:", parsedSchedule.error.flatten());
+        throw new Error("Exam and event schedules could not be safely displayed.");
+      }
+      guardianSchedule.push(...parsedSchedule.data);
+    }
+    for (let offset = 0; offset < guardianStudentIds.length; offset += 100) {
+      const { data: attendanceRows, error: attendanceError } = await supabase.rpc(
+        "education_get_guardian_attendance_history",
+        {
+          p_student_ids: guardianStudentIds.slice(offset, offset + 100),
+          p_limit_per_student: 30,
+        }
+      );
+      if (attendanceError) throw new Error(`Could not load attendance history for linked children: ${attendanceError.message}`);
+      const parsedAttendance = educationGuardianAttendanceHistorySchema.safeParse(attendanceRows);
+      if (!parsedAttendance.success) {
+        console.error("Think Education guardian attendance history returned unexpected data:", parsedAttendance.error.flatten());
+        throw new Error("Attendance history for linked children could not be safely displayed.");
+      }
+      guardianAttendanceHistory.push(...parsedAttendance.data);
+    }
+    for (let offset = 0; offset < guardianStudentIds.length; offset += 100) {
+      const { data: paymentRows, error: paymentHistoryError } = await supabase.rpc(
+        "education_get_guardian_fee_payment_receipts",
+        {
+          p_student_ids: guardianStudentIds.slice(offset, offset + 100),
+          p_payment_id: null,
+          p_limit_per_student: 20,
+        }
+      );
+      if (paymentHistoryError) throw new Error(`Could not load payment history for linked children: ${paymentHistoryError.message}`);
+      const parsedPaymentHistory = educationGuardianFeePaymentsSchema.safeParse(paymentRows);
+      if (!parsedPaymentHistory.success) {
+        console.error("Think Education guardian payment history returned unexpected data:", parsedPaymentHistory.error.flatten());
+        throw new Error("Payment history for linked children could not be safely displayed.");
+      }
+      guardianFeePaymentHistory.push(...parsedPaymentHistory.data);
+    }
+    if (guardianOrgIds.length && guardianStudentIds.length) {
+      const assignmentWindowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+      const { data: assignmentRows, error: assignmentError, count: assignmentCount } = await supabase
+        .from("education_assignments")
+        .select("id, org_id, class_id, title, description, due_on, max_score, status, created_by, created_at, updated_at", { count: "exact" })
+        .in("org_id", guardianOrgIds)
+        .eq("status", "published")
+        .gte("due_on", assignmentWindowStart)
+        .order("due_on", { ascending: true })
+        .order("id", { ascending: true })
+        .range((assignmentPage - 1) * ASSIGNMENTS_PAGE_SIZE, assignmentPage * ASSIGNMENTS_PAGE_SIZE - 1);
+      if (assignmentError) throw new Error(`Could not load assignments for linked children: ${assignmentError.message}`);
+      assignmentTotalCount = assignmentCount ?? 0;
+      const parsedAssignments = educationAssignmentsSchema.safeParse(assignmentRows ?? []);
+      if (!parsedAssignments.success) {
+        console.error("Think Education guardian assignments returned unexpected data:", parsedAssignments.error.flatten());
+        throw new Error("Assignments for linked children could not be safely displayed.");
+      }
+      assignments = parsedAssignments.data;
+
+      const assignmentIds = assignments.map((assignment) => assignment.id);
+      if (assignmentIds.length) {
+        const [targetResult, submissionResult, attachmentResult] = await Promise.all([
+          supabase.from("education_assignment_targets")
+            .select("org_id, assignment_id, student_id, created_at")
+            .in("org_id", guardianOrgIds)
+            .in("assignment_id", assignmentIds)
+            .in("student_id", guardianStudentIds)
+            .order("created_at", { ascending: false })
+            .limit(200),
+          supabase.from("education_assignment_submissions")
+            .select("id, org_id, assignment_id, student_id, submission_text, submitted_at, score, feedback, graded_by, graded_at, revision_requested_at, revision_requested_by, revision_request_note, updated_at")
+            .in("org_id", guardianOrgIds)
+            .in("assignment_id", assignmentIds)
+            .in("student_id", guardianStudentIds)
+            .order("submitted_at", { ascending: false })
+            .limit(200),
+          supabase.from("education_assignment_attachments")
+            .select("id, org_id, assignment_id, submission_id, kind, file_name, content_type, file_size, storage_path, created_at")
+            .in("org_id", guardianOrgIds)
+            .in("assignment_id", assignmentIds),
+        ]);
+        if (targetResult.error) throw new Error(`Could not load linked-child assignment recipients: ${targetResult.error.message}`);
+        if (submissionResult.error) throw new Error(`Could not load linked-child submissions: ${submissionResult.error.message}`);
+        if (attachmentResult.error) throw new Error(`Could not load linked-child assignment attachments: ${attachmentResult.error.message}`);
+        const parsedTargets = educationAssignmentTargetsSchema.safeParse(targetResult.data ?? []);
+        if (!parsedTargets.success) {
+          console.error("Think Education guardian assignment targets returned unexpected data:", parsedTargets.error.flatten());
+          throw new Error("Assignment recipient data for linked children could not be safely displayed.");
+        }
+        const parsedSubmissions = educationAssignmentSubmissionsSchema.safeParse(submissionResult.data ?? []);
+        if (!parsedSubmissions.success) {
+          console.error("Think Education guardian submissions returned unexpected data:", parsedSubmissions.error.flatten());
+          throw new Error("Submissions for linked children could not be safely displayed.");
+        }
+        assignmentTargets = parsedTargets.data;
+        assignmentSubmissions = parsedSubmissions.data;
+        const parsedAttachments = educationAssignmentAttachmentsSchema.safeParse(attachmentResult.data ?? []);
+        if (!parsedAttachments.success) {
+          console.error("Think Education guardian assignment attachments returned unexpected data:", parsedAttachments.error.flatten());
+          throw new Error("Assignment attachments for linked children could not be safely displayed.");
+        }
+        assignmentAttachments = parsedAttachments.data;
+        const submissionIds = assignmentSubmissions.map((submission) => submission.id);
+        const versionResults = await Promise.all(
+          Array.from({ length: Math.ceil(submissionIds.length / 100) }, (_, index) =>
+            supabase.rpc("education_get_assignment_submission_versions", {
+              p_submission_ids: submissionIds.slice(index * 100, (index + 1) * 100),
+            })
+          )
+        );
+        for (const result of versionResults) {
+          if (result.error) throw new Error(`Could not load assignment revision history for linked children: ${result.error.message}`);
+        }
+        const parsedVersions = educationAssignmentSubmissionVersionsSchema.safeParse(
+          versionResults.flatMap((result) => result.data ?? [])
+        );
+        if (!parsedVersions.success) {
+          console.error("Think Education guardian assignment revision history returned unexpected data:", parsedVersions.error.flatten());
+          throw new Error("Assignment revision history for linked children could not be safely displayed.");
+        }
+        assignmentSubmissionVersions = parsedVersions.data;
+      }
+    }
+
     if (portal.length) {
       const { data: currencyConfigRows, error: currencyConfigError } = await supabase.rpc(
         "education_get_guardian_currency_configs"
@@ -132,7 +333,7 @@ export default async function EducationGuardianPortalPage({
     announcements = parsedCommunications.data;
 
     const { data: notificationRows, error: notificationError } = await supabase.from("education_notifications")
-      .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, delivery_status, read_at, created_at")
+      .select("id, org_id, branch_id, user_id, notification_type, title, message, announcement_id, assignment_id, assignment_event_key, delivery_status, read_at, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(30);
@@ -161,9 +362,42 @@ export default async function EducationGuardianPortalPage({
     }
     outboundNotificationPreferences = outboundPreferences ?? [];
   }
-  const params = await searchParams;
   const message = messageFor(params);
   const paymentMessage = paymentMessageFor(params);
+  const linkedChildren = portal.flatMap((organization) =>
+    organization.children.map((student) => ({
+      id: student.id,
+      fullName: [student.firstName, student.otherNames, student.lastName].filter(Boolean).join(" "),
+      organizationName: organization.organizationName,
+      campusName: student.campusName,
+      announcementName: `${student.firstName} ${student.lastName}`,
+    }))
+  );
+  const requestedStudentId = typeof params.student === "string" ? params.student : "";
+  const selectedStudentId = linkedChildren.some((student) => student.id === requestedStudentId)
+    ? requestedStudentId
+    : "";
+  const visiblePortal: EducationGuardianPortal = selectedStudentId
+    ? portal.map((organization) => ({
+        ...organization,
+        children: organization.children.filter((student) => student.id === selectedStudentId),
+      })).filter((organization) => organization.children.length > 0)
+    : portal;
+  const selectedChild = linkedChildren.find((student) => student.id === selectedStudentId);
+  const assignmentTotalPages = Math.max(1, Math.ceil(assignmentTotalCount / ASSIGNMENTS_PAGE_SIZE));
+  const assignmentPageHref = (page: number) => {
+    const query = new URLSearchParams();
+    if (selectedStudentId) query.set("student", selectedStudentId);
+    query.set("assignmentPage", String(page));
+    return `/education-portal?${query.toString()}#assignments`;
+  };
+  const visibleAnnouncements = selectedChild
+    ? announcements.filter((announcement) =>
+        announcement.organizationName === selectedChild.organizationName
+        && announcement.campusName === selectedChild.campusName
+        && announcement.studentName === selectedChild.announcementName
+      )
+    : announcements;
   const formatGuardianMoney = (organizationId: string, amount: number) => {
     const config = currencyConfigByOrganization.get(organizationId);
     if (!config) throw new Error("Currency display settings are unavailable for a linked school.");
@@ -179,11 +413,40 @@ export default async function EducationGuardianPortalPage({
   >
 
       {message && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
+      {params.profile === "saved" && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Your contact details were updated.</p>}
+      {params.profile === "invalid" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">Check your name, email, and phone number.</p>}
+      {params.profile === "denied" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">This guardian profile is no longer linked to your account.</p>}
+      {params.profile === "error" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">Your contact details could not be updated. Please try again.</p>}
       {paymentMessage && <p role={params.payment === "review" || params.payment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{paymentMessage}</p>}
       {params.preference === "saved" && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Notification preference saved.</p>}
       {params.preference === "denied" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">This preference could not be changed for the selected school.</p>}
       {params.preference === "error" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">The preference could not be saved. Please try again.</p>}
       {params.preference === "invalid" && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">The preference selection was invalid.</p>}
+
+      {user && linkedChildren.length > 1 && <form method="get" action="/education-portal" className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <label className="min-w-56 flex-1 text-sm font-medium text-slate-700">
+          View child
+          <select name="student" defaultValue={selectedStudentId} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
+            <option value="">All linked children</option>
+            {linkedChildren.map((student) => (
+              <option key={student.id} value={student.id}>{student.fullName} · {student.organizationName}</option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
+          View dashboard
+        </button>
+      </form>}
+
+      {user && assignmentTotalPages > 1 && <nav aria-label="Assignment pages" className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
+        {assignmentPage > 1
+          ? <Link href={assignmentPageHref(assignmentPage - 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous assignments</Link>
+          : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400">Previous assignments</span>}
+        <span className="text-sm text-slate-600">Assignments page {assignmentPage} of {assignmentTotalPages}</span>
+        {assignmentPage < assignmentTotalPages
+          ? <Link href={assignmentPageHref(assignmentPage + 1)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next assignments</Link>
+          : <span aria-disabled="true" className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400">Next assignments</span>}
+      </nav>}
 
       {notifications.length > 0 && <section className="space-y-3">
         <h2 className="text-xl font-semibold">Notifications</h2>
@@ -204,32 +467,64 @@ export default async function EducationGuardianPortalPage({
       </section>}
 
       {user && portal.length > 0 && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="font-semibold">Announcement preferences</h2>
-        <p className="mt-1 text-sm text-slate-500">Choose whether published school announcements appear in your in-app notification inbox.</p>
+        <h2 className="font-semibold">In-app notification preferences</h2>
+        <p className="mt-1 text-sm text-slate-500">Choose which school announcements and assignment updates appear in your notification inbox.</p>
         <ul className="mt-3 divide-y divide-slate-100">
-          {portal.map((organization) => {
+          {visiblePortal.flatMap((organization) => ([
+            ["announcement", "Announcements"],
+            ["assignment", "Assignment updates"],
+          ] as const).map(([type, label]) => {
             const enabled = notificationPreferences.find((preference) =>
-              preference.org_id === organization.organizationId && preference.notification_type === "announcement"
+              preference.org_id === organization.organizationId && preference.notification_type === type
             )?.in_app_enabled !== false;
-            return <li key={organization.organizationId} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <span className="text-sm font-medium">{organization.organizationName} · {enabled ? "Enabled" : "Paused"}</span>
+            return <li key={`${organization.organizationId}-${type}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <span className="text-sm font-medium">{organization.organizationName} · {label}: {enabled ? "Enabled" : "Paused"}</span>
               <form action={setEducationNotificationPreference}>
                 <input type="hidden" name="org_id" value={organization.organizationId} />
-                <input type="hidden" name="notification_type" value="announcement" />
+                <input type="hidden" name="notification_type" value={type} />
                 <input type="hidden" name="in_app_enabled" value={String(!enabled)} />
                 <input type="hidden" name="return_to" value="/education-portal" />
                 <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">{enabled ? "Pause" : "Enable"}</button>
               </form>
             </li>;
-          })}
+          }))}
         </ul>
       </section>}
+
+      {user && visiblePortal.map((organization) => {
+        const contact = guardianContacts.find((profile) => profile.org_id === organization.organizationId);
+        if (!contact) return null;
+        return <section key={`${organization.organizationId}-contact`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="font-semibold">Guardian contact details · {organization.organizationName}</h2>
+          <p className="mt-1 text-sm text-slate-500">Update the contact details attached to your verified guardian profile.</p>
+          <form action={updateEducationGuardianContact} className="mt-4 grid gap-3 sm:grid-cols-2">
+            <input type="hidden" name="org_id" value={organization.organizationId} />
+            <label className="text-sm font-medium text-slate-700">First name
+              <input name="first_name" required maxLength={100} defaultValue={contact.first_name} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Last name
+              <input name="last_name" required maxLength={100} defaultValue={contact.last_name} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Email
+              <input type="email" name="email" maxLength={254} defaultValue={contact.email ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Phone
+              <input type="tel" name="phone" maxLength={40} defaultValue={contact.phone ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+            </label>
+            <div className="sm:col-span-2">
+              <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">Save contact details</button>
+            </div>
+          </form>
+        </section>;
+      })}
 
       {user && outboundNotificationPreferences.length > 0 && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-semibold">Announcement email and SMS preferences</h2>
         <p className="mt-1 text-sm text-slate-500">Each channel is optional and starts off. These settings are independent of your in-app notification inbox.</p>
         <ul className="mt-3 divide-y divide-slate-100">
-          {outboundNotificationPreferences.map((preference) => <li key={preference.org_id} className="py-3">
+          {outboundNotificationPreferences.filter((preference) =>
+            visiblePortal.some((organization) => organization.organizationId === preference.org_id)
+          ).map((preference) => <li key={preference.org_id} className="py-3">
             <p className="text-sm font-medium">{preference.organization_name}</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {([
@@ -250,10 +545,10 @@ export default async function EducationGuardianPortalPage({
         </ul>
       </section>}
 
-      {announcements.length > 0 && <section id="announcements" className="scroll-mt-6 space-y-3">
+      {visibleAnnouncements.length > 0 && <section id="announcements" className="scroll-mt-6 space-y-3">
         <h2 className="text-xl font-semibold">School announcements</h2>
         <div className="grid gap-3 md:grid-cols-2">
-          {announcements.map((announcement) => <article key={`${announcement.id}-${announcement.studentName}`} className="rounded-xl border border-blue-200 bg-white p-4 shadow-sm">
+          {visibleAnnouncements.map((announcement) => <article key={`${announcement.id}-${announcement.studentName}`} className="rounded-xl border border-blue-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium text-blue-700">{announcement.organizationName} · {announcement.campusName} · For {announcement.studentName}</p>
             <h3 className="mt-1 font-semibold text-slate-950">{announcement.title}</h3>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{announcement.body}</p>
@@ -294,7 +589,7 @@ export default async function EducationGuardianPortalPage({
           </p>
         </div>
       </section> : <div className="space-y-6">
-        {portal.map((organization) => <section key={`${organization.organizationName}-${organization.guardianFirstName}-${organization.guardianLastName}`} className="space-y-4">
+        {visiblePortal.map((organization) => <section key={`${organization.organizationName}-${organization.guardianFirstName}-${organization.guardianLastName}`} className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-sm font-medium text-blue-700">{organization.organizationName}</p>
@@ -334,6 +629,54 @@ export default async function EducationGuardianPortalPage({
               </div>
 
               <div className="space-y-5 px-5 pb-5">
+                <section aria-label={`Exam and event schedule for ${student.firstName}`}>
+                  <h4 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4 text-blue-700" /> Exam and event schedule</h4>
+                  {guardianSchedule.filter((item) => item.student_id === student.id).length ? (
+                    <ul className="mt-2 space-y-2">
+                      {guardianSchedule.filter((item) => item.student_id === student.id).map((item) => (
+                        <li key={`${item.item_type}-${item.item_id}`} className="rounded-lg border border-slate-200 p-3 text-sm">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <span className="font-medium">{item.title}</span>
+                            <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium capitalize text-blue-800">{item.item_type}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">
+                            {new Date(item.starts_at).toLocaleString()}
+                            {item.ends_at ? ` – ${new Date(item.ends_at).toLocaleString()}` : ""}
+                            {` · ${item.campus_name}`}
+                          </p>
+                          {item.detail && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">{item.detail.slice(0, 500)}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-2 text-sm text-slate-500">No scheduled examinations or school events are available.</p>}
+                </section>
+
+                <section aria-label={`Attendance history for ${student.firstName}`}>
+                  <h4 className="text-sm font-semibold">Attendance history · last 90 days</h4>
+                  {guardianAttendanceHistory.filter((record) => record.student_id === student.id).length ? (
+                    <ul className="mt-2 divide-y divide-slate-100">
+                      {guardianAttendanceHistory.filter((record) => record.student_id === student.id).map((record) => (
+                        <li key={record.record_id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                          <span>
+                            <time dateTime={record.attendance_date} className="font-medium">
+                              {new Date(`${record.attendance_date}T00:00:00`).toLocaleDateString()}
+                            </time>
+                            <span className="ml-2 text-slate-500">{record.record_type} · {record.detail}</span>
+                          </span>
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                            record.status === "present" ? "bg-emerald-50 text-emerald-800"
+                              : record.status === "late" ? "bg-amber-50 text-amber-800"
+                                : record.status === "absent" ? "bg-red-50 text-red-800"
+                                  : "bg-slate-100 text-slate-700"
+                          }`}>
+                            {record.status}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-2 text-sm text-slate-500">No attendance records are available for this period.</p>}
+                </section>
+
                 <section className="scroll-mt-6">
                   <h4 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4 text-blue-700" /> Weekly timetable</h4>
                   {student.timetable.length ? <ul className="mt-2 divide-y divide-slate-100">
@@ -370,6 +713,113 @@ export default async function EducationGuardianPortalPage({
                     </li>)}
                   </ul> : <p className="mt-2 text-sm text-slate-500">No open fee charges.</p>}
                 </section>
+
+                <section aria-label={`Payment history for ${student.firstName}`}>
+                  <h4 className="text-sm font-semibold">Payment history · past 12 months</h4>
+                  {guardianFeePaymentHistory.filter((payment) => payment.student_id === student.id).length ? (
+                    <ul className="mt-2 divide-y divide-slate-100">
+                      {guardianFeePaymentHistory.filter((payment) => payment.student_id === student.id).map((payment) => (
+                        <li key={payment.payment_id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                          <span>
+                            <span className="font-medium">{payment.fee_description}</span>
+                            <span className="block text-xs capitalize text-slate-500">
+                              {new Date(payment.paid_at).toLocaleDateString()} · {payment.payment_method.replaceAll("_", " ")}
+                            </span>
+                            {payment.reference && <span className="block text-xs text-slate-500">Reference: {payment.reference}</span>}
+                          </span>
+                          <span className="text-right font-medium">
+                            {formatGuardianMoney(payment.org_id, payment.amount)}
+                            <a
+                              href={`/education-portal/fee-receipt?paymentId=${encodeURIComponent(payment.payment_id)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 block text-xs font-semibold text-blue-700 hover:text-blue-900"
+                            >
+                              View receipt
+                            </a>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-2 text-sm text-slate-500">No recorded payments in the past 12 months.</p>}
+                </section>
+
+                <section id={studentIndex === 0 ? "assignments" : undefined} className="scroll-mt-6">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-blue-700" /> Homework & assignments</h4>
+                  {assignments.filter((assignment) => assignmentTargets.some((target) =>
+                    target.org_id === organization.organizationId
+                    && target.assignment_id === assignment.id
+                    && target.student_id === student.id
+                  )).length ? <ul className="mt-2 space-y-2">
+                    {assignments.filter((assignment) => assignmentTargets.some((target) =>
+                      target.org_id === organization.organizationId
+                      && target.assignment_id === assignment.id
+                      && target.student_id === student.id
+                    )).map((assignment) => {
+                      const submission = assignmentSubmissions.find((item) =>
+                        item.org_id === organization.organizationId
+                        && item.assignment_id === assignment.id
+                        && item.student_id === student.id
+                      );
+                      const isOverdue = !submission && assignment.due_on < new Date().toISOString().slice(0, 10);
+                      return <li key={assignment.id} className="rounded-lg border border-slate-200 p-3 text-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <span className="font-medium">{assignment.title}</span>
+                          <span className="text-xs text-slate-500">Due {new Date(`${assignment.due_on}T00:00:00`).toLocaleDateString()}</span>
+                        </div>
+                        {assignment.description && <p className="mt-1 whitespace-pre-wrap text-slate-600">{assignment.description}</p>}
+                        <EducationAssignmentAttachmentLinks
+                          attachments={assignmentAttachments.filter((attachment) =>
+                            attachment.org_id === organization.organizationId
+                            && attachment.assignment_id === assignment.id
+                            && attachment.kind === "assignment"
+                          )}
+                          label="Teacher resources"
+                        />
+                        {submission && <EducationAssignmentAttachmentLinks
+                          attachments={assignmentAttachments.filter((attachment) =>
+                            attachment.submission_id === submission.id
+                          )}
+                          label={`${student.firstName}'s submitted files`}
+                        />}
+                        {submission?.graded_at ? (
+                          <div className="mt-2 rounded-lg bg-emerald-50 p-2 text-emerald-900">
+                            <p className="font-medium">Graded: {submission.score}/{assignment.max_score}</p>
+                            {submission.feedback && <p className="mt-1 whitespace-pre-wrap text-emerald-800">{submission.feedback}</p>}
+                          </div>
+                        ) : (
+                          <p className={`mt-2 text-xs font-medium ${isOverdue ? "text-red-700" : "text-slate-500"}`}>
+                            {submission ? "Submitted" : isOverdue ? "Overdue · Not submitted" : "Not submitted"}
+                          </p>
+                        )}
+                        {submission?.revision_requested_at && (
+                          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                            Teacher requested a revision: {submission.revision_request_note}
+                          </p>
+                        )}
+                        {assignmentSubmissionVersions.some((version) => version.submission_id === submission?.id) && (
+                          <details className="mt-2 rounded-lg bg-slate-50 px-2 py-1.5">
+                            <summary className="cursor-pointer text-xs font-medium text-slate-700">
+                              Previous attempts ({assignmentSubmissionVersions.filter((version) => version.submission_id === submission?.id).length})
+                            </summary>
+                            <ol className="mt-2 space-y-2">
+                              {assignmentSubmissionVersions.filter((version) => version.submission_id === submission?.id).map((version) => (
+                                <li key={`${version.submission_id}-${version.version_number}`} className="border-t border-slate-200 pt-2 text-xs text-slate-600">
+                                  <p className="font-medium">Attempt {version.version_number} · {new Date(version.submitted_at).toLocaleString()}</p>
+                                  <p className="mt-1 whitespace-pre-wrap">{version.submission_text}</p>
+                                </li>
+                              ))}
+                            </ol>
+                          </details>
+                        )}
+                      </li>;
+                    })}
+                  </ul> : <p className="mt-2 text-sm text-slate-500">No published assignments for this student.</p>}
+                </section>
+                {user && <GuardianAiAssistant
+                  studentId={student.id}
+                  childName={[student.firstName, student.otherNames, student.lastName].filter(Boolean).join(" ")}
+                />}
               </div>
             </article>)}
           </div>}

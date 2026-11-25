@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   educationCreateAssignmentSchema,
   educationGradeAssignmentSchema,
+  educationRequestAssignmentRevisionSchema,
 } from "@/lib/education/assignments";
 
 const PORTAL_PATH = "/teacher-education-portal";
@@ -32,7 +33,7 @@ export async function createEducationAssignment(formData: FormData) {
   if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
   if (!user) redirect(`/login?next=${encodeURIComponent(PORTAL_PATH)}`);
 
-  const { error } = await supabase.rpc("education_teacher_create_assignment", {
+  const { data: assignmentId, error } = await supabase.rpc("education_teacher_create_assignment", {
     p_org_id: input.data.orgId,
     p_class_id: input.data.classId,
     p_title: input.data.title,
@@ -43,6 +44,10 @@ export async function createEducationAssignment(formData: FormData) {
   });
   if (error) {
     console.error("Could not create education assignment:", error.message);
+    redirect(`${PORTAL_PATH}?assignment=error`);
+  }
+  if (!assignmentId) {
+    console.error("Could not create education assignment: no assignment ID was returned.");
     redirect(`${PORTAL_PATH}?assignment=error`);
   }
   revalidatePath(PORTAL_PATH);
@@ -77,6 +82,32 @@ export async function gradeEducationAssignmentSubmission(formData: FormData) {
   revalidatePath(PORTAL_PATH);
   revalidatePath("/student-education-portal");
   redirect(`${PORTAL_PATH}?assignment=graded`);
+}
+
+export async function requestEducationAssignmentRevision(formData: FormData) {
+  const input = educationRequestAssignmentRevisionSchema.safeParse({
+    submissionId: formString(formData, "submission_id"),
+    note: formString(formData, "note"),
+  });
+  if (!input.success) redirect(`${PORTAL_PATH}?assignment=invalid`);
+
+  const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(PORTAL_PATH)}`);
+
+  const { error } = await supabase.rpc("education_teacher_request_assignment_revision", {
+    p_submission_id: input.data.submissionId,
+    p_note: input.data.note,
+  });
+  if (error) {
+    console.error("Could not request an education assignment revision:", error.message);
+    redirect(`${PORTAL_PATH}?assignment=revision-error`);
+  }
+  revalidatePath(PORTAL_PATH);
+  revalidatePath("/student-education-portal");
+  revalidatePath("/education-portal");
+  redirect(`${PORTAL_PATH}?assignment=revision-requested`);
 }
 
 export async function recordEducationTeacherAttendance(formData: FormData) {

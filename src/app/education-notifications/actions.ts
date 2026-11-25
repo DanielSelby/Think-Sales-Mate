@@ -44,7 +44,7 @@ export async function setEducationNotificationPreference(formData: FormData) {
   const notificationType = String(formData.get("notification_type") ?? "");
   const inAppEnabled = String(formData.get("in_app_enabled") ?? "") === "true";
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orgId)
-    || !["announcement", "attendance", "results", "fees", "admissions", "transport"].includes(notificationType)) {
+    || !["announcement", "attendance", "results", "fees", "admissions", "transport", "assignment"].includes(notificationType)) {
     redirect(`${returnPath}?preference=invalid`);
   }
 

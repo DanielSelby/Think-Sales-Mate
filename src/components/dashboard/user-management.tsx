@@ -79,7 +79,7 @@ import type {
   PermissionAction
 } from "./user-management/types";
 import type { BranchAccessRule } from "./user-management/types";
-import type { PlatformProductSlug } from "@/types/platform-database";
+import { PLATFORM_PRODUCT_LABELS, type PlatformProductSlug } from "@/types/platform-database";
 
 import {
   DEFAULT_ROLES,
@@ -103,7 +103,9 @@ import {
 } from "@/app/(dashboard)/settings/organization/actions";
 import { createStaffAccount, saveRoleTheme, resetMemberPassword } from "@/app/(dashboard)/settings/organization/actions";
 import { THEMES, type ThemeKey, useAppStore } from "@/store/useAppStore";
-import { canonicalRoleKey } from "@/lib/rbac/permission-matrix";
+import { canonicalRoleKey, normalizePermissionMatrix } from "@/lib/rbac/permission-matrix";
+import { filterPermissionMatrixForProduct } from "@/lib/product-entitlement-routes";
+import { EDUCATION_ROLE_PRESETS } from "@/lib/rbac/education-roles";
 
 export type { ManagedUser, UserBranch } from "./user-management/types";
 
@@ -155,6 +157,9 @@ export function UserManagement({
   const [, startTransition] = useTransition();
   const { setTheme } = useAppStore();
   const showAlert = useAppAlert();
+  const [roles, setRoles] = useState<RoleDefinition[]>(
+    initialRolesProp && initialRolesProp.length > 0 ? initialRolesProp : DEFAULT_ROLES
+  );
   const [roleThemeState, setRoleThemeState] = useState<Record<string, string>>(roleThemes);
   const permissionConfigs = useMemo(
     () => enabledModules
@@ -162,6 +167,35 @@ export function UserManagement({
       : { modules: MODULE_CONFIGS, pages: PERMISSION_PAGE_CONFIGS },
     [enabledModules]
   );
+  const activeProductName = activeProductSlug
+    ? productCatalog.find((product) => product.slug === activeProductSlug)?.name
+      ?? PLATFORM_PRODUCT_LABELS[activeProductSlug]
+    : null;
+  const productRoleOptions = useMemo(() => {
+    if (!activeProductSlug) return [];
+    const templates = productRoleTemplates.filter((template) => template.product_slug === activeProductSlug);
+    const sharedRoles = roles
+      .filter((role) => !["owner", "super_admin"].includes(canonicalRoleKey(role.key)))
+      .flatMap((role) => {
+        const template = templates.find((item) => item.role_key === role.key);
+        const permissions = normalizePermissionMatrix(
+          filterPermissionMatrixForProduct(template?.permissions ?? role.permissions, activeProductSlug),
+        );
+        const permissionCount = Object.values(permissions).reduce((count, actions) => count + actions.length, 0);
+        return permissionCount
+          ? [{ key: role.key, name: template?.name || role.name }]
+          : [];
+      });
+    if (activeProductSlug !== "think-education") return sharedRoles;
+    const educationRoleKeys = new Set(EDUCATION_ROLE_PRESETS.map((preset) => preset.key));
+    return [
+      ...sharedRoles.filter((role) => !educationRoleKeys.has(role.key)),
+      ...EDUCATION_ROLE_PRESETS.map((preset) => {
+        const template = templates.find((item) => item.role_key === preset.key);
+        return { key: preset.key, name: template?.name || preset.name };
+      }),
+    ];
+  }, [activeProductSlug, productRoleTemplates, roles]);
 
   // Primary Data State
   const [branches] = useState<UserBranch[]>(
@@ -198,9 +232,6 @@ export function UserManagement({
     return [];
   });
 
-  const [roles, setRoles] = useState<RoleDefinition[]>(
-    initialRolesProp && initialRolesProp.length > 0 ? initialRolesProp : DEFAULT_ROLES
-  );
   const auditLogs = initialAuditLogsProp ?? [];
   const [invitations, setInvitations] = useState<InvitationRecord[]>(initialInvitationsProp ?? []);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -767,7 +798,9 @@ export function UserManagement({
             User Management & Security Governance
           </h1>
           <p className="text-xs text-ledger-500 dark:text-ledger-400 mt-0.5">
-            Manage enterprise users, granular RBAC permissions, branch access, transaction approvals, and audit trails
+            {activeProductName
+              ? `Manage users and product access. New staff accounts are limited to ${activeProductName}; invitations need product access assigned after activation.`
+              : "Manage enterprise users, granular RBAC permissions, branch access, transaction approvals, and audit trails"}
           </p>
         </div>
 
@@ -1423,6 +1456,9 @@ export function UserManagement({
         roles={roles}
         companyWebsite={companyWebsite}
         employeeNames={employeeNames}
+        productScopeName={activeProductName}
+        canManageProductAccess={canManageProductAccess}
+        productRoleOptions={productRoleOptions}
         onCreateStaff={handleCreateStaffAccount}
       />
 
@@ -1432,6 +1468,7 @@ export function UserManagement({
         roles={roles}
         branches={branches}
         invitations={invitations}
+        productScopeName={activeProductName}
         onSendInvite={handleSendInvite}
         onResendInvite={(id) => {
           startTransition(async () => {

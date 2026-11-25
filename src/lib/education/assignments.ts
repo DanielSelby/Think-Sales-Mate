@@ -38,10 +38,56 @@ export const educationAssignmentSubmissionSchema = z.object({
   feedback: z.string().max(4000).nullable(),
   graded_by: uuidSchema.nullable(),
   graded_at: z.string().nullable(),
+  revision_requested_at: z.string().nullable(),
+  revision_requested_by: uuidSchema.nullable(),
+  revision_request_note: z.string().max(2000).nullable(),
   updated_at: z.string(),
 });
 
 export const educationAssignmentSubmissionsSchema = z.array(educationAssignmentSubmissionSchema);
+
+export const educationAssignmentSubmissionVersionSchema = z.object({
+  org_id: uuidSchema,
+  submission_id: uuidSchema,
+  version_number: z.number().int().min(1).max(20),
+  submission_text: z.string().max(10000),
+  submitted_at: z.string(),
+  score: z.number().nonnegative().nullable(),
+  feedback: z.string().max(4000).nullable(),
+  graded_at: z.string().nullable(),
+  revision_requested_at: z.string().nullable(),
+  revision_request_note: z.string().max(2000).nullable(),
+  recorded_at: z.string(),
+});
+
+export const educationAssignmentSubmissionVersionsSchema = z.array(
+  educationAssignmentSubmissionVersionSchema
+);
+
+export const educationAssignmentAttachmentSchema = z.object({
+  id: uuidSchema,
+  org_id: uuidSchema,
+  assignment_id: uuidSchema,
+  submission_id: uuidSchema.nullable(),
+  kind: z.enum(["assignment", "submission"]),
+  file_name: z.string().min(1).max(255),
+  content_type: z.string(),
+  file_size: z.number().int().positive(),
+  storage_path: z.string().min(1),
+  created_at: z.string(),
+}).superRefine((attachment, ctx) => {
+  if ((attachment.kind === "assignment") !== (attachment.submission_id === null)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["submission_id"],
+      message: "Only submission attachments may reference a submission.",
+    });
+  }
+});
+
+export const educationAssignmentAttachmentsSchema = z.array(educationAssignmentAttachmentSchema);
+
+export type EducationAssignmentAttachment = z.infer<typeof educationAssignmentAttachmentSchema>;
 
 function isCalendarDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -75,6 +121,12 @@ export const educationGradeAssignmentSchema = z.object({
   feedback: z.string().max(4000),
 }).strict();
 
+export const educationRequestAssignmentRevisionSchema = z.object({
+  submissionId: uuidSchema,
+  note: z.string().trim().min(1).max(2000),
+}).strict();
+
 export type EducationAssignment = z.infer<typeof educationAssignmentSchema>;
 export type EducationAssignmentTarget = z.infer<typeof educationAssignmentTargetSchema>;
 export type EducationAssignmentSubmission = z.infer<typeof educationAssignmentSubmissionSchema>;
+export type EducationAssignmentSubmissionVersion = z.infer<typeof educationAssignmentSubmissionVersionSchema>;

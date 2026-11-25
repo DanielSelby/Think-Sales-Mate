@@ -12,6 +12,7 @@ interface InviteUserModalProps {
   roles: RoleDefinition[];
   branches: UserBranch[];
   invitations: InvitationRecord[];
+  productScopeName?: string | null;
   onSendInvite: (invite: { name: string; email: string; role: string; branchId: string }) => Promise<boolean>;
   onResendInvite: (inviteId: string) => void;
   onRevokeInvite: (inviteId: string) => void;
@@ -23,6 +24,7 @@ export function InviteUserModal({
   roles,
   branches,
   invitations,
+  productScopeName = null,
   onSendInvite,
   onResendInvite,
   onRevokeInvite
@@ -180,6 +182,11 @@ export function InviteUserModal({
                   The invited user will receive an activation email from the authentication provider. Expiration details and 2FA setup status are not available here.
                 </p>
               </div>
+              {productScopeName && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                  This invitation does not grant {productScopeName} access. An organization owner or super administrator must assign product access and a product-specific role after the membership is active.
+                </p>
+              )}
 
               <div className="flex justify-end pt-2">
                 <Button type="submit" disabled={isSending} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">

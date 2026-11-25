@@ -7,6 +7,7 @@ export const EDUCATION_NOTIFICATION_TYPES = [
   ["fees", "Fees and payments"],
   ["admissions", "Admissions"],
   ["transport", "Transport"],
+  ["assignment", "Assignment updates"],
 ] as const;
 
 export const educationNotificationSchema = z.object({
@@ -14,10 +15,12 @@ export const educationNotificationSchema = z.object({
   org_id: z.string().uuid(),
   branch_id: z.string().uuid(),
   user_id: z.string().uuid(),
-  notification_type: z.enum(["announcement", "attendance", "results", "fees", "admissions", "transport"]),
+  notification_type: z.enum(["announcement", "attendance", "results", "fees", "admissions", "transport", "assignment"]),
   title: z.string(),
   message: z.string(),
   announcement_id: z.string().uuid().nullable(),
+  assignment_id: z.string().uuid().nullable(),
+  assignment_event_key: z.string().nullable(),
   delivery_status: z.enum(["delivered", "read"]),
   read_at: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),

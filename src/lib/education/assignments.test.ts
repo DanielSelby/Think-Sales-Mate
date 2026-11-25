@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  educationAssignmentAttachmentSchema,
   educationCreateAssignmentSchema,
   educationGradeAssignmentSchema,
+  educationRequestAssignmentRevisionSchema,
   educationSubmitAssignmentSchema,
 } from "./assignments";
 
@@ -52,6 +54,43 @@ describe("education assignments", () => {
       submissionId: classId,
       score: -1,
       feedback: "",
+    }).success).toBe(false);
+  });
+
+  it("requires a non-empty bounded teacher note when requesting a revision", () => {
+    expect(educationRequestAssignmentRevisionSchema.safeParse({
+      submissionId: classId,
+      note: "Please add the missing working.",
+    }).success).toBe(true);
+    expect(educationRequestAssignmentRevisionSchema.safeParse({
+      submissionId: classId,
+      note: "   ",
+    }).success).toBe(false);
+    expect(educationRequestAssignmentRevisionSchema.safeParse({
+      submissionId: classId,
+      note: "x".repeat(2001),
+    }).success).toBe(false);
+  });
+
+  it("keeps assignment resources separate from submission attachments", () => {
+    const base = {
+      id: classId,
+      org_id: "a0d60f66-babd-41cc-963b-63835e89d2bc",
+      assignment_id: classId,
+      submission_id: null,
+      kind: "assignment" as const,
+      file_name: "worksheet.pdf",
+      content_type: "application/pdf",
+      file_size: 1024,
+      storage_path: "school/assignment/resource",
+      created_at: "2026-11-24T12:00:00.000Z",
+    };
+
+    expect(educationAssignmentAttachmentSchema.safeParse(base).success).toBe(true);
+    expect(educationAssignmentAttachmentSchema.safeParse({
+      ...base,
+      kind: "submission",
+      submission_id: null,
     }).success).toBe(false);
   });
 });

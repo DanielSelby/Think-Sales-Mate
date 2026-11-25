@@ -235,7 +235,23 @@ type EducationAssignmentSubmission = {
   feedback: string | null;
   graded_by: string | null;
   graded_at: string | null;
+  revision_requested_at: string | null;
+  revision_requested_by: string | null;
+  revision_request_note: string | null;
   updated_at: string;
+};
+type EducationAssignmentAttachment = {
+  id: string;
+  org_id: string;
+  assignment_id: string;
+  submission_id: string | null;
+  kind: "assignment" | "submission";
+  file_name: string;
+  content_type: string;
+  file_size: number;
+  storage_path: string;
+  uploaded_by: string;
+  created_at: string;
 };
 type EducationGuardian = {
   id: string;
@@ -480,10 +496,12 @@ type EducationNotification = {
   org_id: string;
   branch_id: string;
   user_id: string;
-  notification_type: "announcement" | "attendance" | "results" | "fees" | "admissions" | "transport";
+  notification_type: "announcement" | "attendance" | "results" | "fees" | "admissions" | "transport" | "assignment";
   title: string;
   message: string;
   announcement_id: string | null;
+  assignment_id: string | null;
+  assignment_event_key: string | null;
   delivery_status: "delivered" | "read";
   read_at: string | null;
   created_at: string;
@@ -491,7 +509,7 @@ type EducationNotification = {
 type EducationNotificationPreference = {
   org_id: string;
   user_id: string;
-  notification_type: "announcement" | "attendance" | "results" | "fees" | "admissions" | "transport";
+  notification_type: "announcement" | "attendance" | "results" | "fees" | "admissions" | "transport" | "assignment";
   in_app_enabled: boolean;
   email_enabled: boolean;
   sms_enabled: boolean;
@@ -1149,6 +1167,10 @@ export interface Database {
       education_assignment_submissions: EducationDatabaseTable<
         EducationAssignmentSubmission,
         "org_id" | "assignment_id" | "student_id" | "submission_text"
+      >;
+      education_assignment_attachments: EducationDatabaseTable<
+        EducationAssignmentAttachment,
+        "org_id" | "assignment_id" | "kind" | "file_name" | "content_type" | "file_size" | "storage_path"
       >;
 
      organization_members: {
@@ -8500,6 +8522,18 @@ export interface Database {
         };
         Returns: string;
       };
+      education_communication_create_event_draft: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_title: string;
+          p_body: string;
+          p_audience: string;
+          p_event_starts_at: string;
+          p_event_ends_at: string;
+        };
+        Returns: string;
+      };
       education_communication_update_draft: {
         Args: {
           p_org_id: string;
@@ -8575,6 +8609,41 @@ export interface Database {
       education_get_guardian_communications: {
         Args: Record<PropertyKey, never>;
         Returns: Json;
+      };
+      education_get_guardian_schedule: {
+        Args: { p_student_ids: string[] };
+        Returns: Array<{
+          org_id: string;
+          student_id: string;
+          item_type: string;
+          item_id: string;
+          title: string;
+          starts_at: string;
+          ends_at: string | null;
+          detail: string;
+          campus_name: string;
+          status: string;
+        }>;
+      };
+      education_get_guardian_contact_profiles: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          org_id: string;
+          first_name: string;
+          last_name: string;
+          email: string | null;
+          phone: string | null;
+        }>;
+      };
+      education_guardian_update_own_contact: {
+        Args: {
+          p_org_id: string;
+          p_first_name: string;
+          p_last_name: string;
+          p_email: string | null;
+          p_phone: string | null;
+        };
+        Returns: boolean;
       };
       education_get_student_communications: {
         Args: Record<PropertyKey, never>;
@@ -8816,6 +8885,40 @@ export interface Database {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      education_get_guardian_attendance_history: {
+        Args: {
+          p_student_ids: string[];
+          p_limit_per_student?: number;
+        };
+        Returns: Array<{
+          record_id: string;
+          student_id: string;
+          attendance_date: string;
+          status: string;
+          record_type: string;
+          detail: string;
+        }>;
+      };
+      education_get_guardian_fee_payment_receipts: {
+        Args: {
+          p_student_ids?: string[] | null;
+          p_payment_id?: string | null;
+          p_limit_per_student?: number;
+        };
+        Returns: Array<{
+          payment_id: string;
+          org_id: string;
+          student_id: string;
+          student_name: string;
+          school_name: string;
+          currency_code: string;
+          fee_description: string;
+          amount: number;
+          payment_method: string;
+          reference: string | null;
+          paid_at: string;
+        }>;
+      };
       education_get_guardian_currency_configs: {
         Args: Record<PropertyKey, never>;
         Returns: Array<{
@@ -8893,12 +8996,54 @@ export interface Database {
         Args: { p_assignment_id: string; p_student_id: string; p_submission_text: string };
         Returns: string;
       };
+      education_teacher_request_assignment_revision: {
+        Args: { p_submission_id: string; p_note: string };
+        Returns: string;
+      };
+      education_get_assignment_submission_versions: {
+        Args: { p_submission_ids: string[] };
+        Returns: Array<{
+          org_id: string;
+          submission_id: string;
+          version_number: number;
+          submission_text: string;
+          submitted_at: string;
+          score: number | null;
+          feedback: string | null;
+          graded_at: string | null;
+          revision_requested_at: string | null;
+          revision_request_note: string | null;
+          recorded_at: string;
+        }>;
+      };
       education_teacher_grade_assignment_submission: {
         Args: { p_submission_id: string; p_score: number; p_feedback: string };
         Returns: string;
       };
+      education_assignment_attachment_register: {
+        Args: {
+          p_org_id: string;
+          p_assignment_id: string;
+          p_submission_id: string | null;
+          p_student_id: string | null;
+          p_kind: string;
+          p_file_name: string;
+          p_content_type: string;
+          p_file_size: number;
+          p_storage_path: string;
+        };
+        Returns: string;
+      };
+      education_assignment_attachment_prepare_download: {
+        Args: { p_attachment_id: string };
+        Returns: Json;
+      };
       education_reserve_student_ai_request: {
         Args: { p_org_id: string; p_user_id: string; p_student_id: string };
+        Returns: boolean;
+      };
+      education_reserve_teacher_ai_request: {
+        Args: { p_org_id: string; p_user_id: string };
         Returns: boolean;
       };
       education_teacher_record_student_attendance: {

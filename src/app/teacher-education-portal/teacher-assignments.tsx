@@ -1,17 +1,26 @@
 import { BookOpen, ClipboardCheck } from "lucide-react";
 import type {
   EducationAssignment,
+  EducationAssignmentAttachment,
   EducationAssignmentSubmission,
+  EducationAssignmentSubmissionVersion,
   EducationAssignmentTarget,
 } from "@/lib/education/assignments";
 import type { EducationTeacherPortal } from "@/lib/education/teacher-portal";
-import { createEducationAssignment, gradeEducationAssignmentSubmission } from "./actions";
+import {
+  createEducationAssignment,
+  gradeEducationAssignmentSubmission,
+  requestEducationAssignmentRevision,
+} from "./actions";
+import { EducationAssignmentAttachmentLinks } from "@/components/education/assignment-attachment-links";
 
 type TeacherAssignmentsProps = {
   teachers: EducationTeacherPortal;
   assignments: EducationAssignment[];
+  attachments: EducationAssignmentAttachment[];
   targets: EducationAssignmentTarget[];
   submissions: EducationAssignmentSubmission[];
+  versions: EducationAssignmentSubmissionVersion[];
 };
 
 function formatDueDate(dueOn: string) {
@@ -22,7 +31,8 @@ function formatDueDate(dueOn: string) {
   });
 }
 
-export function TeacherAssignments({ teachers, assignments, targets, submissions }: TeacherAssignmentsProps) {
+export function TeacherAssignments({ teachers, assignments, attachments, targets, submissions, versions }: TeacherAssignmentsProps) {
+  const assignmentsById = new Map(assignments.map((assignment) => [assignment.id, assignment]));
   const studentNames = new Map(
     teachers.flatMap((teacher) => teacher.classes.flatMap((classroom) =>
       classroom.students.map((student) => [student.id, `${student.firstName} ${student.lastName}`] as const)
@@ -40,6 +50,27 @@ export function TeacherAssignments({ teachers, assignments, targets, submissions
     current.push(submission);
     submissionsByAssignment.set(submission.assignment_id, current);
   }
+  const versionsBySubmission = new Map<string, EducationAssignmentSubmissionVersion[]>();
+  for (const version of versions) {
+    const current = versionsBySubmission.get(version.submission_id) ?? [];
+    current.push(version);
+    versionsBySubmission.set(version.submission_id, current);
+  }
+  const gradedPercentages = submissions.flatMap((submission) => {
+    const assignment = assignmentsById.get(submission.assignment_id);
+    return submission.graded_at && submission.score !== null && assignment
+      ? [submission.score / assignment.max_score * 100]
+      : [];
+  });
+  const pendingReviewCount = submissions.filter((submission) => !submission.graded_at).length;
+  const lateSubmissionCount = submissions.filter((submission) => {
+    const assignment = assignmentsById.get(submission.assignment_id);
+    return assignment && submission.submitted_at.slice(0, 10) > assignment.due_on;
+  }).length;
+  const submissionRate = targets.length ? Math.round(submissions.length / targets.length * 100) : 0;
+  const averageScore = gradedPercentages.length
+    ? Math.round(gradedPercentages.reduce((total, percentage) => total + percentage, 0) / gradedPercentages.length)
+    : null;
 
   return (
     <section className="space-y-5">
@@ -52,6 +83,23 @@ export function TeacherAssignments({ teachers, assignments, targets, submissions
           <p className="mt-1 text-sm text-slate-600">Create class assignments, review submissions, and return grades to students.</p>
         </div>
       </header>
+
+      <div aria-label="Assignment analytics for loaded records" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
+        {[
+          ["Assignments", assignments.length],
+          ["Students assigned", targets.length],
+          ["Submitted", submissions.length],
+          ["Awaiting grade", pendingReviewCount],
+          ["Late submissions", lateSubmissionCount],
+          ["Submission rate", `${submissionRate}%`],
+          ["Average graded score", averageScore === null ? "—" : `${averageScore}%`],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-medium text-slate-500">{label}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+          </div>
+        ))}
+      </div>
 
       {teachers.flatMap((teacher) => teacher.classes.map((classroom) => {
         const classAssignments = assignments.filter((assignment) =>
@@ -126,6 +174,21 @@ export function TeacherAssignments({ teachers, assignments, targets, submissions
                         <p className="mt-2 text-xs text-slate-500">
                           {assignmentSubmissions.length} of {assignmentTargets.length} submitted · Maximum {assignment.max_score}
                         </p>
+                        <EducationAssignmentAttachmentLinks
+                          attachments={attachments.filter((attachment) =>
+                            attachment.assignment_id === assignment.id && attachment.kind === "assignment"
+                          )}
+                          label="Assignment resources"
+                        />
+                        <form action="/api/education/assignment-attachments" method="post" encType="multipart/form-data" className="mt-2 flex flex-wrap items-end gap-2">
+                          <input type="hidden" name="kind" value="assignment" />
+                          <input type="hidden" name="assignment_id" value={assignment.id} />
+                          <label className="min-w-52 flex-1 text-xs font-medium text-slate-600">
+                            Add a resource (max 10 MB)
+                            <input type="file" name="attachment" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.txt" className="mt-1 block w-full text-sm font-normal text-slate-700" />
+                          </label>
+                          <button type="submit" className="rounded-lg border border-indigo-300 px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-50">Upload resource</button>
+                        </form>
                         {assignmentSubmissions.length > 0 && (
                           <ul className="mt-3 divide-y divide-slate-100">
                             {assignmentSubmissions.map((submission) => (
@@ -138,11 +201,31 @@ export function TeacherAssignments({ teachers, assignments, targets, submissions
                                   </p>
                                 </div>
                                 <p className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">{submission.submission_text}</p>
+                                <EducationAssignmentAttachmentLinks
+                                  attachments={attachments.filter((attachment) =>
+                                    attachment.submission_id === submission.id
+                                  )}
+                                  label="Student attachments"
+                                />
                                 {submission.graded_at ? (
-                                  <p className="mt-2 text-sm font-medium text-emerald-800">
-                                    Grade: {submission.score}/{assignment.max_score}
-                                    {submission.feedback && <span className="mt-1 block font-normal text-slate-600">{submission.feedback}</span>}
-                                  </p>
+                                  <div className="mt-2 text-sm font-medium text-emerald-800">
+                                    <p>Grade: {submission.score}/{assignment.max_score}</p>
+                                    {submission.feedback && <p className="mt-1 font-normal text-slate-600">{submission.feedback}</p>}
+                                    {submission.revision_requested_at ? (
+                                      <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 font-normal text-amber-900">
+                                        Revision requested: {submission.revision_request_note}
+                                      </p>
+                                    ) : (
+                                      <form action={requestEducationAssignmentRevision} className="mt-3 space-y-2">
+                                        <input type="hidden" name="submission_id" value={submission.id} />
+                                        <label className="block text-xs font-medium text-slate-600">
+                                          Request a revision
+                                          <textarea name="note" required maxLength={2000} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm font-normal text-slate-900" />
+                                        </label>
+                                        <button type="submit" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100">Return for revision</button>
+                                      </form>
+                                    )}
+                                  </div>
                                 ) : (
                                   <form action={gradeEducationAssignmentSubmission} className="mt-3 flex flex-wrap items-end gap-2">
                                     <input type="hidden" name="submission_id" value={submission.id} />
@@ -156,6 +239,20 @@ export function TeacherAssignments({ teachers, assignments, targets, submissions
                                     </label>
                                     <button type="submit" className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800">Save grade</button>
                                   </form>
+                                )}
+                                {(versionsBySubmission.get(submission.id) ?? []).length > 0 && (
+                                  <details className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
+                                    <summary className="cursor-pointer text-xs font-semibold text-slate-700">Previous attempts ({versionsBySubmission.get(submission.id)?.length})</summary>
+                                    <ol className="mt-2 space-y-2">
+                                      {(versionsBySubmission.get(submission.id) ?? []).map((version) => (
+                                        <li key={`${version.submission_id}-${version.version_number}`} className="border-t border-slate-200 pt-2 text-xs text-slate-600">
+                                          <p className="font-medium">Attempt {version.version_number} · {new Date(version.submitted_at).toLocaleString()}</p>
+                                          <p className="mt-1 whitespace-pre-wrap">{version.submission_text}</p>
+                                          {version.score !== null && <p className="mt-1">Grade: {version.score}{version.feedback ? ` · ${version.feedback}` : ""}</p>}
+                                        </li>
+                                      ))}
+                                    </ol>
+                                  </details>
                                 )}
                               </li>
                             ))}

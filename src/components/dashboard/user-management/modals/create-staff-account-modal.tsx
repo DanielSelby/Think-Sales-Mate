@@ -22,6 +22,9 @@ interface CreateStaffAccountModalProps {
   branches: UserBranch[];
   companyWebsite?: string | null;
   employeeNames?: string[];
+  productScopeName?: string | null;
+  canManageProductAccess?: boolean;
+  productRoleOptions?: Array<{ key: string; name: string }>;
   onCreateStaff: (formData: FormData) => Promise<CreateStaffAccountResult>;
 }
 
@@ -54,6 +57,9 @@ export function CreateStaffAccountModal({
   branches,
   companyWebsite,
   employeeNames = [],
+  productScopeName = null,
+  canManageProductAccess = false,
+  productRoleOptions = [],
   onCreateStaff
 }: CreateStaffAccountModalProps) {
   const [fullName, setFullName] = useState("");
@@ -71,6 +77,7 @@ export function CreateStaffAccountModal({
       ?? roles[0]?.key
       ?? "staff"
   );
+  const [productRole, setProductRole] = useState("");
   const [locationId, setLocationId] = useState(branches[0]?.id ?? "");
   const [branchScope, setBranchScope] = useState<"all" | "assigned" | "single">("assigned");
   const [secondaryBranches, setSecondaryBranches] = useState<string[]>([]);
@@ -100,6 +107,7 @@ export function CreateStaffAccountModal({
         ?? roles[0]?.key
         ?? "staff"
     );
+    setProductRole("");
     setLocationId(branches[0]?.id ?? "");
     setBranchScope("assigned");
     setSecondaryBranches([]);
@@ -135,6 +143,7 @@ export function CreateStaffAccountModal({
     if (avatar) formData.set("avatar", avatar);
     formData.set("department", department);
     formData.set("role", role);
+    if (productRole) formData.set("product_role", productRole);
     formData.set("location_id", locationId);
     formData.set("branch_scope", branchScope);
     formData.set("secondary_location_ids", secondaryBranches.join(","));
@@ -173,6 +182,13 @@ export function CreateStaffAccountModal({
             <div>
               <h2 className="text-base font-semibold text-ink-900 dark:text-white">Create Staff Account</h2>
               <p className="text-xs text-ledger-500 dark:text-ledger-400">Provision immediate access without changing the invitation workflow</p>
+              {productScopeName && (
+                <p className="mt-1 text-xs text-ledger-500 dark:text-ledger-400">
+                  {canManageProductAccess
+                    ? `This account will receive access to ${productScopeName} only. Choose its product-specific role below.`
+                    : `Only an organization owner or super administrator can grant this account access to ${productScopeName}.`}
+                </p>
+              )}
             </div>
           </div>
           <button type="button" onClick={resetAndClose} className="rounded-lg p-1.5 text-ledger-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-4 w-4" /></button>
@@ -274,6 +290,20 @@ export function CreateStaffAccountModal({
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ledger-500"><Shield className="h-3.5 w-3.5 text-purple-600" /> Role & branch access</div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-slate-900 dark:text-white">{roles.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</select></label>
+                  {productScopeName && canManageProductAccess && (
+                    <label className="text-xs font-semibold text-ink-900 dark:text-white">
+                      {productScopeName} role
+                      <select
+                        required
+                        value={productRole}
+                        onChange={(event) => setProductRole(event.target.value)}
+                        className="mt-1 h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-slate-900 dark:text-white"
+                      >
+                        <option value="">Select a product role</option>
+                        {productRoleOptions.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
+                      </select>
+                    </label>
+                  )}
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Department<select value={department} onChange={(event) => setDepartment(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-slate-900 dark:text-white">{DEPARTMENTS.map((item) => <option key={item}>{item}</option>)}</select></label>
                   <label className="text-xs font-semibold text-ink-900 dark:text-white">Primary branch<select required value={locationId} onChange={(event) => setLocationId(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-ledger-200 bg-white px-2 text-xs dark:border-ledger-700 dark:bg-slate-900 dark:text-white">{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                 </div>
