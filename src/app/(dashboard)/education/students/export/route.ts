@@ -23,6 +23,7 @@ function csvRow(values: string[]): string {
 export async function GET(request: NextRequest) {
   const context = await getCurrentOrgContext();
   if (!context) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  const orgId = context.orgId;
 
   const [canView, canExport] = await Promise.all([
     canTabPermission("education_students", "students", "list", "view"),
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
   if (requestedClass) {
     const { data: classroom, error: classError } = await supabase.from("education_classes")
       .select("id")
-      .eq("org_id", context.orgId)
+      .eq("org_id", orgId)
       .in("branch_id", branchIds)
       .eq("id", requestedClass)
       .maybeSingle();
@@ -70,12 +71,12 @@ export async function GET(request: NextRequest) {
     if (!classroom) {
       return NextResponse.json({ error: "The selected class is outside your access scope." }, { status: 403 });
     }
-    classId = classroom.id;
+    classId = classroom?.id ?? "";
   }
 
   async function loadPage(offset: number) {
     const { data, error } = await supabase.rpc("education_student_directory_page", {
-      p_org_id: context.orgId,
+      p_org_id: orgId,
       p_branch_ids: branchIds,
       p_search: safeSearch,
       p_gender: gender,

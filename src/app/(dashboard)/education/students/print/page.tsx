@@ -22,6 +22,7 @@ export default async function EducationStudentDirectoryPrintPage({
 }) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
+  const orgId = context.orgId;
 
   const [canView, canExport] = await Promise.all([
     canTabPermission("education_students", "students", "list", "view"),
@@ -55,7 +56,7 @@ export default async function EducationStudentDirectoryPrintPage({
   if (requestedClass) {
     const { data: classroom, error } = await supabase.from("education_classes")
       .select("id, name")
-      .eq("org_id", context.orgId)
+      .eq("org_id", orgId)
       .in("branch_id", branchIds)
       .eq("id", requestedClass)
       .maybeSingle();
@@ -66,7 +67,7 @@ export default async function EducationStudentDirectoryPrintPage({
 
   async function loadPage(offset: number) {
     const { data, error } = await supabase.rpc("education_student_directory_page", {
-      p_org_id: context.orgId,
+      p_org_id: orgId,
       p_branch_ids: branchIds,
       p_search: safeSearch,
       p_gender: gender,
