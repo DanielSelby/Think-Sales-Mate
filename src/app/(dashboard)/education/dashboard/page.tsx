@@ -24,7 +24,7 @@ import {
   StudentGenderCard,
 } from "./dashboard-secondary-sections";
 
-type Metric = { label: string; value: number | string | null; icon: typeof Users; tint: string; detail?: string; href?: string };
+type Metric = { label: string; value: number | string | null; icon: typeof Users; tint: string; detail?: string; href?: string; highlight?: boolean };
 type DashboardParams = Record<string, string | string[] | undefined>;
 
 function isValidDate(value: string) {
@@ -379,7 +379,8 @@ export default async function ThinkEducationDashboardPage({
       detail: canReadFeePayments && canReadFeeCharges ? "Click to view outstanding student balances" : undefined,
       href: canReadFeePayments && canReadFeeCharges ? outstandingFeesHref : undefined,
       icon: Wallet,
-      tint: "bg-amber-50 text-amber-700",
+      tint: totalOutstandingFees > 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700",
+      highlight: canReadFeePayments && canReadFeeCharges && totalOutstandingFees > 0,
     },
     { label: "Approved expenses", value: !canViewExpenseRecords ? "Restricted" : formatMoney(totalExpenses), icon: ClipboardCheck, tint: "bg-rose-50 text-rose-700" },
     { label: "Total admissions", value: !canReadAdmissions ? "Restricted" : totalAdmissionCount ?? 0, icon: Users, tint: "bg-blue-50 text-blue-700" },
@@ -453,7 +454,7 @@ export default async function ThinkEducationDashboardPage({
     </section>}
 
     <section aria-label="Education overview metrics" data-education-metrics data-education-dashboard-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      {metrics.map(({ label, value, icon: Icon, tint, detail, href }) => {
+      {metrics.map(({ label, value, icon: Icon, tint, detail, href, highlight }) => {
         const iconTone = tint.includes("bg-violet") ? "violet"
           : tint.includes("bg-emerald") ? "emerald"
             : tint.includes("bg-amber") ? "amber"
@@ -464,7 +465,10 @@ export default async function ThinkEducationDashboardPage({
             : iconTone === "amber" ? "rgba(245,158,11,0.12)"
               : iconTone === "rose" ? "rgba(244,63,94,0.10)"
                 : "rgba(59,130,246,0.10)";
-        const card = <article key={label} className={`rounded-xl border p-4 shadow-sm${href ? " transition-shadow group-hover:shadow-md" : ""}`} style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
+        const card = <article key={label} className={`rounded-xl border p-4 shadow-sm${href ? " transition-shadow group-hover:shadow-md" : ""}`} style={{
+          borderColor: highlight ? "#fecdd3" : "var(--theme-header-border-light, #dbeafe)",
+          backgroundColor: highlight ? "#fff1f2" : "var(--theme-surface, #fff)",
+        }}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm leading-5" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{label}</p>
@@ -477,7 +481,7 @@ export default async function ThinkEducationDashboardPage({
               data-education-metric-icon
               data-icon-tone={iconTone}
               className="grid h-11 w-11 place-items-center rounded-xl"
-              style={{ backgroundColor: iconBackground, color: "var(--theme-primary, #2563eb)" }}
+              style={{ backgroundColor: iconBackground, color: highlight ? "#be123c" : "var(--theme-primary, #2563eb)" }}
             >
               <Icon className="h-5 w-5" />
             </span>

@@ -282,20 +282,12 @@ export default async function EducationAttendancePage({
         totalCount={totalCount}
       />
 
-      {canBulkMark && <form action={saveEducationAttendanceBulk} className="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-white p-4">
-        <div>
-          <label htmlFor="bulk-attendance-status" className="block text-sm font-semibold text-slate-700">Set status for students on this page</label>
-          <AttendanceStatusSelect
-            name="status"
-            defaultValue="present"
-            ariaLabel="Bulk attendance status"
-            className="mt-1 min-w-40"
-          />
-        </div>
+      {canBulkMark && <form id="student-attendance-bulk-form" action={saveEducationAttendanceBulk} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
+        <p className="text-sm text-slate-600">Choose each student’s status in the table, then save all selections together.</p>
         <input type="hidden" name="attendance_date" value={attendanceDate} />
         {students.map((student) => <input key={student.id} type="hidden" name="student_ids" value={student.id} />)}
         <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
-          Apply to this page ({students.length})
+          Mark all shown students ({students.length})
         </button>
       </form>}
 
@@ -340,6 +332,8 @@ export default async function EducationAttendancePage({
                     defaultValue={existing?.status ?? "absent"}
                     ariaLabel={`Attendance status for ${student.first_name} ${student.last_name}`}
                     className="w-full"
+                    bulkFormId={canBulkMark ? "student-attendance-bulk-form" : undefined}
+                    studentId={canBulkMark ? student.id : undefined}
                   />
                   <input name="note" defaultValue={existing?.note ?? ""} maxLength={500} placeholder="Optional note" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                   <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"><Save className="h-4 w-4" />{existing ? "Update" : "Mark"}</button>

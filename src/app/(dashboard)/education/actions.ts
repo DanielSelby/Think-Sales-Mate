@@ -3353,15 +3353,19 @@ export async function saveEducationAttendanceBulk(formData: FormData) {
   if (!context) redirect("/login");
 
   const attendanceDate = String(formData.get("attendance_date") ?? "");
-  const status = String(formData.get("status") ?? "");
   const postedIds = formData.getAll("student_ids");
   const studentIds = postedIds.map((value) => typeof value === "string" ? value : "");
+  const statusesByStudent = new Map<string, EducationDailyAttendanceStatus>();
+  for (const studentId of studentIds) {
+    const status = String(formData.get(`status_${studentId}`) ?? "");
+    if (isEducationDailyAttendanceStatus(status)) statusesByStudent.set(studentId, status);
+  }
   const studentIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!isValidEducationAttendanceDate(attendanceDate)
-    || !isEducationDailyAttendanceStatus(status)
     || studentIds.length === 0
     || studentIds.length > 25
     || studentIds.some((studentId) => !studentIdPattern.test(studentId))
+    || statusesByStudent.size !== studentIds.length
     || new Set(studentIds).size !== studentIds.length) {
     redirect(`${getProductAppPath("think-education", "/attendance")}?error=invalid`);
   }
@@ -3402,16 +3406,21 @@ export async function saveEducationAttendanceBulk(formData: FormData) {
   }
 
   if (studentsToCreate.length > 0) {
-    const { error } = await supabase.from("education_attendance").insert(studentsToCreate.map((student) => ({
-      org_id: context.orgId,
-      branch_id: student.branch_id,
-      student_id: student.id,
-      staff_id: null,
-      attendance_date: attendanceDate,
-      status,
-      note: null,
-      recorded_by: context.userId,
-    })));
+    const newAttendanceRows = studentsToCreate.map((student) => {
+      const status = statusesByStudent.get(student.id);
+      if (!status) throw new Error("A selected student's attendance status was not provided.");
+      return {
+        org_id: context.orgId,
+        branch_id: student.branch_id,
+        student_id: student.id,
+        staff_id: null,
+        attendance_date: attendanceDate,
+        status,
+        note: null,
+        recorded_by: context.userId,
+      };
+    });
+    const { error } = await supabase.from("education_attendance").insert(newAttendanceRows);
     if (error) {
       if (error.code === "23505") {
         redirect(`${getProductAppPath("think-education", "/attendance")}?error=duplicate&date=${encodeURIComponent(attendanceDate)}`);
@@ -3421,15 +3430,20 @@ export async function saveEducationAttendanceBulk(formData: FormData) {
     }
   }
 
-  if (studentIdsToEdit.length > 0) {
+  const studentIdsByStatus = new Map<EducationDailyAttendanceStatus, string[]>();
+  for (const studentId of studentIdsToEdit) {
+    const status = statusesByStudent.get(studentId);
+    if (!status) throw new Error("A selected student's attendance status was not provided.");
+    const idsForStatus = studentIdsByStatus.get(status) ?? [];
+    idsForStatus.push(studentId);
+    studentIdsByStatus.set(status, idsForStatus);
+  }
+  for (const [status, idsForStatus] of studentIdsByStatus) {
     const { error } = await supabase.from("education_attendance")
-      .update({
-        status,
-        recorded_by: context.userId,
-      })
+      .update({ status, recorded_by: context.userId })
       .eq("org_id", context.orgId)
       .eq("attendance_date", attendanceDate)
-      .in("student_id", studentIdsToEdit);
+      .in("student_id", idsForStatus);
     if (error) {
       console.error("Could not bulk update Think Education attendance:", error.message);
       redirect(`${getProductAppPath("think-education", "/attendance")}?error=save&date=${encodeURIComponent(attendanceDate)}`);

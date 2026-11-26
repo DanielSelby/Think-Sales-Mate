@@ -18,26 +18,39 @@ export function AttendanceStatusSelect({
   name = "status",
   ariaLabel,
   className = "",
+  bulkFormId,
+  studentId,
 }: {
   defaultValue: EducationAttendanceStatus;
   name?: string;
   ariaLabel: string;
   className?: string;
+  bulkFormId?: string;
+  studentId?: string;
 }) {
   const [status, setStatus] = useState(defaultValue);
 
-  return <select
-    name={name}
-    aria-label={ariaLabel}
-    value={status}
-    onChange={(event) => {
-      const selectedStatus = STATUSES.find((option) => option === event.currentTarget.value);
-      if (selectedStatus) setStatus(selectedStatus);
-    }}
-    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 ${STATUS_CLASSES[status]} ${className}`}
-  >
-    {STATUSES.map((option) => <option key={option} value={option}>
-      {option[0].toUpperCase() + option.slice(1)}
-    </option>)}
-  </select>;
+  return <>
+    <select
+      name={name}
+      aria-label={ariaLabel}
+      value={status}
+      onChange={(event) => {
+        const selectedStatus = STATUSES.find((option) => option === event.currentTarget.value);
+        if (selectedStatus) setStatus(selectedStatus);
+      }}
+      className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 ${STATUS_CLASSES[status]} ${className}`}
+    >
+      {STATUSES.map((option) => <option key={option} value={option}>
+        {option[0].toUpperCase() + option.slice(1)}
+      </option>)}
+    </select>
+    {bulkFormId && studentId && <input
+      type="hidden"
+      form={bulkFormId}
+      name={`status_${studentId}`}
+      value={status}
+      readOnly
+    />}
+  </>;
 }
