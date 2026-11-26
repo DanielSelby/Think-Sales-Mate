@@ -291,11 +291,17 @@ export function StudentProfileView(props: Props) {
             <Link href={`${profilePath}?tab=exams`} className="text-xs font-semibold text-blue-700 hover:underline">View results</Link>
           </div>
           {permissions.canViewResults && visibleResults.length ? <ul className="mt-3 divide-y divide-slate-100">
-            {visibleResults.slice(0, 5).map((result) => <li key={result.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-              <span><span className="block font-medium text-slate-900">{result.subject_name}</span><span className="text-xs text-slate-500">{examinationById.get(result.examination_id)?.name ?? "Examination"}</span></span>
-              <span className="text-right font-semibold text-slate-800">{result.score}/{result.maximum_score}{result.grade ? ` · ${result.grade}` : ""}</span>
+            {visibleResults.slice(0, 5).map((result) => (
+              <li key={result.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <span>
+                  <span className="block font-medium text-slate-900">{result.subject_name}</span>
+                  <span className="text-xs text-slate-500">{examinationById.get(result.examination_id)?.name ?? "Examination"}</span>
+                </span>
+                <span className="text-right font-semibold text-slate-800">
+                  {result.score}/{result.maximum_score}{result.grade ? ` · ${result.grade}` : ""}
+                </span>
               </li>
-            })}
+            ))}
           </ul> : <EmptyState>{permissions.canViewResults ? "No published results are available." : "You do not have permission to view results."}</EmptyState>}
         </section>
 
@@ -308,7 +314,7 @@ export function StudentProfileView(props: Props) {
               <span className="text-slate-500">{month}</span>
               <span className="h-2 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-blue-600" style={{ width: `${rate}%` }} /></span>
               <span className="text-right font-medium text-slate-700">{rate.toFixed(0)}%</span>
-            </div>;
+            </div>
             })}
             <p className="text-xs text-slate-500">Attendance rates for the latest 30 recorded entries, grouped by month.</p>
           </div> : <EmptyState>{permissions.canViewAttendance ? "No attendance has been recorded." : "You do not have permission to view attendance."}</EmptyState>}
