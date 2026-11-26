@@ -49,9 +49,6 @@ export default async function EducationStudentProfilePage({ params, searchParams
     canEditDocuments,
     canViewTransfers,
     canViewDiscipline,
-    canViewDiscipline,
-    canViewDiscipline,
-    canViewDiscipline,
     { campuses },
   ] = await Promise.all([
     canTabPermission("education_students", "students", "list", "view"),
