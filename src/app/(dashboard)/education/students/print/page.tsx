@@ -35,15 +35,13 @@ export default async function EducationStudentDirectoryPrintPage({
   const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
   const gender = typeof params.gender === "string" ? params.gender.trim().slice(0, 50) : "";
   const requestedStatus = typeof params.status === "string" ? params.status : "active";
-  let status: "all" | typeof EDUCATION_STUDENT_STATUSES[number] | null = null;
-  if (requestedStatus === "all") {
-    status = "all";
-  } else if (EDUCATION_STUDENT_STATUSES.includes(requestedStatus as typeof EDUCATION_STUDENT_STATUSES[number])) {
-    status = requestedStatus as typeof EDUCATION_STUDENT_STATUSES[number];
-  }
-  if (status === null) redirect(getProductAppPath("think-education", "/students"));
+  const matchedStatus = requestedStatus === "all"
+    ? "all"
+    : EDUCATION_STUDENT_STATUSES.find((item) => item === requestedStatus);
+  if (!matchedStatus) redirect(getProductAppPath("think-education", "/students"));
+  const status: "all" | typeof EDUCATION_STUDENT_STATUSES[number] = matchedStatus;
 
-  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const { campuses } = await getAccessibleEducationCampuses(orgId, context.userId);
   const accessibleBranchIds = campuses.map((campus) => campus.id);
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   if (requestedBranch && !accessibleBranchIds.includes(requestedBranch)) {

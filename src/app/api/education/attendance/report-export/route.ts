@@ -46,15 +46,13 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedStatus = params.get("status") ?? "";
-  let status: "all" | EducationAttendanceStatus | null = null;
-  if (!requestedStatus) {
-    status = "all";
-  } else if (ATTENDANCE_STATUSES.includes(requestedStatus as EducationAttendanceStatus)) {
-    status = requestedStatus as EducationAttendanceStatus;
-  }
-  if (status === null) return NextResponse.json({ error: "The selected attendance status is invalid." }, { status: 400 });
+  const matchedStatus = !requestedStatus
+    ? "all"
+    : ATTENDANCE_STATUSES.find((item) => item === requestedStatus);
+  if (!matchedStatus) return NextResponse.json({ error: "The selected attendance status is invalid." }, { status: 400 });
+  const status: "all" | EducationAttendanceStatus = matchedStatus;
 
-  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const { campuses } = await getAccessibleEducationCampuses(orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   const requestedBranch = params.get("branch") ?? "";
   if (requestedBranch && !campusIds.includes(requestedBranch)) {

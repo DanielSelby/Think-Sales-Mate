@@ -36,15 +36,13 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const requestedBranch = params.get("branch") ?? "";
   const requestedStatus = params.get("status") ?? "active";
-  let status: "all" | typeof EDUCATION_STUDENT_STATUSES[number] | null = null;
-  if (requestedStatus === "all") {
-    status = "all";
-  } else if (EDUCATION_STUDENT_STATUSES.includes(requestedStatus as typeof EDUCATION_STUDENT_STATUSES[number])) {
-    status = requestedStatus as typeof EDUCATION_STUDENT_STATUSES[number];
-  }
-  if (status === null) return NextResponse.json({ error: "The selected student status is invalid." }, { status: 400 });
+  const matchedStatus = requestedStatus === "all"
+    ? "all"
+    : EDUCATION_STUDENT_STATUSES.find((item) => item === requestedStatus);
+  if (!matchedStatus) return NextResponse.json({ error: "The selected student status is invalid." }, { status: 400 });
+  const status: "all" | typeof EDUCATION_STUDENT_STATUSES[number] = matchedStatus;
 
-  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const { campuses } = await getAccessibleEducationCampuses(orgId, context.userId);
   const accessibleBranchIds = campuses.map((campus) => campus.id);
   if (requestedBranch && !accessibleBranchIds.includes(requestedBranch)) {
     return NextResponse.json({ error: "The selected campus is outside your access scope." }, { status: 403 });
