@@ -5991,18 +5991,25 @@ export async function createEducationSupportRequest(formData: FormData) {
   const branchId = String(formData.get("branch_id") ?? "");
   const studentId = String(formData.get("student_id") ?? "").trim();
   const requesterName = String(formData.get("requester_name") ?? "").trim();
-  const kind = String(formData.get("request_kind") ?? "");
+  const kindInput = String(formData.get("request_kind") ?? "");
   const category = String(formData.get("category") ?? "").trim();
-  const priority = String(formData.get("priority") ?? "");
+  const priorityInput = String(formData.get("priority") ?? "");
   const subject = String(formData.get("subject") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const kind: "helpdesk" | "complaint" | null =
+    kindInput === "helpdesk" || kindInput === "complaint" ? kindInput : null;
+  const priority: "low" | "normal" | "high" | "urgent" | null =
+    priorityInput === "low" || priorityInput === "normal"
+      || priorityInput === "high" || priorityInput === "urgent"
+      ? priorityInput
+      : null;
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (!uuidPattern.test(branchId)
     || (studentId && !uuidPattern.test(studentId))
     || requesterName.length < 1 || requesterName.length > 160
-    || !["helpdesk", "complaint"].includes(kind)
+    || kind === null
     || category.length < 1 || category.length > 80
-    || !["low", "normal", "high", "urgent"].includes(priority)
+    || priority === null
     || subject.length < 1 || subject.length > 160
     || description.length < 1 || description.length > 5000) {
     redirect(`${getProductAppPath("think-education", "/support")}?error=invalid`);
@@ -6038,12 +6045,16 @@ export async function updateEducationSupportRequest(formData: FormData) {
     throw new Error("You do not have permission to update support requests.");
   }
   const requestId = String(formData.get("request_id") ?? "");
-  const status = String(formData.get("status") ?? "");
+  const statusInput = String(formData.get("status") ?? "");
+  const status: "open" | "in_progress" | "waiting" | "resolved" | "closed" | null =
+    ["open", "in_progress", "waiting", "resolved", "closed"].includes(statusInput)
+      ? statusInput as "open" | "in_progress" | "waiting" | "resolved" | "closed"
+      : null;
   const assignedStaffId = String(formData.get("assigned_staff_id") ?? "").trim();
   const resolutionNote = String(formData.get("resolution_note") ?? "").trim();
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (!uuidPattern.test(requestId)
-    || !["open", "in_progress", "waiting", "resolved", "closed"].includes(status)
+    || status === null
     || (assignedStaffId && !uuidPattern.test(assignedStaffId))
     || resolutionNote.length > 5000
     || (["resolved", "closed"].includes(status) && !resolutionNote)) {
