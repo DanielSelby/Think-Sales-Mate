@@ -3,7 +3,13 @@ import { Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import {
+  AdmissionPipelineBarChart,
   AttendanceStatusLineChart,
+  FeeAgingBarChart,
+  type AdmissionPipelinePoint,
+  type FeeAgingPoint,
+  type StudentEnrollmentPoint,
+  StudentEnrollmentBarChart,
   StudentGenderDonutChart,
   type AttendanceStatusPoint,
   type StudentGenderSlice,
@@ -21,6 +27,22 @@ function SectionError({ section }: { section: string }) {
   return <p className="mt-4 rounded-lg bg-rose-50 p-4 text-sm text-rose-700">
     Could not load {section}. Refresh the dashboard to try again.
   </p>;
+}
+
+function getDateBucket(date: string, spanDays: number) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (spanDays <= 45) {
+    return { date, label: parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" }) };
+  }
+  if (spanDays <= 180) {
+    const weekday = parsed.getUTCDay() || 7;
+    parsed.setUTCDate(parsed.getUTCDate() - weekday + 1);
+    const bucket = parsed.toISOString().slice(0, 10);
+    return { date: bucket, label: parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" }) };
+  }
+  parsed.setUTCDate(1);
+  const bucket = parsed.toISOString().slice(0, 10);
+  return { date: bucket, label: parsed.toLocaleDateString(undefined, { month: "short", year: "2-digit", timeZone: "UTC" }) };
 }
 
 export async function AttendanceStatusCard({
@@ -60,6 +82,7 @@ export async function AttendanceStatusCard({
       .select("id, attendance_date, status")
       .eq("org_id", orgId).in("branch_id", branchIds)
       .gte("attendance_date", from).lte("attendance_date", today)
+      .not("student_id", "is", null)
       .in("status", ["present", "late", "absent"])
       .order("attendance_date").order("id")
       .range(offset, offset + pageSize - 1);
@@ -213,6 +236,7 @@ export async function StudentGenderCard({
       {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include student reporting access.</p>
     </article>;
   }
+
   if (branchIds.length === 0) {
     return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see student gender distribution.</p>
@@ -257,9 +281,208 @@ export async function StudentGenderCard({
     const value = genderCounts.get(name) ?? 0;
     return value > 0 ? [{ name, value }] : [];
   });
+  const unrecordedGenderCount = genderCounts.get("Not recorded") ?? 0;
 
   return <article data-education-dashboard-card data-education-student-gender className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
     {header}
     <StudentGenderDonutChart data={genderData} />
+    {unrecordedGenderCount > 0 && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      Gender is not recorded for {unrecordedGenderCount.toLocaleString()} active student{unrecordedGenderCount === 1 ? "" : "s"}. Update their profiles or include gender when importing students.
+    </p>}
   </article>;
 }
+
+  export async function StudentEnrollmentTrendCard({
+    orgId,
+    branchIds,
+    from,
+    to,
+    canReadStudents,
+  }: {
+    orgId: string;
+    branchIds: string[];
+    from: string;
+    to: string;
+    canReadStudents: boolean;
+  }) {
+    const header = <div>
+      <h2 className="text-lg font-bold text-slate-950">Enrollment trend</h2>
+      <p className="mt-1 text-sm text-slate-500">Student enrollment records by enrollment date in the selected period.</p>
+    </div>;
+    if (!canReadStudents) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include student reporting access.</p>
+      </article>;
+    }
+    if (!branchIds.length) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see enrollment trends.</p>
+      </article>;
+    }
+
+    const supabase = await createClient();
+    const countsByBucket = new Map<string, number>();
+    const spanDays = Math.floor((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / 86_400_000) + 1;
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from("education_student_enrollments")
+        .select("id, enrolled_on")
+        .eq("org_id", orgId).in("branch_id", branchIds)
+        .gte("enrolled_on", from).lte("enrolled_on", to)
+        .order("enrolled_on").order("id")
+        .range(offset, offset + pageSize - 1);
+      if (error) {
+        console.error("Could not load Think Education enrollment trends:", error);
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<SectionError section="student enrollment trends" />
+        </article>;
+      }
+      const page = data ?? [];
+      if (offset >= 100_000 && page.length > 0) {
+        console.error("Think Education enrollment chart exceeded its 100,000-record processing limit.");
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Enrollment volume exceeds the chart limit. Narrow the date range to view this trend.</p>
+        </article>;
+      }
+      for (const enrollment of page) {
+        const bucket = getDateBucket(enrollment.enrolled_on, spanDays);
+        countsByBucket.set(bucket.date, (countsByBucket.get(bucket.date) ?? 0) + 1);
+      }
+      if (page.length < pageSize) break;
+    }
+
+    const trend: StudentEnrollmentPoint[] = Array.from(countsByBucket, ([date, count]) => ({
+      date,
+      count,
+      label: getDateBucket(date, spanDays).label,
+    })).sort((a, b) => a.date.localeCompare(b.date));
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}
+      <StudentEnrollmentBarChart data={trend} />
+    </article>;
+  }
+
+  export async function AdmissionsPipelineCard({
+    orgId,
+    branchIds,
+    from,
+    to,
+    canReadAdmissions,
+  }: {
+    orgId: string;
+    branchIds: string[];
+    from: string;
+    to: string;
+    canReadAdmissions: boolean;
+  }) {
+    const header = <div>
+      <h2 className="text-lg font-bold text-slate-950">Admissions pipeline</h2>
+      <p className="mt-1 text-sm text-slate-500">Applications grouped by current status, based on their application date.</p>
+    </div>;
+    if (!canReadAdmissions) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include admissions reporting access.</p>
+      </article>;
+    }
+    if (!branchIds.length) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see the admissions pipeline.</p>
+      </article>;
+    }
+
+    const stages = ["pending", "under_review", "admitted", "enrolled", "rejected", "withdrawn"] as const;
+    const counts = new Map<string, number>(stages.map((stage) => [stage, 0]));
+    const fromTimestamp = `${from}T00:00:00.000Z`;
+    const toExclusive = new Date(Date.parse(`${to}T00:00:00.000Z`) + 86_400_000).toISOString();
+    const supabase = await createClient();
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from("education_admissions")
+        .select("id, status")
+        .eq("org_id", orgId).in("branch_id", branchIds)
+        .gte("applied_at", fromTimestamp).lt("applied_at", toExclusive)
+        .order("id").range(offset, offset + pageSize - 1);
+      if (error) {
+        console.error("Could not load Think Education admission pipeline:", error);
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<SectionError section="admissions pipeline" />
+        </article>;
+      }
+      const page = data ?? [];
+      if (offset >= 100_000 && page.length > 0) {
+        console.error("Think Education admissions chart exceeded its 100,000-record processing limit.");
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Application volume exceeds the chart limit. Narrow the date range to view this pipeline.</p>
+        </article>;
+      }
+      for (const application of page) {
+        if (counts.has(application.status)) counts.set(application.status, (counts.get(application.status) ?? 0) + 1);
+      }
+      if (page.length < pageSize) break;
+    }
+
+    const chartData: AdmissionPipelinePoint[] = stages.map((stage) => ({
+      stage: stage.replace("_", " "),
+      count: counts.get(stage) ?? 0,
+    }));
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}
+      <AdmissionsPipelineBarChart data={chartData} />
+    </article>;
+  }
+
+  export async function FeeAgingCard({
+    orgId,
+    branchIds,
+    today,
+    canReadFeeAging,
+  }: {
+    orgId: string;
+    branchIds: string[];
+    today: string;
+    canReadFeeAging: boolean;
+  }) {
+    const header = <div>
+      <h2 className="text-lg font-bold text-slate-950">Outstanding fee aging</h2>
+      <p className="mt-1 text-sm text-slate-500">Current unpaid fee balances by days past due. Amounts use your organization currency.</p>
+    </div>;
+    if (!canReadFeeAging) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Finance, student, and academic reporting access is required for fee aging.</p>
+      </article>;
+    }
+    if (!branchIds.length) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see fee aging.</p>
+      </article>;
+    }
+
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("education_get_fee_aging_page", {
+      p_org_id: orgId,
+      p_branch_ids: branchIds,
+      p_academic_year_id: null,
+      p_as_of_date: today,
+      p_limit: 1,
+      p_offset: 0,
+    });
+    if (error) {
+      console.error("Could not load Think Education fee aging:", error);
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<SectionError section="outstanding fee aging" />
+      </article>;
+    }
+
+    const totals = data?.[0];
+    const chartData: FeeAgingPoint[] = [
+      { bucket: "Not overdue", amount: Number(totals?.total_not_due ?? 0) },
+      { bucket: "1–30 days", amount: Number(totals?.total_days_1_to_30 ?? 0) },
+      { bucket: "31–60 days", amount: Number(totals?.total_days_31_to_60 ?? 0) },
+      { bucket: "61–90 days", amount: Number(totals?.total_days_61_to_90 ?? 0) },
+      { bucket: "Over 90 days", amount: Number(totals?.total_over_90 ?? 0) },
+    ];
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}
+      <FeeAgingBarChart data={chartData} />
+    </article>;
+  }

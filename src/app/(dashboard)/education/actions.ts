@@ -27,7 +27,10 @@ import { educationStudentProfileInputSchema } from "@/lib/education/student-prof
 import { educationStudentConsentInputSchema } from "@/lib/education/student-consent";
 import { educationResultScoreInputSchema } from "@/lib/education/result-score";
 import { educationCommunicationDraftInputSchema } from "@/lib/education/communications";
-import { educationLessonAttendanceInputSchema } from "@/lib/education/lesson-attendance";
+import {
+  educationLessonAttendanceInputSchema,
+  isValidEducationAttendanceDate,
+} from "@/lib/education/lesson-attendance";
 import {
   calculateEducationWeightedScore,
   educationAssessmentComponentsSchema,
@@ -52,6 +55,10 @@ import { isEducationFeePaymentMethod } from "@/lib/education/fee-payment-methods
 export type EducationImportEntity = "students" | "staff" | "campuses";
 
 const EDUCATION_COMMUNICATION_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type EducationDailyAttendanceStatus = "present" | "absent" | "late" | "excused";
+function isEducationDailyAttendanceStatus(value: string): value is EducationDailyAttendanceStatus {
+  return value === "present" || value === "absent" || value === "late" || value === "excused";
+}
 const EDUCATION_STUDENT_IMAGE_BUCKET = "education-student-images";
 const generateEducationRecordNumber = (prefix: "APP" | "STU" | "STF") =>
   `${prefix}-${new Date().getFullYear()}-${randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
@@ -3337,6 +3344,98 @@ export async function saveEducationAttendance(formData: FormData) {
     console.error("Could not save Think Education attendance:", result.error.message);
     redirect(`${getProductAppPath("think-education", "/attendance")}?error=save`);
   }
+  revalidatePath("/education/attendance");
+  redirect(`${getProductAppPath("think-education", "/attendance")}?saved=1&date=${encodeURIComponent(attendanceDate)}`);
+}
+
+export async function saveEducationAttendanceBulk(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+
+  const attendanceDate = String(formData.get("attendance_date") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const postedIds = formData.getAll("student_ids");
+  const studentIds = postedIds.map((value) => typeof value === "string" ? value : "");
+  const studentIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!isValidEducationAttendanceDate(attendanceDate)
+    || !isEducationDailyAttendanceStatus(status)
+    || studentIds.length === 0
+    || studentIds.length > 25
+    || studentIds.some((studentId) => !studentIdPattern.test(studentId))
+    || new Set(studentIds).size !== studentIds.length) {
+    redirect(`${getProductAppPath("think-education", "/attendance")}?error=invalid`);
+  }
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  const branchIds = campuses.map((campus) => campus.id);
+  if (branchIds.length === 0) {
+    throw new Error("You do not have access to a campus where attendance can be recorded.");
+  }
+  const supabase = await createClient();
+  const { data: students, error: studentError } = await supabase.from("education_students")
+    .select("id, branch_id")
+    .eq("org_id", context.orgId)
+    .eq("status", "active")
+    .in("branch_id", branchIds)
+    .in("id", studentIds);
+  if (studentError) throw new Error(`Could not verify students for bulk attendance: ${studentError.message}`);
+  if ((students ?? []).length !== studentIds.length) {
+    throw new Error("One or more selected students are no longer active or are outside your assigned campuses.");
+  }
+
+  const { data: existingRows, error: existingError } = await supabase.from("education_attendance")
+    .select("student_id")
+    .eq("org_id", context.orgId)
+    .eq("attendance_date", attendanceDate)
+    .in("student_id", studentIds);
+  if (existingError) throw new Error(`Could not check existing student attendance: ${existingError.message}`);
+
+  const existingIds = new Set((existingRows ?? []).flatMap((row) => row.student_id ? [row.student_id] : []));
+  const studentsToCreate = (students ?? []).filter((student) => !existingIds.has(student.id));
+  const studentIdsToEdit = [...existingIds];
+  const [canCreate, canEdit] = await Promise.all([
+    canTabPermission("education_attendance", "attendance", "register", "create"),
+    canTabPermission("education_attendance", "attendance", "register", "edit"),
+  ]);
+  if ((studentsToCreate.length > 0 && !canCreate) || (studentIdsToEdit.length > 0 && !canEdit)) {
+    redirect(`${getProductAppPath("think-education", "/attendance")}?error=bulk_permission&date=${encodeURIComponent(attendanceDate)}`);
+  }
+
+  if (studentsToCreate.length > 0) {
+    const { error } = await supabase.from("education_attendance").insert(studentsToCreate.map((student) => ({
+      org_id: context.orgId,
+      branch_id: student.branch_id,
+      student_id: student.id,
+      staff_id: null,
+      attendance_date: attendanceDate,
+      status,
+      note: null,
+      recorded_by: context.userId,
+    })));
+    if (error) {
+      if (error.code === "23505") {
+        redirect(`${getProductAppPath("think-education", "/attendance")}?error=duplicate&date=${encodeURIComponent(attendanceDate)}`);
+      }
+      console.error("Could not bulk save Think Education attendance:", error.message);
+      redirect(`${getProductAppPath("think-education", "/attendance")}?error=save&date=${encodeURIComponent(attendanceDate)}`);
+    }
+  }
+
+  if (studentIdsToEdit.length > 0) {
+    const { error } = await supabase.from("education_attendance")
+      .update({
+        status,
+        recorded_by: context.userId,
+      })
+      .eq("org_id", context.orgId)
+      .eq("attendance_date", attendanceDate)
+      .in("student_id", studentIdsToEdit);
+    if (error) {
+      console.error("Could not bulk update Think Education attendance:", error.message);
+      redirect(`${getProductAppPath("think-education", "/attendance")}?error=save&date=${encodeURIComponent(attendanceDate)}`);
+    }
+  }
+
   revalidatePath("/education/attendance");
   redirect(`${getProductAppPath("think-education", "/attendance")}?saved=1&date=${encodeURIComponent(attendanceDate)}`);
 }

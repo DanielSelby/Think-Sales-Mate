@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, CalendarCheck, Save, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarCheck, Clock, Save, UserCheck, Users, UserX } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { saveEducationAttendance } from "../actions";
+import { AttendanceStatusSelect, type EducationAttendanceStatus } from "./attendance-status-select";
+import { AttendanceFilters } from "./attendance-filters";
+import { saveEducationAttendance, saveEducationAttendanceBulk } from "../actions";
 
 const PAGE_SIZE = 25;
-const ATTENDANCE_STATUSES = ["present", "absent", "late", "excused"] as const;
-type AttendanceStatus = typeof ATTENDANCE_STATUSES[number];
+const ATTENDANCE_STATUSES: EducationAttendanceStatus[] = ["present", "absent", "late", "excused"];
 
 function isValidDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -35,26 +36,102 @@ export default async function EducationAttendancePage({
   const attendanceDate = isValidDate(requestedDate) ? requestedDate : today;
   const search = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
+  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const selectedStatus = ATTENDANCE_STATUSES.find((status) => status === requestedStatus) ?? "";
+  const requestedClass = typeof params.class === "string" ? params.class : "";
   const requestedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10);
   const currentPage = Number.isFinite(requestedPage) ? Math.min(1_000_000, Math.max(1, requestedPage)) : 1;
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   const selectedBranch = campusIds.includes(requestedBranch) ? requestedBranch : "";
   const branchIds = selectedBranch ? [selectedBranch] : campusIds;
-  const [canCreate, canEdit, canExport] = await Promise.all([
+  const [canCreate, canEdit, canExport, canViewClasses] = await Promise.all([
     canTabPermission("education_attendance", "attendance", "register", "create"),
     canTabPermission("education_attendance", "attendance", "register", "edit"),
     canTabPermission("education_attendance", "attendance", "register", "export"),
+    canTabPermission("education_academics", "academics", "classes", "view"),
   ]);
   const supabase = await createClient();
+  const classOptions: Array<{ id: string; name: string; branch_id: string }> = [];
+  if (branchIds.length && canViewClasses) {
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase.from("education_classes")
+        .select("id, name, branch_id")
+        .eq("org_id", context.orgId)
+        .in("branch_id", branchIds)
+        .order("name")
+        .order("id")
+        .range(offset, offset + 499);
+      if (error) throw new Error(`Could not load classes for Think Education attendance: ${error.message}`);
+      classOptions.push(...(data ?? []));
+      if (!data || data.length < 500) break;
+    }
+  }
+  const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  const classes = classOptions.map((classroom) => ({
+    id: classroom.id,
+    name: branchIds.length > 1
+      ? `${classroom.name} · ${campusNameById.get(classroom.branch_id) ?? "Campus"}`
+      : classroom.name,
+  }));
+  const selectedClass = classes.some((classroom) => classroom.id === requestedClass) ? requestedClass : "";
+  let filteredStudentIds: Set<string> | null = null;
+  const intersectStudentIds = (studentIds: string[]) => {
+    const next = new Set(studentIds);
+    filteredStudentIds = filteredStudentIds
+      ? new Set([...filteredStudentIds].filter((studentId) => next.has(studentId)))
+      : next;
+  };
+
+  if (branchIds.length && selectedStatus) {
+    const matchingIds: string[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabase.from("education_attendance")
+        .select("student_id")
+        .eq("org_id", context.orgId)
+        .eq("attendance_date", attendanceDate)
+        .eq("status", selectedStatus)
+        .in("branch_id", branchIds)
+        .not("student_id", "is", null)
+        .order("student_id")
+        .range(offset, offset + 999);
+      if (error) throw new Error(`Could not filter Think Education attendance by status: ${error.message}`);
+      for (const row of data ?? []) {
+        if (row.student_id) matchingIds.push(row.student_id);
+      }
+      if (!data || data.length < 1000) break;
+    }
+    intersectStudentIds(matchingIds);
+  }
+
+  if (branchIds.length && selectedClass) {
+    const matchingIds: string[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabase.from("education_student_enrollments")
+        .select("student_id")
+        .eq("org_id", context.orgId)
+        .in("branch_id", branchIds)
+        .eq("class_id", selectedClass)
+        .lte("enrolled_on", attendanceDate)
+        .or(`and(status.eq.active,ended_on.is.null),ended_on.gte.${attendanceDate}`)
+        .order("student_id")
+        .range(offset, offset + 999);
+      if (error) throw new Error(`Could not filter students by class: ${error.message}`);
+      for (const row of data ?? []) matchingIds.push(row.student_id);
+      if (!data || data.length < 1000) break;
+    }
+    intersectStudentIds(matchingIds);
+  }
+
   let students: Array<{ id: string; student_number: string; first_name: string; last_name: string; branch_id: string; photo_path: string | null }> = [];
   let totalCount = 0;
-  if (branchIds.length) {
+  if (branchIds.length && (!filteredStudentIds || filteredStudentIds.size > 0)) {
     let query = supabase.from("education_students")
       .select("id, student_number, first_name, last_name, branch_id, photo_path", { count: "exact" })
       .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", "active")
       .order("last_name").order("first_name")
       .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+    if (filteredStudentIds) query = query.in("id", [...filteredStudentIds]);
     if (search) {
       const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
       if (safeSearch) {
@@ -92,27 +169,57 @@ export default async function EducationAttendancePage({
   }
 
   const studentIds = students.map((student) => student.id);
-  const attendanceByStudent = new Map<string, { status: AttendanceStatus; note: string | null }>();
+  const attendanceByStudent = new Map<string, { status: EducationAttendanceStatus; note: string | null }>();
   if (studentIds.length) {
     const { data, error } = await supabase.from("education_attendance")
       .select("student_id, status, note")
       .eq("org_id", context.orgId).eq("attendance_date", attendanceDate).in("student_id", studentIds);
     if (error) throw new Error(`Could not load Think Education attendance: ${error.message}`);
     for (const record of data ?? []) {
-      if (record.student_id && ATTENDANCE_STATUSES.includes(record.status as AttendanceStatus)) {
-        attendanceByStudent.set(record.student_id, { status: record.status as AttendanceStatus, note: record.note });
+      if (record.student_id && ATTENDANCE_STATUSES.includes(record.status as EducationAttendanceStatus)) {
+        attendanceByStudent.set(record.student_id, { status: record.status as EducationAttendanceStatus, note: record.note });
       }
     }
   }
-  const exportParams = new URLSearchParams({ date: attendanceDate });
-  if (search) exportParams.set("search", search);
-  if (selectedBranch) exportParams.set("branch", selectedBranch);
-  const csvHref = `/api/education/attendance/export?${exportParams.toString()}`;
+  const classNameByStudent = new Map<string, string>();
+  if (studentIds.length && canViewClasses) {
+    const { data: enrollments, error: enrollmentError } = await supabase.from("education_student_enrollments")
+      .select("student_id, class_id")
+      .eq("org_id", context.orgId)
+      .in("branch_id", branchIds)
+      .in("student_id", studentIds)
+      .lte("enrolled_on", attendanceDate)
+      .or(`and(status.eq.active,ended_on.is.null),ended_on.gte.${attendanceDate}`)
+      .order("enrolled_on", { ascending: false });
+    if (enrollmentError) throw new Error(`Could not load student classes for attendance: ${enrollmentError.message}`);
+
+    const enrollmentsByStudent = new Map<string, string>();
+    for (const enrollment of enrollments ?? []) {
+      if (!enrollmentsByStudent.has(enrollment.student_id)) {
+        enrollmentsByStudent.set(enrollment.student_id, enrollment.class_id);
+      }
+    }
+    const classIds = [...new Set(enrollmentsByStudent.values())];
+    if (classIds.length) {
+      const { data: classRows, error: classError } = await supabase.from("education_classes")
+        .select("id, name")
+        .eq("org_id", context.orgId)
+        .in("id", classIds);
+      if (classError) throw new Error(`Could not load student class names: ${classError.message}`);
+      const classNameById = new Map((classRows ?? []).map((classroom) => [classroom.id, classroom.name]));
+      for (const [studentId, classId] of enrollmentsByStudent) {
+        const className = classNameById.get(classId);
+        if (className) classNameByStudent.set(studentId, className);
+      }
+    }
+  }
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const queryForPage = (page: number) => {
     const next = new URLSearchParams({ date: attendanceDate, page: String(page) });
     if (search) next.set("search", search);
     if (selectedBranch) next.set("branch", selectedBranch);
+    if (selectedStatus) next.set("status", selectedStatus);
+    if (selectedClass) next.set("class", selectedClass);
     return `${getProductAppPath("think-education", "/attendance")}?${next.toString()}`;
   };
   if (currentPage > totalPages) redirect(queryForPage(totalPages));
@@ -120,7 +227,17 @@ export default async function EducationAttendancePage({
     ? "Attendance for this student and date was submitted at the same time. Refresh and try again."
     : params.error === "invalid"
       ? "Check the attendance date, status, and note."
-      : params.error === "save" ? "Attendance could not be saved. Please try again." : null;
+      : params.error === "save" ? "Attendance could not be saved. Please try again."
+        : params.error === "bulk_permission" ? "You do not have permission to change every student's attendance on this page."
+          : null;
+  const canBulkMark = students.length > 0 && students.every((student) =>
+    attendanceByStudent.has(student.id) ? canEdit : canCreate
+  );
+  const attendanceStatusCounts = {
+    present: students.filter((student) => attendanceByStudent.get(student.id)?.status === "present").length,
+    absent: students.filter((student) => attendanceByStudent.get(student.id)?.status === "absent").length,
+    late: students.filter((student) => attendanceByStudent.get(student.id)?.status === "late").length,
+  };
 
   return <main className="mx-auto w-full max-w-[1680px] space-y-6 p-4 md:p-6 xl:p-8">
     <header>
@@ -135,11 +252,14 @@ export default async function EducationAttendancePage({
     {params.saved === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Attendance saved for {attendanceDate}.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
       {[
         { label: "Active students in filter", value: totalCount.toLocaleString(), icon: Users },
         { label: "Marked on this page", value: students.filter((student) => attendanceByStudent.has(student.id)).length.toLocaleString(), icon: CalendarCheck },
         { label: "Campuses in your access", value: campuses.length.toLocaleString(), icon: Users },
+        { label: "Present on this page", value: attendanceStatusCounts.present.toLocaleString(), icon: UserCheck },
+        { label: "Absent on this page", value: attendanceStatusCounts.absent.toLocaleString(), icon: UserX },
+        { label: "Late on this page", value: attendanceStatusCounts.late.toLocaleString(), icon: Clock },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
@@ -147,21 +267,37 @@ export default async function EducationAttendancePage({
     </section>
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <form method="get" action={getProductAppPath("think-education", "/attendance")} className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[minmax(220px,1fr)_200px_220px_auto_auto] md:p-5">
-        <label className="text-sm font-medium text-slate-700">Search students
-          <input name="search" defaultValue={search} placeholder="Name or student number" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">Campus
-          <select name="branch" defaultValue={selectedBranch} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal">
-            <option value="">All assigned campuses</option>{campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium text-slate-700">Attendance date
-          <input type="date" name="date" defaultValue={attendanceDate} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal" />
-        </label>
-        <button type="submit" className="self-end rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Apply filters</button>
-        {canExport && totalCount > 0 && <a href={csvHref} className="self-end rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export CSV</a>}
-      </form>
+      <AttendanceFilters
+        key={`${attendanceDate}-${selectedBranch}-${selectedStatus}-${selectedClass}-${search}`}
+        attendancePath={getProductAppPath("think-education", "/attendance")}
+        attendanceDate={attendanceDate}
+        campuses={campuses}
+        classes={classes}
+        canExport={canExport}
+        canViewClasses={canViewClasses}
+        selectedBranch={selectedBranch}
+        selectedClass={selectedClass}
+        selectedStatus={selectedStatus}
+        search={search}
+        totalCount={totalCount}
+      />
+
+      {canBulkMark && <form action={saveEducationAttendanceBulk} className="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-white p-4">
+        <div>
+          <label htmlFor="bulk-attendance-status" className="block text-sm font-semibold text-slate-700">Set status for students on this page</label>
+          <AttendanceStatusSelect
+            name="status"
+            defaultValue="present"
+            ariaLabel="Bulk attendance status"
+            className="mt-1 min-w-40"
+          />
+        </div>
+        <input type="hidden" name="attendance_date" value={attendanceDate} />
+        {students.map((student) => <input key={student.id} type="hidden" name="student_ids" value={student.id} />)}
+        <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
+          Apply to this page ({students.length})
+        </button>
+      </form>}
 
       {campuses.length === 0 ? <div className="p-8 text-center">
         <CalendarCheck className="mx-auto h-10 w-10 text-slate-300" />
@@ -172,8 +308,8 @@ export default async function EducationAttendancePage({
         <h2 className="mt-3 font-semibold text-slate-900">No active students found</h2>
         <p className="mt-1 text-sm text-slate-500">Try another search or campus, or add students first.</p>
       </div> : <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Attendance</th><th className="px-4 py-3">Note</th><th className="px-4 py-3">Save</th></tr></thead>
+        <table className="w-full min-w-[960px] text-left text-sm">
+          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Campus</th><th className="px-4 py-3">Class</th><th className="px-4 py-3">Attendance</th><th className="px-4 py-3">Note</th><th className="px-4 py-3">Save</th></tr></thead>
           <tbody className="divide-y divide-slate-100">{students.map((student) => {
             const existing = attendanceByStudent.get(student.id);
             const canSave = existing ? canEdit : canCreate;
@@ -193,14 +329,18 @@ export default async function EducationAttendancePage({
                 </span>
               </td>
               <td className="px-4 py-3 text-slate-600">{campuses.find((campus) => campus.id === student.branch_id)?.name ?? "Campus"}</td>
+              <td className="px-4 py-3 text-slate-600">{canViewClasses ? classNameByStudent.get(student.id) ?? "Unassigned" : "Restricted"}</td>
               <td colSpan={3} className="px-4 py-3">
                 {canSave ? <form action={saveEducationAttendance} className="grid gap-2 sm:grid-cols-[180px_minmax(160px,1fr)_auto]">
                   <input type="hidden" name="branch_id" value={student.branch_id} />
                   <input type="hidden" name="student_id" value={student.id} />
                   <input type="hidden" name="attendance_date" value={attendanceDate} />
-                  <select name="status" defaultValue={existing?.status ?? "absent"} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                    {ATTENDANCE_STATUSES.map((status) => <option key={status} value={status}>{status[0].toUpperCase() + status.slice(1)}</option>)}
-                  </select>
+                  <AttendanceStatusSelect
+                    key={`${student.id}-${existing?.status ?? "absent"}`}
+                    defaultValue={existing?.status ?? "absent"}
+                    ariaLabel={`Attendance status for ${student.first_name} ${student.last_name}`}
+                    className="w-full"
+                  />
                   <input name="note" defaultValue={existing?.note ?? ""} maxLength={500} placeholder="Optional note" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                   <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"><Save className="h-4 w-4" />{existing ? "Update" : "Mark"}</button>
                 </form> : <span className="text-xs text-slate-500">{existing ? `${existing.status} (edit access required)` : "No attendance access"}</span>}

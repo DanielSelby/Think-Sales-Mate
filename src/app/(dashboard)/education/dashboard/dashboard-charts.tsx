@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -25,6 +28,28 @@ export type AttendanceStatusPoint = {
   present: number;
   late: number;
   absent: number;
+};
+
+export type StudentEnrollmentPoint = {
+  date: string;
+  label: string;
+  count: number;
+};
+
+export type AdmissionPipelinePoint = {
+  stage: string;
+  count: number;
+};
+
+export type FeeCollectionCampusPoint = {
+  campus: string;
+  due: number;
+  collected: number;
+};
+
+export type FeeAgingPoint = {
+  bucket: string;
+  amount: number;
 };
 
 const GENDER_COLORS = ["#3b82f6", "#ec4899", "#8b5cf6", "#94a3b8"];
@@ -151,6 +176,92 @@ export function AttendanceStatusLineChart({ data }: { data: AttendanceStatusPoin
         <Line dataKey="late" name="Late" type="monotone" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
         <Line dataKey="absent" name="Absent" type="monotone" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
       </LineChart>
+    </ResponsiveContainer>
+  </div>;
+}
+
+export function StudentEnrollmentBarChart({ data }: { data: StudentEnrollmentPoint[] }) {
+  if (!data.some((point) => point.count > 0)) {
+    return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+      No student enrollments started in this date range.
+    </div>;
+  }
+
+  return <div className="mt-4 h-56 w-full">
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <YAxis allowDecimals={false} width={42} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <Tooltip
+          labelFormatter={(_, payload) => payload?.[0]?.payload?.date ?? ""}
+          formatter={(value) => [Number(value).toLocaleString(), "Enrollments"]}
+          contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }}
+        />
+        <Bar dataKey="count" name="Enrollments" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  </div>;
+}
+
+export function AdmissionPipelineBarChart({ data }: { data: AdmissionPipelinePoint[] }) {
+  if (!data.some((point) => point.count > 0)) {
+    return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+      No admission applications were created in this date range.
+    </div>;
+  }
+
+  return <div className="mt-4 h-56 w-full">
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
+        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="stage" width={94} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <Tooltip formatter={(value) => [Number(value).toLocaleString(), "Applications"]} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }} />
+        <Bar dataKey="count" name="Applications" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  </div>;
+}
+
+export function FeeCollectionsByCampusChart({ data }: { data: FeeCollectionCampusPoint[] }) {
+  if (!data.some((point) => point.due > 0 || point.collected > 0)) {
+    return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+      No fee charges or collections were recorded in this date range.
+    </div>;
+  }
+
+  return <div className="mt-4 h-56 w-full">
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+        <XAxis dataKey="campus" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <YAxis width={72} tickFormatter={(value) => Number(value).toLocaleString()} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <Tooltip formatter={(value, name) => [Number(value).toLocaleString(), name]} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Bar dataKey="due" name="Fees due" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="collected" name="Collections" fill="#16a34a" radius={[3, 3, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  </div>;
+}
+
+export function FeeAgingBarChart({ data }: { data: FeeAgingPoint[] }) {
+  if (!data.some((point) => point.amount > 0)) {
+    return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+      No outstanding fee balances were found in this campus scope.
+    </div>;
+  }
+
+  return <div className="mt-4 h-56 w-full">
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
+        <XAxis type="number" tickFormatter={(value) => Number(value).toLocaleString()} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="bucket" width={100} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <Tooltip formatter={(value) => [Number(value).toLocaleString(), "Outstanding"]} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }} />
+        <Bar dataKey="amount" name="Outstanding" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+      </BarChart>
     </ResponsiveContainer>
   </div>;
 }

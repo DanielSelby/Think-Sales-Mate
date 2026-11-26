@@ -12,12 +12,19 @@ import { getProductAppPath } from "@/lib/product-app-routes";
 import { grantOwnEducationOrganizationScope } from "../actions";
 import { DashboardFilters } from "./dashboard-filters";
 import {
+  FeeCollectionsByCampusChart,
+  type FeeCollectionCampusPoint,
+} from "./dashboard-charts";
+import {
+  AdmissionsPipelineCard,
   AttendanceStatusCard,
+  FeeAgingCard,
+  StudentEnrollmentTrendCard,
   StudentDistributionCard,
   StudentGenderCard,
 } from "./dashboard-secondary-sections";
 
-type Metric = { label: string; value: number | string | null; icon: typeof Users; tint: string };
+type Metric = { label: string; value: number | string | null; icon: typeof Users; tint: string; detail?: string; href?: string };
 type DashboardParams = Record<string, string | string[] | undefined>;
 
 function isValidDate(value: string) {
@@ -30,6 +37,59 @@ function shiftDate(value: string, days: number) {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+async function loadClassCapacity(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  branchIds: string[],
+) {
+  const { data: activeYears, error: yearsError } = await supabase.from("education_academic_years")
+    .select("id").eq("org_id", orgId).eq("status", "active");
+  if (yearsError) throw new Error(`Could not load active academic years for capacity: ${yearsError.message}`);
+  const activeYearIds = (activeYears ?? []).map((year) => year.id);
+  if (!activeYearIds.length) {
+    return { totalCapacity: 0, enrolledCount: 0, fullClassCount: 0, hasActiveYear: false };
+  }
+
+  const classes: Array<{ id: string; capacity: number }> = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from("education_classes")
+      .select("id, capacity")
+      .eq("org_id", orgId).in("branch_id", branchIds)
+      .in("academic_year_id", activeYearIds).eq("status", "active").not("capacity", "is", null)
+      .order("id").range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Could not load class capacities: ${error.message}`);
+    const page = data ?? [];
+    if (offset >= 100_000 && page.length > 0) {
+      throw new Error("The number of capacity-limited classes exceeds the dashboard processing limit.");
+    }
+    for (const classroom of page) {
+      if (classroom.capacity !== null) classes.push({ id: classroom.id, capacity: classroom.capacity });
+    }
+    if (page.length < pageSize) break;
+  }
+
+  let totalCapacity = 0;
+  let enrolledCount = 0;
+  let fullClassCount = 0;
+  for (let offset = 0; offset < classes.length; offset += 500) {
+    const batch = classes.slice(offset, offset + 500);
+    const { data, error } = await supabase.rpc("education_get_class_enrollment_counts", {
+      p_org_id: orgId,
+      p_class_ids: batch.map((classroom) => classroom.id),
+    });
+    if (error) throw new Error(`Could not load class enrollment counts: ${error.message}`);
+    const countByClass = new Map((data ?? []).map((row) => [row.class_id, Number(row.active_count)]));
+    for (const classroom of batch) {
+      const activeCount = countByClass.get(classroom.id) ?? 0;
+      totalCapacity += classroom.capacity;
+      enrolledCount += activeCount;
+      if (activeCount >= classroom.capacity) fullClassCount += 1;
+    }
+  }
+  return { totalCapacity, enrolledCount, fullClassCount, hasActiveYear: true };
 }
 
 export default async function ThinkEducationDashboardPage({
@@ -91,6 +151,12 @@ export default async function ThinkEducationDashboardPage({
     canTabPermission("education_finance", "finance", "payments", "view"),
     canTabPermission("education_finance", "finance", "charges", "view"),
   ]);
+  const [canReadStudentDirectory, canReadAcademicCalendar] = await Promise.all([
+    canTabPermission("education_students", "students", "list", "view"),
+    canTabPermission("education_academics", "academics", "calendar", "view"),
+  ]);
+  const canReadFeeAging = canReadFeePayments && canReadFeeCharges
+    && canReadStudentDirectory && canReadAcademicCalendar;
   const financeSummaryPromise = Promise.all([
     supabase.rpc("education_get_dashboard_finance_summary", {
       p_org_id: context.orgId,
@@ -112,6 +178,32 @@ export default async function ThinkEducationDashboardPage({
       p_include_expenses: false,
     })
     : Promise.resolve({ data: [], error: null });
+  const feeDueByCampusPromise = (async () => {
+    const dueByCampus = new Map(branchIds.map((branchId) => [branchId, 0]));
+    if (!canReadFeeCharges || !canReadFeePayments || !branchIds.length) return dueByCampus;
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabase.from("education_fee_charges")
+        .select("id, branch_id, amount, education_fee_payments(amount)")
+        .eq("org_id", context.orgId).in("branch_id", branchIds)
+        .eq("status", "open").gte("due_on", from).lte("due_on", to)
+        .order("id").range(offset, offset + 999);
+      if (error) throw new Error(`Could not load fees due by campus: ${error.message}`);
+      const page = data ?? [];
+      if (offset >= 100_000 && page.length > 0) {
+        throw new Error("The number of fee charges due in this period exceeds the dashboard processing limit.");
+      }
+      for (const charge of page) {
+        const payments = charge.education_fee_payments ?? [];
+        const paid = payments.reduce((total, payment) => total + Number(payment.amount), 0);
+        const outstanding = Math.max(0, Number(charge.amount) - paid);
+        dueByCampus.set(charge.branch_id, (dueByCampus.get(charge.branch_id) ?? 0) + outstanding);
+      }
+      if (page.length < 1000) return dueByCampus;
+    }
+  })();
+  const classCapacityPromise = canReadAcademics && branchIds.length
+    ? loadClassCapacity(supabase, context.orgId, branchIds)
+    : Promise.resolve(null);
   const parentCountPromise = (async () => {
     if (!canReadGuardians || !branchIds.length) return 0;
     const guardianIds = new Set<string>();
@@ -139,10 +231,13 @@ export default async function ThinkEducationDashboardPage({
     { count: classCount, error: classesError },
     { count: subjectCount, error: subjectsError },
     { count: totalAdmissionCount, error: admissionsError },
+    { count: pendingAdmissionCount, error: pendingAdmissionsError },
     { count: presentCount, error: presentError },
-    { count: attendanceCount, error: attendanceError },
+    { count: excusedCount, error: excusedError },
     [financeSummaryResult, currencyConfig],
     todayFinanceSummaryResult,
+    feeDueByCampus,
+    classCapacity,
     parentCount,
   ] = await Promise.all([
     canReadStudents && branchIds.length
@@ -171,20 +266,30 @@ export default async function ThinkEducationDashboardPage({
         .eq("org_id", context.orgId).in("branch_id", branchIds)
         .gte("applied_at", fromTimestamp).lt("applied_at", toExclusiveTimestamp)
       : zeroCount,
-    canReadAttendance && branchIds.length
-      ? supabase.from("education_attendance").select("id", { count: "exact", head: true })
-        .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", today).eq("status", "present")
+    canReadAdmissions && branchIds.length
+      ? supabase.from("education_admissions").select("id", { count: "exact", head: true })
+        .eq("org_id", context.orgId).in("branch_id", branchIds)
+        .in("status", ["pending", "under_review"])
+        .gte("applied_at", fromTimestamp).lt("applied_at", toExclusiveTimestamp)
       : zeroCount,
     canReadAttendance && branchIds.length
       ? supabase.from("education_attendance").select("id", { count: "exact", head: true })
         .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", today)
+        .eq("status", "present").not("student_id", "is", null)
+      : zeroCount,
+    canReadAttendance && branchIds.length
+      ? supabase.from("education_attendance").select("id", { count: "exact", head: true })
+        .eq("org_id", context.orgId).in("branch_id", branchIds).eq("attendance_date", today)
+        .eq("status", "excused").not("student_id", "is", null)
       : zeroCount,
     financeSummaryPromise,
     todayFinanceSummaryPromise,
+    feeDueByCampusPromise,
+    classCapacityPromise,
     parentCountPromise,
   ]);
   const queryError = studentsError ?? staffError ?? teachersError ?? classesError ?? subjectsError
-    ?? admissionsError ?? presentError ?? attendanceError;
+    ?? admissionsError ?? pendingAdmissionsError ?? presentError ?? excusedError;
   if (queryError) throw new Error(`Could not load Think Education dashboard: ${queryError.message}`);
 
   const feeStatsByCampus = new Map(branchIds.map((branchId) => [branchId, {
@@ -216,9 +321,18 @@ export default async function ThinkEducationDashboardPage({
   const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
   const totalOutstandingFees = Array.from(feeStatsByCampus.values())
     .reduce((total, stats) => total + stats.outstanding, 0);
-  const attendanceRate = attendanceCount
-    ? Math.round(((presentCount ?? 0) / attendanceCount) * 1000) / 10
+  const expectedStudents = Math.max(0, (studentCount ?? 0) - (excusedCount ?? 0));
+  const attendanceRate = expectedStudents
+    ? Math.round(((presentCount ?? 0) / expectedStudents) * 1000) / 10
     : null;
+  const capacityUtilization = classCapacity && classCapacity.totalCapacity > 0
+    ? Math.round((classCapacity.enrolledCount / classCapacity.totalCapacity) * 1000) / 10
+    : null;
+  const outstandingFeesQuery = selectedBranch ? `?branch=${encodeURIComponent(selectedBranch)}` : "";
+  const outstandingFeesHref = `${getProductAppPath(
+    "think-education",
+    canReadFeeAging ? "/finance/aging" : "/finance",
+  )}${outstandingFeesQuery}${canReadFeeAging ? "" : "#fee-payments"}`;
   const metrics: Metric[] = [
     { label: "Active students", value: canReadStudents ? studentCount ?? 0 : "Restricted", icon: GraduationCap, tint: "bg-blue-50 text-blue-700" },
     { label: "Active staff", value: canReadStaff ? staffCount ?? 0 : "Restricted", icon: Users, tint: "bg-violet-50 text-violet-700" },
@@ -227,12 +341,49 @@ export default async function ThinkEducationDashboardPage({
     { label: "Subjects", value: canReadAcademics ? subjectCount ?? 0 : "Restricted", icon: BookOpen, tint: "bg-emerald-50 text-emerald-700" },
     { label: "Parents", value: canReadGuardians ? parentCount : "Restricted", icon: Users, tint: "bg-amber-50 text-amber-700" },
     { label: "Campuses in your access", value: campuses.length, icon: Building2, tint: "bg-emerald-50 text-emerald-700" },
-    { label: "Attendance today", value: !canReadAttendance ? "Restricted" : attendanceRate, icon: CalendarCheck, tint: "bg-amber-50 text-amber-700" },
+    {
+      label: "Attendance today",
+      value: !canReadAttendance || !canReadStudents ? "Restricted" : attendanceRate,
+      detail: !canReadAttendance || !canReadStudents
+        ? undefined
+        : excusedCount ? `${excusedCount.toLocaleString()} excused, excluded` : "Present / expected students",
+      icon: CalendarCheck,
+      tint: "bg-amber-50 text-amber-700",
+    },
     { label: "Total fee paid", value: !canReadFeePayments || !canReadFeeCharges ? "Restricted" : formatMoney(totalFeePaid), icon: Wallet, tint: "bg-emerald-50 text-emerald-700" },
     { label: "Today's collections", value: !canReadFeePayments || !canReadFeeCharges ? "Restricted" : formatMoney(todayCollections), icon: Wallet, tint: "bg-emerald-50 text-emerald-700" },
-    { label: "Outstanding fees", value: !canReadFeePayments || !canReadFeeCharges ? "Restricted" : formatMoney(totalOutstandingFees), icon: Wallet, tint: "bg-amber-50 text-amber-700" },
+    {
+      label: "Outstanding fees",
+      value: !canReadFeePayments || !canReadFeeCharges ? "Restricted" : formatMoney(totalOutstandingFees),
+      detail: canReadFeePayments && canReadFeeCharges ? "Click to view outstanding student balances" : undefined,
+      href: canReadFeePayments && canReadFeeCharges ? outstandingFeesHref : undefined,
+      icon: Wallet,
+      tint: "bg-amber-50 text-amber-700",
+    },
     { label: "Approved expenses", value: !canViewExpenseRecords ? "Restricted" : formatMoney(totalExpenses), icon: ClipboardCheck, tint: "bg-rose-50 text-rose-700" },
     { label: "Total admissions", value: !canReadAdmissions ? "Restricted" : totalAdmissionCount ?? 0, icon: Users, tint: "bg-blue-50 text-blue-700" },
+    {
+      label: "Pending admissions",
+      value: !canReadAdmissions ? "Restricted" : pendingAdmissionCount ?? 0,
+      detail: "Pending + under review",
+      icon: Users,
+      tint: "bg-amber-50 text-amber-700",
+    },
+    {
+      label: "Class capacity",
+      value: !canReadAcademics ? "Restricted" : capacityUtilization === null ? null : `${capacityUtilization}%`,
+      detail: !canReadAcademics
+        ? undefined
+        : classCapacity?.totalCapacity
+          ? `${classCapacity.enrolledCount.toLocaleString()} / ${classCapacity.totalCapacity.toLocaleString()} seats · ${classCapacity.fullClassCount} full`
+          : !branchIds.length
+            ? "No campus access"
+            : classCapacity?.hasActiveYear === false
+              ? "No active academic year"
+              : "No seat limits configured",
+      icon: BookOpen,
+      tint: "bg-blue-50 text-blue-700",
+    },
   ];
   const campusFeeRows = selectedCampuses.map((campus) => {
     const stats = feeStatsByCampus.get(campus.id);
@@ -241,6 +392,11 @@ export default async function ThinkEducationDashboardPage({
       : null;
     return { campus, stats, collectionRate };
   });
+  const campusFeeChartData: FeeCollectionCampusPoint[] = campusFeeRows.map(({ campus, stats }) => ({
+    campus: campus.name,
+    due: feeDueByCampus.get(campus.id) ?? 0,
+    collected: stats?.paidInRange ?? 0,
+  }));
 
   return <main className="mx-auto max-w-[1500px] space-y-4 p-3 md:p-5">
     <header className="flex flex-wrap items-end justify-between gap-3">
@@ -275,8 +431,8 @@ export default async function ThinkEducationDashboardPage({
       </form>}
     </section>}
 
-    <section aria-label="Education overview metrics" data-education-metrics data-education-dashboard-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {metrics.map(({ label, value, icon: Icon, tint }) => {
+    <section aria-label="Education overview metrics" data-education-metrics data-education-dashboard-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {metrics.map(({ label, value, icon: Icon, tint, detail, href }) => {
         const iconTone = tint.includes("bg-violet") ? "violet"
           : tint.includes("bg-emerald") ? "emerald"
             : tint.includes("bg-amber") ? "amber"
@@ -287,13 +443,14 @@ export default async function ThinkEducationDashboardPage({
             : iconTone === "amber" ? "rgba(245,158,11,0.12)"
               : iconTone === "rose" ? "rgba(244,63,94,0.10)"
                 : "rgba(59,130,246,0.10)";
-        return <article key={label} className="rounded-xl border p-4 shadow-sm" style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
+        const card = <article key={label} className={`rounded-xl border p-4 shadow-sm${href ? " transition-shadow group-hover:shadow-md" : ""}`} style={{ borderColor: "var(--theme-header-border-light, #dbeafe)", backgroundColor: "var(--theme-surface, #fff)" }}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{label}</p>
-              <p className="mt-2 text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>
+              <p className="text-sm leading-5" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{label}</p>
+              <p className="mt-2 text-xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>
                 {value === null ? "—" : label === "Attendance today" && typeof value === "number" ? `${value}%` : typeof value === "number" ? value.toLocaleString() : value}
               </p>
+              {detail && <p className="mt-1 text-[11px] leading-4" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{detail}</p>}
             </div>
             <span
               data-education-metric-icon
@@ -305,6 +462,11 @@ export default async function ThinkEducationDashboardPage({
             </span>
           </div>
         </article>;
+        return href
+          ? <Link key={label} href={href} aria-label="View outstanding student fee details" className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+            {card}
+          </Link>
+          : card;
       })}
     </section>
 
@@ -331,6 +493,25 @@ export default async function ThinkEducationDashboardPage({
           today={today}
           canReadAttendance={canReadAttendance}
         />
+      </Suspense>
+    </section>
+
+    <section aria-label="Education enrollment, admissions, and finance charts" className="grid gap-4 lg:grid-cols-2">
+      <Suspense fallback={<article aria-label="Enrollment trend loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-950">Enrollment trend</h2><div className="mt-4 h-56 animate-pulse rounded-lg bg-slate-100" /></article>}>
+        <StudentEnrollmentTrendCard orgId={context.orgId} branchIds={branchIds} from={from} to={to} canReadStudents={canReadStudents} />
+      </Suspense>
+      <Suspense fallback={<article aria-label="Admissions pipeline loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-950">Admissions pipeline</h2><div className="mt-4 h-56 animate-pulse rounded-lg bg-slate-100" /></article>}>
+        <AdmissionsPipelineCard orgId={context.orgId} branchIds={branchIds} from={from} to={to} canReadAdmissions={canReadAdmissions} />
+      </Suspense>
+      {canReadFeePayments && canReadFeeCharges && <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div>
+          <h2 className="text-lg font-bold text-slate-950">Fees due vs collected</h2>
+          <p className="mt-1 text-sm text-slate-500">Remaining balance on open charges due in the selected period vs payments received in that period. Amounts use your organization currency.</p>
+        </div>
+        <FeeCollectionsByCampusChart data={campusFeeChartData} />
+      </article>}
+      <Suspense fallback={<article aria-label="Fee aging loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-950">Outstanding fee aging</h2><div className="mt-4 h-56 animate-pulse rounded-lg bg-slate-100" /></article>}>
+        <FeeAgingCard orgId={context.orgId} branchIds={branchIds} today={today} canReadFeeAging={canReadFeeAging} />
       </Suspense>
     </section>
 

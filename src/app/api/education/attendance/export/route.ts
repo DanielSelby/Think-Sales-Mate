@@ -24,9 +24,10 @@ export async function GET(request: NextRequest) {
   const context = await getCurrentOrgContext();
   if (!context) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
 
-  const [canView, canExport] = await Promise.all([
+  const [canView, canExport, canViewClasses] = await Promise.all([
     canTabPermission("education_attendance", "attendance", "register", "view"),
     canTabPermission("education_attendance", "attendance", "register", "export"),
+    canTabPermission("education_academics", "academics", "classes", "view"),
   ]);
   if (!canView || !canExport) {
     return NextResponse.json({ error: "You do not have permission to export attendance." }, { status: 403 });
@@ -38,6 +39,15 @@ export async function GET(request: NextRequest) {
   const requestedBranch = params.get("branch") ?? "";
   const search = (params.get("search") ?? "").trim().slice(0, 80);
   const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
+  const requestedStatus = params.get("status") ?? "";
+  const statusFilter = ATTENDANCE_STATUSES.find((status) => status === requestedStatus) ?? "";
+  if (requestedStatus && !statusFilter) {
+    return NextResponse.json({ error: "The selected attendance status is invalid." }, { status: 400 });
+  }
+  const requestedClass = params.get("class") ?? "";
+  if (requestedClass && !canViewClasses) {
+    return NextResponse.json({ error: "You do not have permission to export class attendance filters." }, { status: 403 });
+  }
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const campusIds = campuses.map((campus) => campus.id);
   if (requestedBranch && !campusIds.includes(requestedBranch)) {
@@ -46,6 +56,23 @@ export async function GET(request: NextRequest) {
   const branchIds = requestedBranch ? [requestedBranch] : campusIds;
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const supabase = await createClient();
+  let classFilter = "";
+  if (requestedClass) {
+    if (!branchIds.length) {
+      return NextResponse.json({ error: "The selected class is outside your access scope." }, { status: 403 });
+    }
+    const { data: classroom, error: classError } = await supabase.from("education_classes")
+      .select("id")
+      .eq("org_id", context.orgId)
+      .eq("id", requestedClass)
+      .in("branch_id", branchIds)
+      .maybeSingle();
+    if (classError) throw new Error(`Could not verify the class for attendance export: ${classError.message}`);
+    if (!classroom) {
+      return NextResponse.json({ error: "The selected class is outside your access scope." }, { status: 403 });
+    }
+    classFilter = classroom.id;
+  }
   const encoder = new TextEncoder();
   let offset = 0;
   let finished = !branchIds.length;
@@ -53,7 +80,7 @@ export async function GET(request: NextRequest) {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       controller.enqueue(encoder.encode([
-        ["Student ID", "Student", "Campus", "Attendance status", "Note", "Date"]
+        ["Student ID", "Student", "Campus", "Class", "Attendance status", "Note", "Date"]
           .map(csvCell).join(","),
         "",
       ].join("\n")));
@@ -95,18 +122,49 @@ export async function GET(request: NextRequest) {
             attendanceByStudent.set(record.student_id, { status: record.status as AttendanceStatus, note: record.note });
           }
         }
-        const lines = students.map((student) => {
+
+        const classIdByStudent = new Map<string, string>();
+        if (canViewClasses) {
+          const { data: enrollments, error: enrollmentError } = await supabase.from("education_student_enrollments")
+            .select("student_id, class_id")
+            .eq("org_id", context.orgId)
+            .in("branch_id", branchIds)
+            .in("student_id", studentIds)
+            .lte("enrolled_on", attendanceDate)
+            .or(`and(status.eq.active,ended_on.is.null),ended_on.gte.${attendanceDate}`)
+            .order("enrolled_on", { ascending: false });
+          if (enrollmentError) throw new Error(`Could not load student classes for attendance export: ${enrollmentError.message}`);
+          for (const enrollment of enrollments ?? []) {
+            if (!classIdByStudent.has(enrollment.student_id)) {
+              classIdByStudent.set(enrollment.student_id, enrollment.class_id);
+            }
+          }
+        }
+        const classIds = [...new Set(classIdByStudent.values())];
+        const { data: classRows, error: classError } = classIds.length
+          ? await supabase.from("education_classes")
+            .select("id, name")
+            .eq("org_id", context.orgId)
+            .in("id", classIds)
+          : { data: [], error: null };
+        if (classError) throw new Error(`Could not load student class names for attendance export: ${classError.message}`);
+        const classNameById = new Map((classRows ?? []).map((classroom) => [classroom.id, classroom.name]));
+        const lines = students.flatMap((student) => {
           const attendance = attendanceByStudent.get(student.id);
+          const classId = classIdByStudent.get(student.id) ?? "";
+          if (statusFilter && attendance?.status !== statusFilter) return [];
+          if (classFilter && classId !== classFilter) return [];
           return [
             student.student_number,
             `${student.first_name} ${student.last_name}`.trim(),
             campusNameById.get(student.branch_id) ?? "Campus",
+            canViewClasses ? classNameById.get(classId) ?? "Unassigned" : "Restricted",
             attendance?.status ?? "not_marked",
             attendance?.note ?? "",
             attendanceDate,
           ].map(csvCell).join(",");
         });
-        controller.enqueue(encoder.encode(`${lines.join("\n")}\n`));
+        if (lines.length) controller.enqueue(encoder.encode(`${lines.join("\n")}\n`));
         offset += students.length;
         if (students.length < BATCH_SIZE) {
           finished = true;
