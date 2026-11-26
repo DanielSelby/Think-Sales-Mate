@@ -45,6 +45,7 @@ import {
   claimEducationGuardianPortalAccount,
   signInToEducationGuardianPortal,
   updateEducationGuardianContact,
+  bookEducationPTM,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -139,6 +140,17 @@ export default async function EducationGuardianPortalPage({
     sms_enabled: boolean;
   }> = [];
   let guardianFeePaymentData: z.infer<typeof guardianFeePaymentDataSchema> = [];
+  let guardianMeetings: Array<{
+    meeting_id: string;
+    branch_id: string;
+    staff_id: string;
+    student_id: string;
+    guardian_id: string | null;
+    starts_at: string;
+    ends_at: string;
+    status: "scheduled" | "completed" | "cancelled";
+    purpose: string | null;
+  }> = [];
   let guardianReportCards: Array<{
     student_id: string;
     term_id: string;
@@ -165,6 +177,23 @@ export default async function EducationGuardianPortalPage({
     const guardianStudentIds = portal.flatMap((organization) =>
       organization.children.map((student) => student.id)
     );
+    if (guardianOrgIds.length && guardianStudentIds.length) {
+      const now = new Date();
+      const end = new Date(now);
+      end.setDate(end.getDate() + 90);
+      for (const organizationId of guardianOrgIds) {
+        const { data: meetingRows, error: meetingError } = await supabase.rpc("education_get_ptm_list", {
+          p_org_id: organizationId,
+          p_branch_ids: [],
+          p_from: now.toISOString(),
+          p_to: end.toISOString(),
+        });
+        if (meetingError) throw new Error(`Could not load parent-teacher meetings: ${meetingError.message}`);
+        guardianMeetings.push(...(meetingRows ?? []).filter((meeting) =>
+          guardianStudentIds.includes(meeting.student_id)
+        ));
+      }
+    }
     for (let offset = 0; offset < guardianStudentIds.length; offset += 100) {
       for (const studentId of guardianStudentIds.slice(offset, offset + 100)) {
         const organizationId = portal.find((organization) =>
@@ -746,6 +775,33 @@ export default async function EducationGuardianPortalPage({
                       <span className="shrink-0 text-slate-500">{entry.startsAt.slice(0, 5)}–{entry.endsAt.slice(0, 5)}{entry.room ? ` · ${entry.room}` : ""}</span>
                     </li>)}
                   </ul> : <p className="mt-2 text-sm text-slate-500">No published weekly timetable is available.</p>}
+                </section>
+
+                <section className="scroll-mt-6">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4 text-blue-700" /> Parent-teacher meetings</h4>
+                  {guardianMeetings.filter((meeting) => meeting.student_id === student.id).length ? (
+                    <ul className="mt-2 space-y-2">
+                      {guardianMeetings.filter((meeting) => meeting.student_id === student.id).map((meeting) => (
+                        <li key={meeting.meeting_id} className="rounded-lg border border-slate-200 p-3 text-sm">
+                          <p className="font-medium">{new Date(meeting.starts_at).toLocaleString()} – {new Date(meeting.ends_at).toLocaleTimeString()}</p>
+                          {meeting.purpose && <p className="mt-1 text-slate-600">{meeting.purpose}</p>}
+                          {meeting.status === "scheduled" && meeting.guardian_id === null && (
+                            <form action={bookEducationPTM} className="mt-2">
+                              <input type="hidden" name="org_id" value={organization.organizationId} />
+                              <input type="hidden" name="meeting_id" value={meeting.meeting_id} />
+                              <label className="block text-xs font-medium text-slate-600">
+                                Purpose / note
+                                <textarea name="purpose" maxLength={500} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm font-normal" />
+                              </label>
+                              <button type="submit" className="mt-2 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">Book this slot</button>
+                            </form>
+                          )}
+                          {meeting.status === "scheduled" && meeting.guardian_id !== null && <p className="mt-2 text-xs font-semibold text-emerald-700">Reserved for a guardian</p>}
+                          {meeting.status === "cancelled" && <p className="mt-2 text-xs font-semibold text-slate-500">Cancelled</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-2 text-sm text-slate-500">No upcoming meetings are available.</p>}
                 </section>
 
                 <section id={studentIndex === 0 ? "performance" : undefined} className="scroll-mt-6">

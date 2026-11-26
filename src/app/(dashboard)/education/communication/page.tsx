@@ -161,9 +161,17 @@ export default async function EducationCommunicationPage({
 
   return <main className="mx-auto max-w-[1400px] space-y-5 p-4 md:p-6">
     <header>
-      <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
-        <ArrowLeft className="h-4 w-4" /> Dashboard
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href={getProductAppPath("think-education", "/dashboard")} className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900">
+          <ArrowLeft className="h-4 w-4" /> Dashboard
+        </Link>
+        <Link href={getProductAppPath("think-education", "/meetings")} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">
+          Parent-teacher meetings
+        </Link>
+        <Link href={getProductAppPath("think-education", "/support")} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          Helpdesk & complaints
+        </Link>
+      </div>
       <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-950"><Megaphone className="h-6 w-6 text-blue-700" /> Communications</h1>
       <p className="mt-1 text-sm text-slate-600">Draft campus announcements, publish them to the intended audience, and archive outdated notices.</p>
     </header>

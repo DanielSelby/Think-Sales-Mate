@@ -5315,6 +5315,7 @@ export async function archiveEducationDocument(formData: FormData) {
     throw new Error("You do not have permission to archive Think Education documents.");
   }
   const documentId = String(formData.get("document_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "").trim();
   if (!documentId) redirect(`${getProductAppPath("think-education", "/documents")}?error=invalid`);
   const supabase = await createClient();
   const { error } = await supabase.rpc("education_document_archive", {
@@ -5329,6 +5330,10 @@ export async function archiveEducationDocument(formData: FormData) {
     redirect(`${getProductAppPath("think-education", "/documents")}?error=save`);
   }
   revalidatePath("/education/documents");
+  revalidatePath("/education/students");
+  if (studentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(studentId)) {
+    redirect(`${getProductAppPath("think-education", `/students/${studentId}`)}?tab=documents&documentArchived=1`);
+  }
   redirect(`${getProductAppPath("think-education", "/documents")}?archived=1`);
 }
 
@@ -5701,6 +5706,432 @@ export async function promoteEducationStudent(formData: FormData) {
   revalidatePath("/education/students");
   revalidatePath("/education/academics");
   redirect(`${getProductAppPath("think-education", "/promotion")}?updated=${progressionAction}`);
+}
+
+export async function saveEducationLessonPlan(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_timetables", "timetables", "schedule", "edit")) {
+    throw new Error("You do not have permission to plan Think Education lessons.");
+  }
+  const branchId = String(formData.get("branch_id") ?? "");
+  const timetableEntryId = String(formData.get("timetable_entry_id") ?? "");
+  const plannedDate = String(formData.get("planned_date") ?? "");
+  const topic = String(formData.get("topic") ?? "").trim();
+  const objectives = String(formData.get("objectives") ?? "").trim();
+  const teachingMaterials = String(formData.get("teaching_materials") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(branchId) || !uuidPattern.test(timetableEntryId)
+    || !isValidEducationISODate(plannedDate)
+    || topic.length < 1 || topic.length > 240
+    || objectives.length < 1 || objectives.length > 2000
+    || teachingMaterials.length > 2000) {
+    redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_save_lesson_plan", {
+    p_org_id: context.orgId,
+    p_branch_id: branchId,
+    p_timetable_entry_id: timetableEntryId,
+    p_planned_date: plannedDate,
+    p_topic: topic,
+    p_objectives: objectives,
+    p_teaching_materials: teachingMaterials || null,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=date`);
+    if (error.code === "42501") throw new Error("You are not authorized to plan lessons for this campus.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=lesson`);
+    console.error("Could not save Think Education lesson plan:", error.message);
+    redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=save`);
+  }
+  revalidatePath("/education/timetables");
+  revalidatePath("/education/timetables/lesson-plans");
+  revalidatePath("/teacher-education-portal");
+  redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?saved=1`);
+}
+
+export async function submitEducationLessonLog(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_timetables", "timetables", "schedule", "edit")) {
+    throw new Error("You do not have permission to submit lesson logs.");
+  }
+  const lessonPlanId = String(formData.get("lesson_plan_id") ?? "");
+  const topicCovered = String(formData.get("topic_covered") ?? "").trim();
+  const syllabusSection = String(formData.get("syllabus_section") ?? "").trim();
+  const teacherRemarks = String(formData.get("teacher_remarks") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(lessonPlanId)
+    || topicCovered.length < 1 || topicCovered.length > 240
+    || syllabusSection.length > 240 || teacherRemarks.length > 2000) {
+    redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_submit_lesson_log", {
+    p_org_id: context.orgId,
+    p_lesson_plan_id: lessonPlanId,
+    p_topic_covered: topicCovered,
+    p_syllabus_section: syllabusSection || null,
+    p_teacher_remarks: teacherRemarks || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You are not authorized to submit this lesson log.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=lesson`);
+    console.error("Could not submit Think Education lesson log:", error.message);
+    redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=save`);
+  }
+  revalidatePath("/education/timetables/lesson-plans");
+  revalidatePath("/teacher-education-portal");
+  redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?submitted=1`);
+}
+
+export async function reviewEducationLessonLog(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_timetables", "timetables", "schedule", "approve")) {
+    throw new Error("You do not have permission to review lesson logs.");
+  }
+  const logId = String(formData.get("log_id") ?? "");
+  const supervisorRemarks = String(formData.get("supervisor_remarks") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(logId) || supervisorRemarks.length > 2000) {
+    redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_review_lesson_log", {
+    p_org_id: context.orgId,
+    p_log_id: logId,
+    p_supervisor_remarks: supervisorRemarks || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("Supervisor approval access is required.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=lesson`);
+    console.error("Could not review Think Education lesson log:", error.message);
+    redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?error=save`);
+  }
+  revalidatePath("/education/timetables/lesson-plans");
+  redirect(`${getProductAppPath("think-education", "/timetables/lesson-plans")}?reviewed=1`);
+}
+
+export async function scheduleEducationPTM(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const branchId = String(formData.get("branch_id") ?? "");
+  const staffId = String(formData.get("staff_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const guardianId = String(formData.get("guardian_id") ?? "").trim();
+  const startsAt = String(formData.get("starts_at") ?? "");
+  const endsAt = String(formData.get("ends_at") ?? "");
+  const purpose = String(formData.get("purpose") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(branchId) || !uuidPattern.test(staffId) || !uuidPattern.test(studentId)
+    || (guardianId && !uuidPattern.test(guardianId))
+    || !startsAt || !endsAt || purpose.length > 500) {
+    redirect(`${getProductAppPath("think-education", "/meetings")}?error=invalid`);
+  }
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    redirect(`${getProductAppPath("think-education", "/meetings")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_schedule_ptm", {
+    p_org_id: context.orgId,
+    p_branch_id: branchId,
+    p_staff_id: staffId,
+    p_student_id: studentId,
+    p_guardian_id: guardianId || null,
+    p_starts_at: start.toISOString(),
+    p_ends_at: end.toISOString(),
+    p_purpose: purpose || null,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/meetings")}?error=conflict`);
+    if (error.code === "42501") throw new Error("You are not authorized to schedule this meeting.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/meetings")}?error=not-found`);
+    console.error("Could not schedule Think Education PTM:", error.message);
+    redirect(`${getProductAppPath("think-education", "/meetings")}?error=save`);
+  }
+  revalidatePath("/education/meetings");
+  revalidatePath("/education-portal");
+  revalidatePath("/teacher-education-portal");
+  redirect(`${getProductAppPath("think-education", "/meetings")}?scheduled=1`);
+}
+
+export async function cancelEducationPTM(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const meetingId = String(formData.get("meeting_id") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(meetingId) || reason.length > 500) {
+    redirect(`${getProductAppPath("think-education", "/meetings")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_cancel_ptm", {
+    p_org_id: context.orgId,
+    p_meeting_id: meetingId,
+    p_reason: reason || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You are not authorized to cancel this meeting.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/meetings")}?error=not-found`);
+    console.error("Could not cancel Think Education PTM:", error.message);
+    redirect(`${getProductAppPath("think-education", "/meetings")}?error=save`);
+  }
+  revalidatePath("/education/meetings");
+  revalidatePath("/education-portal");
+  revalidatePath("/teacher-education-portal");
+  redirect(`${getProductAppPath("think-education", "/meetings")}?cancelled=1`);
+}
+
+export async function createEducationDisciplineIncident(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_discipline", "discipline", "incidents", "create")) {
+    throw new Error("You do not have permission to record discipline incidents.");
+  }
+  const branchId = String(formData.get("branch_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const classId = String(formData.get("class_id") ?? "").trim();
+  const staffId = String(formData.get("staff_id") ?? "").trim();
+  const incidentDate = String(formData.get("incident_date") ?? "");
+  const category = String(formData.get("category") ?? "");
+  const severity = String(formData.get("severity") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const actionTaken = String(formData.get("action_taken") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(branchId) || !uuidPattern.test(studentId)
+    || (classId && !uuidPattern.test(classId)) || (staffId && !uuidPattern.test(staffId))
+    || !isValidEducationISODate(incidentDate)
+    || !["misconduct", "attendance", "academic", "bullying", "safety", "property", "other"].includes(category)
+    || !["low", "medium", "high", "critical"].includes(severity)
+    || title.length < 1 || title.length > 160
+    || description.length < 1 || description.length > 5000
+    || actionTaken.length > 5000) {
+    redirect(`${getProductAppPath("think-education", "/discipline")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_create_discipline_incident", {
+    p_org_id: context.orgId,
+    p_branch_id: branchId,
+    p_student_id: studentId,
+    p_class_id: classId || null,
+    p_staff_id: staffId || null,
+    p_incident_date: incidentDate,
+    p_category: category,
+    p_severity: severity,
+    p_title: title,
+    p_description: description,
+    p_action_taken: actionTaken || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You are not authorized to record discipline incidents.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/discipline")}?error=not-found`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/discipline")}?error=invalid`);
+    console.error("Could not create Think Education discipline incident:", error.message);
+    redirect(`${getProductAppPath("think-education", "/discipline")}?error=save`);
+  }
+  revalidatePath("/education/discipline");
+  revalidatePath("/education/students");
+  revalidatePath("/education/activity");
+  redirect(`${getProductAppPath("think-education", "/discipline")}?created=1`);
+}
+
+export async function reviewEducationDisciplineIncident(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const [canApprove, canEdit] = await Promise.all([
+    canTabPermission("education_discipline", "discipline", "incidents", "approve"),
+    canTabPermission("education_discipline", "discipline", "incidents", "edit"),
+  ]);
+  if (!canApprove && !canEdit) {
+    throw new Error("You do not have permission to review discipline incidents.");
+  }
+  const incidentId = String(formData.get("incident_id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const resolutionNote = String(formData.get("resolution_note") ?? "").trim();
+  const parentNotified = formData.get("parent_notified") === "true";
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(incidentId)
+    || !["open", "under_review", "resolved", "closed"].includes(status)
+    || resolutionNote.length > 5000
+    || (["resolved", "closed"].includes(status) && !resolutionNote)) {
+    redirect(`${getProductAppPath("think-education", "/discipline")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_review_discipline_incident", {
+    p_org_id: context.orgId,
+    p_incident_id: incidentId,
+    p_status: status,
+    p_resolution_note: resolutionNote || null,
+    p_parent_notified: parentNotified,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You are not authorized to review this incident.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/discipline")}?error=not-found`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/discipline")}?error=invalid`);
+    console.error("Could not review Think Education discipline incident:", error.message);
+    redirect(`${getProductAppPath("think-education", "/discipline")}?error=save`);
+  }
+  revalidatePath("/education/discipline");
+  revalidatePath("/education/students");
+  revalidatePath("/education/activity");
+  redirect(`${getProductAppPath("think-education", "/discipline")}?reviewed=1`);
+}
+
+export async function createEducationSupportRequest(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_support", "support", "requests", "create")) {
+    throw new Error("You do not have permission to create support requests.");
+  }
+  const branchId = String(formData.get("branch_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "").trim();
+  const requesterName = String(formData.get("requester_name") ?? "").trim();
+  const kind = String(formData.get("request_kind") ?? "");
+  const category = String(formData.get("category") ?? "").trim();
+  const priority = String(formData.get("priority") ?? "");
+  const subject = String(formData.get("subject") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(branchId)
+    || (studentId && !uuidPattern.test(studentId))
+    || requesterName.length < 1 || requesterName.length > 160
+    || !["helpdesk", "complaint"].includes(kind)
+    || category.length < 1 || category.length > 80
+    || !["low", "normal", "high", "urgent"].includes(priority)
+    || subject.length < 1 || subject.length > 160
+    || description.length < 1 || description.length > 5000) {
+    redirect(`${getProductAppPath("think-education", "/support")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_create_support_request", {
+    p_org_id: context.orgId,
+    p_branch_id: branchId,
+    p_request_kind: kind,
+    p_category: category,
+    p_priority: priority,
+    p_subject: subject,
+    p_description: description,
+    p_requester_name: requesterName,
+    p_student_id: studentId || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You are not authorized to create this support request.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/support")}?error=not-found`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/support")}?error=invalid`);
+    console.error("Could not create Think Education support request:", error.message);
+    redirect(`${getProductAppPath("think-education", "/support")}?error=save`);
+  }
+  revalidatePath("/education/support");
+  revalidatePath("/education/activity");
+  redirect(`${getProductAppPath("think-education", "/support")}?created=1`);
+}
+
+export async function updateEducationSupportRequest(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_support", "support", "requests", "edit")) {
+    throw new Error("You do not have permission to update support requests.");
+  }
+  const requestId = String(formData.get("request_id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const assignedStaffId = String(formData.get("assigned_staff_id") ?? "").trim();
+  const resolutionNote = String(formData.get("resolution_note") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(requestId)
+    || !["open", "in_progress", "waiting", "resolved", "closed"].includes(status)
+    || (assignedStaffId && !uuidPattern.test(assignedStaffId))
+    || resolutionNote.length > 5000
+    || (["resolved", "closed"].includes(status) && !resolutionNote)) {
+    redirect(`${getProductAppPath("think-education", "/support")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_update_support_request", {
+    p_org_id: context.orgId,
+    p_request_id: requestId,
+    p_status: status,
+    p_assigned_staff_id: assignedStaffId || null,
+    p_resolution_note: resolutionNote || null,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You are not authorized to update this support request.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/support")}?error=not-found`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/support")}?error=invalid`);
+    console.error("Could not update Think Education support request:", error.message);
+    redirect(`${getProductAppPath("think-education", "/support")}?error=save`);
+  }
+  revalidatePath("/education/support");
+  revalidatePath("/education/activity");
+  redirect(`${getProductAppPath("think-education", "/support")}?updated=1`);
+}
+
+export async function addEducationSupportResponse(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const requestId = String(formData.get("request_id") ?? "");
+  const message = String(formData.get("message") ?? "").trim();
+  const isInternal = formData.get("is_internal") === "true";
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(requestId) || message.length < 1 || message.length > 5000) {
+    redirect(`${getProductAppPath("think-education", "/support")}?error=invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_add_support_response", {
+    p_org_id: context.orgId,
+    p_request_id: requestId,
+    p_message: message,
+    p_is_internal: isInternal,
+  });
+  if (error) {
+    if (error.code === "42501") throw new Error("You are not authorized to respond to this request.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/support")}?error=not-found`);
+    console.error("Could not add a Think Education support response:", error.message);
+    redirect(`${getProductAppPath("think-education", "/support")}?error=save`);
+  }
+  revalidatePath("/education/support");
+  redirect(`${getProductAppPath("think-education", "/support")}?responded=1`);
+}
+
+export async function reverseEducationFeePayment(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const [canApprove, canEdit] = await Promise.all([
+    canTabPermission("education_finance", "finance", "payments", "approve"),
+    canTabPermission("education_finance", "finance", "payments", "edit"),
+  ]);
+  if (!canApprove || !canEdit) {
+    throw new Error("Approval and edit permissions are required to reverse a fee payment.");
+  }
+  const paymentId = String(formData.get("payment_id") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(paymentId) || reason.length < 1 || reason.length > 500) {
+    redirect(`${getProductAppPath("think-education", "/finance/payments")}?error=refund-invalid`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_reverse_fee_payment", {
+    p_org_id: context.orgId,
+    p_payment_id: paymentId,
+    p_reason: reason,
+  });
+  if (error) {
+    if (error.code === "23505") redirect(`${getProductAppPath("think-education", "/finance/payments")}?error=refund-duplicate`);
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance/payments")}?error=refund-period`);
+    if (error.code === "42501") throw new Error("Approval and edit permission are required.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/finance/payments")}?error=not-found`);
+    console.error("Could not reverse Think Education fee payment:", error.message);
+    redirect(`${getProductAppPath("think-education", "/finance/payments")}?error=refund-save`);
+  }
+  revalidatePath("/education/finance");
+  revalidatePath("/education/finance/payments");
+  revalidatePath("/education/students");
+  revalidatePath("/education/accounting");
+  revalidatePath("/education/activity");
+  redirect(`${getProductAppPath("think-education", "/finance/payments")}?refunded=1`);
 }
 
 export async function saveEducationReportCard(formData: FormData) {

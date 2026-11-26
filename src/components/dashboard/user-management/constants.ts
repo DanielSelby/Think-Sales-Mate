@@ -64,6 +64,12 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
   education_timetables: pages([
     ["timetables", "Timetables", [["schedule", "Class Schedule"]]]
   ]),
+  education_discipline: pages([
+    ["discipline", "Behaviour & Discipline", [["incidents", "Student Incidents"]]]
+  ]),
+  education_support: pages([
+    ["support", "Helpdesk & Complaints", [["requests", "Support Requests"]]]
+  ]),
   education_examinations: pages([
     ["examinations", "Examinations", [["schedule", "Examination Schedule"]]]
   ]),

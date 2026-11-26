@@ -45,7 +45,13 @@ export default async function EducationStudentProfilePage({ params, searchParams
     canRecordFeePayment,
     canViewGuardians,
     canViewDocuments,
+    canCreateDocuments,
+    canEditDocuments,
     canViewTransfers,
+    canViewDiscipline,
+    canViewDiscipline,
+    canViewDiscipline,
+    canViewDiscipline,
     { campuses },
   ] = await Promise.all([
     canTabPermission("education_students", "students", "list", "view"),
@@ -58,7 +64,10 @@ export default async function EducationStudentProfilePage({ params, searchParams
     canTabPermission("education_finance", "finance", "payments", "create"),
     canTabPermission("education_guardians", "guardians", "directory", "view"),
     canTabPermission("education_documents", "documents", "library", "view"),
+    canTabPermission("education_documents", "documents", "library", "create"),
+    canTabPermission("education_documents", "documents", "library", "edit"),
     canTabPermission("education_transfers", "transfers", "requests", "view"),
+    canTabPermission("education_discipline", "discipline", "incidents", "view"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   if (!canViewStudents) redirect("/dashboard?accessDenied=think-education.students");
@@ -190,7 +199,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
       : Promise.resolve({ data: [], error: null }),
     needsDocuments
       ? supabase.from("education_documents")
-        .select("id, title, category, file_name, content_type, file_size, verification_status, created_at")
+        .select("id, title, category, file_name, content_type, file_size, verification_status, retention_until, status, created_at")
         .eq("org_id", context.orgId).eq("student_id", student.id).eq("branch_id", student.branch_id)
         .eq("status", "active").order("created_at", { ascending: false }).limit(100)
       : Promise.resolve({ data: [], error: null }),
@@ -483,6 +492,8 @@ export default async function EducationStudentProfilePage({ params, searchParams
     content_type: row.content_type,
     file_size: row.file_size,
     verification_status: row.verification_status,
+    retention_until: row.retention_until,
+    status: row.status,
     created_at: row.created_at,
   }));
   const communications: Array<{
@@ -516,7 +527,10 @@ export default async function EducationStudentProfilePage({ params, searchParams
       canViewFinance,
       canViewGuardians,
       canViewDocuments,
+      canCreateDocuments,
+      canEditDocuments,
       canViewTransfers,
+      canViewDiscipline,
     }}
     enrollments={enrollments}
     canAssignClass={canAssignClass}

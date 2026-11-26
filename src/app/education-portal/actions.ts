@@ -123,3 +123,33 @@ export async function acknowledgeEducationReportCard(formData: FormData) {
   revalidatePath("/education-portal/report-card");
   redirect(`${portalPath}?acknowledgement=saved`);
 }
+
+export async function bookEducationPTM(formData: FormData) {
+  const orgId = String(formData.get("org_id") ?? "");
+  const meetingId = String(formData.get("meeting_id") ?? "");
+  const purpose = String(formData.get("purpose") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(orgId) || !uuidPattern.test(meetingId) || purpose.length > 500) {
+    redirect(`${PORTAL_PATH}?ptm=invalid`);
+  }
+  const portalPath = getEducationPortalScopedPath(PORTAL_PATH, orgId);
+  const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(portalPath)}`);
+  const { error } = await supabase.rpc("education_guardian_book_ptm", {
+    p_org_id: orgId,
+    p_meeting_id: meetingId,
+    p_purpose: purpose || null,
+  });
+  if (error) {
+    if (error.code === "42501") redirect(`${portalPath}?ptm=denied`);
+    if (error.code === "P0002") redirect(`${portalPath}?ptm=not-found`);
+    if (error.code === "22023") redirect(`${portalPath}?ptm=conflict`);
+    console.error("Could not book the Think Education meeting:", error.message);
+    redirect(`${portalPath}?ptm=error`);
+  }
+  revalidatePath(PORTAL_PATH);
+  revalidatePath("/teacher-education-portal");
+  redirect(`${portalPath}?ptm=booked`);
+}

@@ -3,7 +3,8 @@ import { ArrowLeft, CalendarDays, FileText, GraduationCap, HeartPulse, Users, Wa
 import { StudentConsentForm } from "../student-consent-form";
 import { StudentProfileForm } from "../student-profile-form";
 import { FeePaymentDialog } from "./fee-payment-dialog";
-import { enrollEducationStudentInClass } from "../../actions";
+import { archiveEducationDocument, enrollEducationStudentInClass } from "../../actions";
+import { EDUCATION_DOCUMENT_CATEGORIES } from "@/lib/education/documents";
 import { EducationSubmitButton } from "../../submit-button";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
@@ -94,6 +95,8 @@ type DocumentRow = {
   content_type: string;
   file_size: number;
   verification_status: string;
+  retention_until: string | null;
+  status: string;
   created_at: string;
 };
 
@@ -151,7 +154,10 @@ type Props = {
     canViewFinance: boolean;
     canViewGuardians: boolean;
     canViewDocuments: boolean;
+    canCreateDocuments: boolean;
+    canEditDocuments: boolean;
     canViewTransfers: boolean;
+    canViewDiscipline: boolean;
   };
   enrollments: EnrollmentRow[];
   canAssignClass: boolean;
@@ -288,7 +294,8 @@ export function StudentProfileView(props: Props) {
             {visibleResults.slice(0, 5).map((result) => <li key={result.id} className="flex items-center justify-between gap-3 py-3 text-sm">
               <span><span className="block font-medium text-slate-900">{result.subject_name}</span><span className="text-xs text-slate-500">{examinationById.get(result.examination_id)?.name ?? "Examination"}</span></span>
               <span className="text-right font-semibold text-slate-800">{result.score}/{result.maximum_score}{result.grade ? ` · ${result.grade}` : ""}</span>
-            </li>)}
+              </li>;
+            })}
           </ul> : <EmptyState>{permissions.canViewResults ? "No published results are available." : "You do not have permission to view results."}</EmptyState>}
         </section>
 
@@ -553,13 +560,60 @@ export function StudentProfileView(props: Props) {
 
   function renderDocuments() {
     if (!permissions.canViewDocuments) return <PermissionMessage />;
+    const today = new Date().toISOString().slice(0, 10);
     return <section className={cardClass}>
       <div className="flex items-center justify-between gap-3"><h2 className={headingClass}>Documents & certificates</h2><Link href={getProductAppPath("think-education", "/documents")} className="text-sm font-semibold text-blue-700 hover:underline">Open document library</Link></div>
+      {permissions.canCreateDocuments && <form
+        action="/api/education/documents"
+        method="post"
+        encType="multipart/form-data"
+        className="mt-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4 md:grid-cols-2"
+      >
+        <input type="hidden" name="branch_id" value={student.branch_id} />
+        <input type="hidden" name="student_id" value={student.id} />
+        <input type="hidden" name="return_student_id" value={student.id} />
+        <label className="text-sm font-medium text-slate-700">Document title
+          <input name="title" required maxLength={160} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">Category
+          <select name="category" required defaultValue="student_record" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
+            {EDUCATION_DOCUMENT_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700">Retention until
+          <input type="date" name="retention_until" min={today} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-slate-700">File
+          <input required type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.txt" className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal" />
+        </label>
+        <div className="md:col-span-2">
+          <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">Upload document</button>
+        </div>
+      </form>}
       {documents.length ? <ul className="mt-4 divide-y divide-slate-100">
-        {documents.map((document) => <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-          <div><p className="font-medium text-slate-900">{document.title}</p><p className="text-xs capitalize text-slate-500">{document.category.replaceAll("_", " ")} · {document.file_name} · {(document.file_size / 1024).toFixed(0)} KB · {formatDate(document.created_at)}</p></div>
-          <div className="flex items-center gap-3"><span className="text-xs capitalize text-slate-500">{document.verification_status.replaceAll("_", " ")}</span><Link href={`/api/education/documents/${document.id}/download`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"><FileText className="h-4 w-4" />Download</Link></div>
-        </li>)}
+        {documents.map((document) => {
+          const expired = !!document.retention_until && document.retention_until < today;
+          const downloadable = document.status === "active" && !expired;
+          return <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <div>
+            <p className="font-medium text-slate-900">{document.title}</p>
+            <p className="text-xs capitalize text-slate-500">
+              {document.category.replaceAll("_", " ")} · {document.file_name} · {(document.file_size / 1024).toFixed(0)} KB · {formatDate(document.created_at)}
+              {document.retention_until ? ` · Retention until ${formatDate(document.retention_until)}` : ""}
+            </p>
+            {expired && <p className="mt-1 text-xs font-medium text-amber-700">Retention expired</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs capitalize text-slate-500">{document.verification_status.replaceAll("_", " ")}</span>
+            {downloadable && <Link href={`/api/education/documents/${document.id}/download`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"><FileText className="h-4 w-4" />Download</Link>}
+            {document.status === "active" && permissions.canEditDocuments && <form action={archiveEducationDocument}>
+              <input type="hidden" name="document_id" value={document.id} />
+              <input type="hidden" name="student_id" value={student.id} />
+              <button type="submit" className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Archive</button>
+            </form>}
+          </div>
+          </li>;
+        })}
       </ul> : <EmptyState>No student documents are available in the document library.</EmptyState>}
       {documents.length === 100 && <p className="mt-3 text-xs text-slate-500">Showing the latest 100 document metadata records. Open the document library for complete history.</p>}
     </section>;
@@ -591,7 +645,15 @@ export function StudentProfileView(props: Props) {
       case "documents": return renderDocuments();
       case "history": return renderHistory();
       case "learning": return <section className={cardClass}><h2 className={headingClass}>Learning & LMS</h2><EmptyState>No student-level assignment, quiz, course-progress, or classroom activity records are connected to this profile yet. The existing Google Classroom integration handles roster import only.</EmptyState></section>;
-      case "behaviour": return <section className={cardClass}><h2 className={headingClass}>Behaviour & discipline</h2><EmptyState>No student behaviour or discipline record system is configured. No records are inferred or displayed.</EmptyState></section>;
+      case "behaviour": return <section className={cardClass}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className={headingClass}>Behaviour &amp; discipline</h2>
+          {permissions.canViewDiscipline
+            ? <Link href={getProductAppPath("think-education", "/discipline")} className="text-sm font-semibold text-rose-700 hover:underline">Open restricted incident register</Link>
+            : null}
+        </div>
+        <EmptyState>{permissions.canViewDiscipline ? "Sensitive incident details are available only in the restricted discipline register." : "You do not have permission to view behaviour or discipline records."}</EmptyState>
+      </section>;
       case "health": return <section className={cardClass}><h2 className={headingClass}>Health & welfare</h2><div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><HeartPulse className="h-4 w-4 shrink-0" />Health information is sensitive and is not collected or shown until a restricted health-record workflow is configured.</div><EmptyState>No health or welfare data is stored for this student.</EmptyState></section>;
       case "communication": return <section className={cardClass}><h2 className={headingClass}>Communication & activities</h2>{communications.length ? <ul className="mt-4 divide-y divide-slate-100">{communications.map((item) => <li key={item.id} className="py-3"><p className="font-semibold text-slate-900">{item.title}</p><p className="mt-1 text-sm text-slate-600">{item.message}</p><p className="mt-1 text-xs capitalize text-slate-500">{item.notification_type} · {item.delivery_status} · {formatDate(item.created_at)}</p></li>)}</ul> : <EmptyState>No student-specific communication history is available.</EmptyState>}</section>;
     }

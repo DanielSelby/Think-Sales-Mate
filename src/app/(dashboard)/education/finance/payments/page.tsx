@@ -9,6 +9,7 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { FeePaymentDialog } from "../../students/[studentId]/fee-payment-dialog";
+import { reverseEducationFeePayment } from "../../actions";
 
 type PaymentRecord = {
   id: string;
@@ -17,6 +18,8 @@ type PaymentRecord = {
   payment_method: string;
   reference: string | null;
   created_at: string;
+  reversal_of_payment_id: string | null;
+  reversal_reason: string | null;
 };
 
 const PAGE_SIZE = 50;
@@ -28,9 +31,11 @@ export default async function EducationFeePaymentsPage({
 }) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
-  const [canView, canCreate] = await Promise.all([
+  const [canView, canCreate, canApprove, canEdit] = await Promise.all([
     canTabPermission("education_finance", "finance", "payments", "view"),
     canTabPermission("education_finance", "finance", "payments", "create"),
+    canTabPermission("education_finance", "finance", "payments", "approve"),
+    canTabPermission("education_finance", "finance", "payments", "edit"),
   ]);
   if (!canView) redirect("/dashboard?accessDenied=think-education.finance");
 
@@ -55,7 +60,7 @@ export default async function EducationFeePaymentsPage({
       : Promise.resolve({ data: [], error: null }),
     branchIds.length
       ? supabase.from("education_fee_payments")
-        .select("id, charge_id, amount, payment_method, reference, created_at", { count: "exact" })
+        .select("id, charge_id, amount, payment_method, reference, created_at, reversal_of_payment_id, reversal_reason", { count: "exact" })
         .eq("org_id", context.orgId)
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
@@ -131,16 +136,37 @@ export default async function EducationFeePaymentsPage({
       {canCreate && payableCharges.length > 0 && <FeePaymentDialog charges={payableCharges} studentId="" studentName="" currencyConfig={currencyConfig} returnToPayments buttonLabel="Record fee payment" />}
     </header>
     {params.paid === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Payment recorded and receipt reference generated.</p>}
+    {params.refunded === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Payment reversed. The original payment remains in history.</p>}
     {paymentError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{paymentErrorMessage}</p>}
     {canCreate && payableCharges.length === 0 && <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">There are no outstanding fee charges to receive payment against. Create a fee charge first from <Link href={getProductAppPath("think-education", "/finance")} className="font-semibold underline">Fees & Finance</Link>.</p>}
 
     <section className="grid gap-3 sm:grid-cols-3">
-      {[["Payments recorded", (paymentCount ?? 0).toLocaleString()], ["Collected on this page", formatMoney(paymentRows.reduce((sum, payment) => sum + payment.amount, 0))], ["Outstanding charges", payableCharges.length.toLocaleString()]].map(([label, value]) => <article key={String(label)} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value}</p></article>)}
+      {[["Payment records", (paymentCount ?? 0).toLocaleString()], ["Net collected on this page", formatMoney(paymentRows.reduce((sum, payment) => sum + payment.amount, 0))], ["Outstanding charges", payableCharges.length.toLocaleString()]].map(([label, value]) => <article key={String(label)} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value}</p></article>)}
     </section>
 
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-slate-200 p-4"><Receipt className="h-5 w-5 text-blue-700" /><h2 className="font-semibold text-slate-950">Payment history</h2></div>
-      {paymentRows.length ? <><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Fee</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3 text-right">Amount</th>{canPrintReceipts && <th className="px-4 py-3">Receipt</th>}</tr></thead><tbody className="divide-y divide-slate-100">{paymentRows.map((payment) => <tr key={payment.id}><td className="px-4 py-3 text-slate-500">{new Date(payment.created_at).toLocaleString()}</td><td className="px-4 py-3 font-medium text-slate-900">{studentName(payment.charge_id)}</td><td className="px-4 py-3 text-slate-600">{chargeById.get(payment.charge_id)?.description ?? "Fee charge"}</td><td className="px-4 py-3 capitalize text-slate-600">{payment.payment_method.replace("_", " ")}</td><td className="px-4 py-3 text-slate-500">{payment.reference ?? "—"}</td><td className="px-4 py-3 text-right font-semibold text-slate-900">{formatMoney(payment.amount)}</td>{canPrintReceipts && <td className="px-4 py-3"><Link href={getProductAppPath("think-education", `/finance/receipts/${payment.id}`)} className="font-semibold text-blue-700 hover:underline">View receipt</Link></td>}</tr>)}</tbody></table></div>
+      {paymentRows.length ? <><div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Fee</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3 text-right">Amount</th>{canPrintReceipts && <th className="px-4 py-3">Receipt</th>}<th className="px-4 py-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{paymentRows.map((payment) => {
+        const reversed = Boolean(payment.reversal_of_payment_id);
+        return <tr key={payment.id} className={reversed ? "bg-rose-50/40" : undefined}>
+          <td className="px-4 py-3 text-slate-500">{new Date(payment.created_at).toLocaleString()}</td>
+          <td className="px-4 py-3 font-medium text-slate-900">{studentName(payment.charge_id)}</td>
+          <td className="px-4 py-3 text-slate-600">{chargeById.get(payment.charge_id)?.description ?? "Fee charge"}</td>
+          <td className="px-4 py-3 capitalize text-slate-600">{payment.payment_method.replace("_", " ")}</td>
+          <td className="px-4 py-3 text-slate-500">{payment.reference ?? "—"}{reversed && <span className="mt-1 block text-xs font-semibold text-rose-700">Reversal record</span>}</td>
+          <td className={`px-4 py-3 text-right font-semibold ${reversed ? "text-rose-800" : "text-slate-900"}`}>{formatMoney(payment.amount)}</td>
+          {canPrintReceipts && <td className="px-4 py-3">{reversed ? "—" : <Link href={getProductAppPath("think-education", `/finance/receipts/${payment.id}`)} className="font-semibold text-blue-700 hover:underline">View receipt</Link>}</td>}
+          <td className="px-4 py-3">
+            {!reversed && canApprove && canEdit
+              ? <form action={reverseEducationFeePayment}>
+                <input type="hidden" name="payment_id" value={payment.id} />
+                <input name="reason" required maxLength={500} placeholder="Reason" className="mb-2 block w-44 rounded-lg border border-slate-300 px-2 py-1.5 text-xs" />
+                <button type="submit" className="rounded-lg border border-rose-300 px-2 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reverse / refund</button>
+              </form>
+              : "—"}
+          </td>
+        </tr>;
+      })}</tbody></table></div>
         {(paymentCount ?? 0) > PAGE_SIZE && <nav aria-label="Fee payment pages" className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm"><span className="text-slate-500">Page {currentPage} of {pageCount} · {paymentCount} payments</span><div className="flex gap-2">{currentPage > 1 && <Link href={pageHref(currentPage - 1)} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" /> Previous</Link>}{currentPage < pageCount && <Link href={pageHref(currentPage + 1)} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Next <ChevronRight className="h-4 w-4" /></Link>}</div></nav>}
       </> : <div className="p-10 text-center"><CreditCard className="mx-auto h-10 w-10 text-slate-300" /><p className="mt-3 font-medium text-slate-800">No fee payments recorded yet</p><p className="mt-1 text-sm text-slate-500">Use Record fee payment to record a payment against any outstanding student charge.</p></div>}
     </section>

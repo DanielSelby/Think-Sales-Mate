@@ -8088,6 +8088,246 @@ export interface Database {
         };
         Returns: string;
       };
+      education_save_lesson_plan: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_timetable_entry_id: string;
+          p_planned_date: string;
+          p_topic: string;
+          p_objectives: string;
+          p_teaching_materials: string | null;
+        };
+        Returns: string;
+      };
+      education_submit_lesson_log: {
+        Args: {
+          p_org_id: string;
+          p_lesson_plan_id: string;
+          p_topic_covered: string;
+          p_syllabus_section: string | null;
+          p_teacher_remarks: string | null;
+        };
+        Returns: string;
+      };
+      education_review_lesson_log: {
+        Args: {
+          p_org_id: string;
+          p_log_id: string;
+          p_supervisor_remarks: string | null;
+        };
+        Returns: boolean;
+      };
+      education_get_lesson_planning_page: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_from: string;
+          p_to: string;
+        };
+        Returns: Array<{
+          plan_id: string;
+          branch_id: string;
+          timetable_entry_id: string;
+          class_id: string;
+          subject_name: string;
+          planned_date: string;
+          topic: string;
+          objectives: string;
+          teaching_materials: string | null;
+          plan_status: "planned" | "completed" | "cancelled";
+          log_id: string | null;
+          topic_covered: string | null;
+          syllabus_section: string | null;
+          teacher_remarks: string | null;
+          log_status: "submitted" | "reviewed" | null;
+          delivered_on: string | null;
+          reviewed_at: string | null;
+          supervisor_remarks: string | null;
+        }>;
+      };
+      education_schedule_ptm: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_staff_id: string;
+          p_student_id: string;
+          p_guardian_id: string | null;
+          p_starts_at: string;
+          p_ends_at: string;
+          p_purpose: string | null;
+        };
+        Returns: string;
+      };
+      education_guardian_book_ptm: {
+        Args: {
+          p_org_id: string;
+          p_meeting_id: string;
+          p_purpose: string | null;
+        };
+        Returns: boolean;
+      };
+      education_cancel_ptm: {
+        Args: {
+          p_org_id: string;
+          p_meeting_id: string;
+          p_reason: string | null;
+        };
+        Returns: boolean;
+      };
+      education_create_discipline_incident: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_student_id: string;
+          p_class_id: string | null;
+          p_staff_id: string | null;
+          p_incident_date: string;
+          p_category: string;
+          p_severity: string;
+          p_title: string;
+          p_description: string;
+          p_action_taken: string | null;
+        };
+        Returns: string;
+      };
+      education_review_discipline_incident: {
+        Args: {
+          p_org_id: string;
+          p_incident_id: string;
+          p_status: string;
+          p_resolution_note: string | null;
+          p_parent_notified: boolean;
+        };
+        Returns: boolean;
+      };
+      education_get_discipline_incidents: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_search: string | null;
+          p_status: string | null;
+          p_severity: string | null;
+        };
+        Returns: Array<{
+          incident_id: string;
+          branch_id: string;
+          student_id: string;
+          class_id: string | null;
+          staff_id: string | null;
+          incident_date: string;
+          category: string;
+          severity: string;
+          title: string;
+          description: string;
+          action_taken: string | null;
+          status: "open" | "under_review" | "resolved" | "closed";
+          parent_notified: boolean;
+          parent_notified_at: string | null;
+          resolution_note: string | null;
+          created_at: string;
+        }>;
+      };
+      education_create_support_request: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_request_kind: "helpdesk" | "complaint";
+          p_category: string;
+          p_priority: "low" | "normal" | "high" | "urgent";
+          p_subject: string;
+          p_description: string;
+          p_requester_name: string;
+          p_student_id?: string | null;
+        };
+        Returns: string;
+      };
+      education_update_support_request: {
+        Args: {
+          p_org_id: string;
+          p_request_id: string;
+          p_status: "open" | "in_progress" | "waiting" | "resolved" | "closed";
+          p_assigned_staff_id: string | null;
+          p_resolution_note: string | null;
+        };
+        Returns: boolean;
+      };
+      education_add_support_response: {
+        Args: {
+          p_org_id: string;
+          p_request_id: string;
+          p_message: string;
+          p_is_internal: boolean;
+        };
+        Returns: string;
+      };
+      education_get_support_requests: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_request_kind: "helpdesk" | "complaint" | null;
+          p_status: "open" | "in_progress" | "waiting" | "resolved" | "closed" | null;
+          p_search: string | null;
+        };
+        Returns: Array<{
+          request_id: string;
+          branch_id: string;
+          student_id: string | null;
+          requester_name: string;
+          request_kind: "helpdesk" | "complaint";
+          category: string;
+          priority: "low" | "normal" | "high" | "urgent";
+          subject: string;
+          description: string;
+          status: "open" | "in_progress" | "waiting" | "resolved" | "closed";
+          assigned_staff_id: string | null;
+          resolution_note: string | null;
+          resolved_at: string | null;
+          created_at: string;
+        }>;
+      };
+      education_get_support_responses: {
+        Args: {
+          p_org_id: string;
+          p_request_id: string;
+        };
+        Returns: Array<{
+          response_id: string;
+          message: string;
+          author_user_id: string | null;
+          is_internal: boolean;
+          created_at: string;
+        }>;
+      };
+      education_reverse_fee_payment: {
+        Args: {
+          p_org_id: string;
+          p_payment_id: string;
+          p_reason: string;
+        };
+        Returns: string;
+      };
+      education_get_ptm_list: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_from: string;
+          p_to: string;
+        };
+        Returns: Array<{
+          meeting_id: string;
+          branch_id: string;
+          staff_id: string;
+          student_id: string;
+          guardian_id: string | null;
+          starts_at: string;
+          ends_at: string;
+          status: "scheduled" | "completed" | "cancelled";
+          purpose: string | null;
+          meeting_note: string | null;
+          cancelled_reason: string | null;
+        }>;
+      };
       education_cancel_timetable_entry: {
         Args: {
           p_org_id: string;

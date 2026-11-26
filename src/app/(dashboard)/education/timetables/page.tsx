@@ -183,6 +183,7 @@ export default async function EducationTimetablesPage({
         <div className="mt-2 flex flex-wrap gap-4 text-sm font-semibold">
           <Link href={getProductAppPath("think-education", "/academics/curriculum")} className="text-blue-700 hover:text-blue-900">Manage class curriculum</Link>
           <Link href={getProductAppPath("think-education", "/subjects")} className="text-slate-600 hover:text-slate-900">Subject catalog</Link>
+          <Link href={getProductAppPath("think-education", "/timetables/lesson-plans")} className="text-emerald-700 hover:text-emerald-900">Lesson plans & logbook</Link>
         </div>
       </div>
       {canCreate && selectedCampusClasses.length > 0 && <a href="#add-lesson" className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">
