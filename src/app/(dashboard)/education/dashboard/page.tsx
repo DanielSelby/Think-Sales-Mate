@@ -181,24 +181,45 @@ export default async function ThinkEducationDashboardPage({
   const feeDueByCampusPromise = (async () => {
     const dueByCampus = new Map(branchIds.map((branchId) => [branchId, 0]));
     if (!canReadFeeCharges || !canReadFeePayments || !branchIds.length) return dueByCampus;
-    for (let offset = 0; ; offset += 1000) {
+    const chargePageSize = 1000;
+    for (let chargeOffset = 0; ; chargeOffset += chargePageSize) {
       const { data, error } = await supabase.from("education_fee_charges")
-        .select("id, branch_id, amount, education_fee_payments(amount)")
+        .select("id, branch_id, amount")
         .eq("org_id", context.orgId).in("branch_id", branchIds)
         .eq("status", "open").gte("due_on", from).lte("due_on", to)
-        .order("id").range(offset, offset + 999);
+        .order("id").range(chargeOffset, chargeOffset + chargePageSize - 1);
       if (error) throw new Error(`Could not load fees due by campus: ${error.message}`);
-      const page = data ?? [];
-      if (offset >= 100_000 && page.length > 0) {
+      const charges = data ?? [];
+      if (chargeOffset >= 100_000 && charges.length > 0) {
         throw new Error("The number of fee charges due in this period exceeds the dashboard processing limit.");
       }
-      for (const charge of page) {
-        const payments = charge.education_fee_payments ?? [];
-        const paid = payments.reduce((total, payment) => total + Number(payment.amount), 0);
+
+      const paidByCharge = new Map<string, number>();
+      for (let chargeBatchOffset = 0; chargeBatchOffset < charges.length; chargeBatchOffset += 500) {
+        const chargeIds = charges.slice(chargeBatchOffset, chargeBatchOffset + 500).map((charge) => charge.id);
+        for (let paymentOffset = 0; ; paymentOffset += 1000) {
+          const { data: payments, error: paymentsError } = await supabase.from("education_fee_payments")
+            .select("id, charge_id, amount")
+            .eq("org_id", context.orgId).in("charge_id", chargeIds)
+            .order("id").range(paymentOffset, paymentOffset + 999);
+          if (paymentsError) throw new Error(`Could not load payments for fees due by campus: ${paymentsError.message}`);
+          const paymentPage = payments ?? [];
+          if (paymentOffset >= 100_000 && paymentPage.length > 0) {
+            throw new Error("The number of fee payments exceeds the dashboard processing limit.");
+          }
+          for (const payment of paymentPage) {
+            paidByCharge.set(payment.charge_id, (paidByCharge.get(payment.charge_id) ?? 0) + Number(payment.amount));
+          }
+          if (paymentPage.length < 1000) break;
+        }
+      }
+
+      for (const charge of charges) {
+        const paid = paidByCharge.get(charge.id) ?? 0;
         const outstanding = Math.max(0, Number(charge.amount) - paid);
         dueByCampus.set(charge.branch_id, (dueByCampus.get(charge.branch_id) ?? 0) + outstanding);
       }
-      if (page.length < 1000) return dueByCampus;
+      if (charges.length < chargePageSize) return dueByCampus;
     }
   })();
   const classCapacityPromise = canReadAcademics && branchIds.length
