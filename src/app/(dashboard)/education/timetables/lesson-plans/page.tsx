@@ -253,7 +253,7 @@ export default async function EducationLessonPlansPage({
                   <button type="submit" className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800">Submit delivered log</button>
                 </div>}
               </form>}
-          </article>;
+          </article>
         })}
         </div>}
     </section>

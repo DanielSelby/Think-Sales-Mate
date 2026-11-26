@@ -294,7 +294,7 @@ export function StudentProfileView(props: Props) {
             {visibleResults.slice(0, 5).map((result) => <li key={result.id} className="flex items-center justify-between gap-3 py-3 text-sm">
               <span><span className="block font-medium text-slate-900">{result.subject_name}</span><span className="text-xs text-slate-500">{examinationById.get(result.examination_id)?.name ?? "Examination"}</span></span>
               <span className="text-right font-semibold text-slate-800">{result.score}/{result.maximum_score}{result.grade ? ` · ${result.grade}` : ""}</span>
-              </li>;
+              </li>
             })}
           </ul> : <EmptyState>{permissions.canViewResults ? "No published results are available." : "You do not have permission to view results."}</EmptyState>}
         </section>
