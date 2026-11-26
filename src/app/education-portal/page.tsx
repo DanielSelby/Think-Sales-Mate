@@ -139,6 +139,16 @@ export default async function EducationGuardianPortalPage({
     sms_enabled: boolean;
   }> = [];
   let guardianFeePaymentData: z.infer<typeof guardianFeePaymentDataSchema> = [];
+  let guardianReportCards: Array<{
+    student_id: string;
+    term_id: string;
+    term_name: string;
+    starts_on: string;
+    ends_on: string;
+    teacher_comment: string | null;
+    principal_comment: string | null;
+    published_at: string | null;
+  }> = [];
   const currencyConfigByOrganization = new Map<string, ReturnType<typeof getCurrencyConfigFromSettings>>();
   if (user) {
     const { data, error } = await supabase.rpc("education_get_guardian_portal");
@@ -155,6 +165,23 @@ export default async function EducationGuardianPortalPage({
     const guardianStudentIds = portal.flatMap((organization) =>
       organization.children.map((student) => student.id)
     );
+    for (let offset = 0; offset < guardianStudentIds.length; offset += 100) {
+      for (const studentId of guardianStudentIds.slice(offset, offset + 100)) {
+        const organizationId = portal.find((organization) =>
+          organization.children.some((student) => student.id === studentId)
+        )?.organizationId;
+        if (!organizationId) continue;
+        const { data: reportCards, error: reportCardError } = await supabase.rpc(
+          "education_get_published_guardian_report_cards",
+          { p_org_id: organizationId, p_student_id: studentId }
+        );
+        if (reportCardError) throw new Error(`Could not load published report cards for linked children: ${reportCardError.message}`);
+        guardianReportCards.push(...(reportCards ?? []).map((report) => ({
+          student_id: studentId,
+          ...report,
+        })));
+      }
+    }
     const { data: contactRows, error: contactError } = await supabase.rpc(
       "education_get_guardian_contact_profiles"
     );
@@ -417,6 +444,10 @@ export default async function EducationGuardianPortalPage({
         && announcement.studentName === selectedChild.announcementName
       )
     : announcements;
+  const guardianReportCardHref = (organizationId: string, studentId: string) => {
+    const query = new URLSearchParams({ org: organizationId, student: studentId });
+    return `/education-portal/report-card?${query.toString()}`;
+  };
   const formatGuardianMoney = (organizationId: string, amount: number) => {
     const config = currencyConfigByOrganization.get(organizationId);
     if (!config) throw new Error("Currency display settings are unavailable for a linked school.");
@@ -718,13 +749,32 @@ export default async function EducationGuardianPortalPage({
                 </section>
 
                 <section id={studentIndex === 0 ? "performance" : undefined} className="scroll-mt-6">
-                  <h4 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-blue-700" /> Published results</h4>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-blue-700" /> Published results</h4>
+                    {student.results.length > 0 && <Link
+                      href={guardianReportCardHref(organization.organizationId, student.id)}
+                      className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+                    >View / print report card</Link>}
+                  </div>
                   {student.results.length ? <ul className="mt-2 divide-y divide-slate-100">
                     {student.results.map((result, index) => <li key={`${result.examination}-${result.subject}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                       <span><span className="font-medium">{result.subject}</span><span className="block text-xs text-slate-500">{result.examination}</span></span>
                       <span className="shrink-0 text-right font-medium">{result.score}/{result.maximumScore}{result.grade ? ` · ${result.grade}` : ""}</span>
                     </li>)}
                   </ul> : <p className="mt-2 text-sm text-slate-500">No results have been published.</p>}
+                  {guardianReportCards.filter((report) => report.student_id === student.id).length > 0 && <div className="mt-4 space-y-3">
+                    {guardianReportCards.filter((report) => report.student_id === student.id).map((report) => <article key={report.term_id} className="rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+                      <h5 className="font-semibold text-blue-950">{report.term_name}</h5>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {new Date(`${report.starts_on}T00:00:00`).toLocaleDateString()} – {new Date(`${report.ends_on}T00:00:00`).toLocaleDateString()}
+                      </p>
+                      {report.teacher_comment && <p className="mt-2 text-sm"><strong>Class teacher:</strong> {report.teacher_comment}</p>}
+                      {report.principal_comment && <p className="mt-2 text-sm"><strong>Principal / head teacher:</strong> {report.principal_comment}</p>}
+                      <p className="mt-2 text-xs font-medium text-emerald-700">
+                        Published{report.published_at ? ` ${new Date(report.published_at).toLocaleDateString()}` : ""}
+                      </p>
+                    </article>)}
+                  </div>}
                 </section>
 
                 <section id={studentIndex === 0 ? "fees" : undefined} className="scroll-mt-6">

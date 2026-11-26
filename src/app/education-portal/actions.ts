@@ -90,3 +90,36 @@ export async function claimEducationGuardianPortalAccount(formData: FormData) {
   revalidatePath(PORTAL_PATH);
   redirect(claimPath("linked"));
 }
+
+export async function acknowledgeEducationReportCard(formData: FormData) {
+  const orgId = String(formData.get("org_id") ?? "");
+  const reportCardId = String(formData.get("report_card_id") ?? "");
+  const comment = String(formData.get("comment") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(orgId) || !uuidPattern.test(reportCardId) || comment.length > 2000) {
+    redirect(`${PORTAL_PATH}?acknowledgement=invalid`);
+  }
+
+  const portalPath = getEducationPortalScopedPath(PORTAL_PATH, orgId);
+  const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw new Error(`Could not verify the signed-in account: ${userError.message}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(portalPath)}`);
+
+  const { error } = await supabase.rpc("education_acknowledge_report_card", {
+    p_org_id: orgId,
+    p_report_card_id: reportCardId,
+    p_comment: comment || null,
+  });
+  if (error) {
+    if (error.code === "42501") redirect(`${portalPath}?acknowledgement=denied`);
+    if (error.code === "P0002") redirect(`${portalPath}?acknowledgement=not-found`);
+    if (error.code === "22023") redirect(`${portalPath}?acknowledgement=invalid`);
+    console.error("Could not acknowledge the Think Education report card:", error.message);
+    redirect(`${portalPath}?acknowledgement=error`);
+  }
+
+  revalidatePath(PORTAL_PATH);
+  revalidatePath("/education-portal/report-card");
+  redirect(`${portalPath}?acknowledgement=saved`);
+}

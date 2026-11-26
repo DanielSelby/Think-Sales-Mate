@@ -8172,6 +8172,133 @@ export interface Database {
           active_count: number;
         }>;
       };
+      education_student_directory_page: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_search: string;
+          p_gender: string;
+          p_class_id: string | null;
+          p_status: string;
+          p_page_size: number;
+          p_offset: number;
+        };
+        Returns: Array<{
+          student_rows: Json;
+          status_counts: Json;
+          total_count: number;
+        }>;
+      };
+      education_get_attendance_report_page: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_from: string;
+          p_to: string;
+          p_search: string;
+          p_class_id: string | null;
+          p_status: string;
+          p_page_size: number;
+          p_offset: number;
+        };
+        Returns: Array<{
+          attendance_rows: Json;
+          status_counts: Json;
+          total_count: number;
+        }>;
+      };
+      education_get_report_cards: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_term_id: string;
+        };
+        Returns: Array<{
+          report_card_id: string;
+          student_id: string;
+          branch_id: string;
+          status: "draft" | "published";
+          teacher_comment: string | null;
+          principal_comment: string | null;
+          published_at: string | null;
+        }>;
+      };
+      education_acknowledge_report_card: {
+        Args: {
+          p_org_id: string;
+          p_report_card_id: string;
+          p_comment?: string | null;
+        };
+        Returns: boolean;
+      };
+      education_get_report_card_acknowledgements: {
+        Args: {
+          p_org_id: string;
+          p_branch_ids: string[];
+          p_term_id: string;
+        };
+        Returns: Array<{
+          report_card_id: string;
+          student_id: string;
+          guardian_id: string;
+          guardian_name: string;
+          comment: string | null;
+          acknowledged_at: string;
+        }>;
+      };
+      education_get_published_student_report_cards: {
+        Args: {
+          p_org_id: string;
+          p_student_id: string;
+        };
+        Returns: Array<{
+          term_id: string;
+          term_name: string;
+          starts_on: string;
+          ends_on: string;
+          teacher_comment: string | null;
+          principal_comment: string | null;
+          published_at: string | null;
+        }>;
+      };
+      education_get_published_guardian_report_cards: {
+        Args: {
+          p_org_id: string;
+          p_student_id: string;
+        };
+        Returns: Array<{
+          report_card_id: string;
+          term_id: string;
+          term_name: string;
+          starts_on: string;
+          ends_on: string;
+          teacher_comment: string | null;
+          principal_comment: string | null;
+          published_at: string | null;
+          acknowledged_at: string | null;
+          acknowledgement_comment: string | null;
+        }>;
+      };
+      education_save_report_card: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_term_id: string;
+          p_student_id: string;
+          p_teacher_comment: string | null;
+          p_principal_comment: string | null;
+        };
+        Returns: string;
+      };
+      education_publish_report_card: {
+        Args: {
+          p_org_id: string;
+          p_branch_id: string;
+          p_term_id: string;
+          p_student_id: string;
+        };
+        Returns: string;
+      };
       education_set_academic_year_status: {
         Args: {
           p_org_id: string;

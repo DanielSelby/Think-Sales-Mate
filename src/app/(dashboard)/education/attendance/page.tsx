@@ -247,6 +247,7 @@ export default async function EducationAttendancePage({
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Student Attendance</h1>
       <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Record or correct daily attendance for active students in your authorized campuses.</p>
       <Link href={getProductAppPath("think-education", "/attendance/lessons")} className="mt-3 inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100">Switch to lesson attendance</Link>
+      <Link href={getProductAppPath("think-education", "/attendance/reports")} className="ml-2 mt-3 inline-flex rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100">Attendance report</Link>
     </header>
 
     {params.saved === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Attendance saved for {attendanceDate}.</p>}

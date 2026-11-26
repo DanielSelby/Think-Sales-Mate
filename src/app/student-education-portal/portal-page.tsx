@@ -26,6 +26,11 @@ import { getOptionalAuthUser } from "@/lib/supabase/optional-user";
 import { EducationPortalShell } from "@/components/education/education-portal-shell";
 import { EducationAssignmentAttachmentLinks } from "@/components/education/assignment-attachment-links";
 import { StudentAiAssistant } from "./student-ai-assistant";
+import { StudentReportCardPrintButton } from "./student-report-card-print-button";
+import {
+  getEducationInstitutionDisplayName,
+  getEducationInstitutionLogoUrl,
+} from "@/lib/education/institution-branding";
 import { claimEducationStudentPortalAccount, signInToEducationStudentPortal, submitEducationAssignment } from "./actions";
 
 const ASSIGNMENTS_PAGE_SIZE = 20;
@@ -86,6 +91,21 @@ export async function StudentEducationPortalPage({
     email_enabled: boolean;
     sms_enabled: boolean;
   }> = [];
+  let publishedReportCards: Array<{
+    student_id: string;
+    term_id: string;
+    term_name: string;
+    starts_on: string;
+    ends_on: string;
+    teacher_comment: string | null;
+    principal_comment: string | null;
+    published_at: string | null;
+  }> = [];
+  const studentInstitutionBranding = new Map<string, {
+    name: string;
+    code: string | null;
+    logoUrl: string | null;
+  }>();
   if (user) {
     const { data, error } = await supabase.rpc("education_get_student_portal");
     if (error) throw new Error(`Could not load the student portal: ${error.message}`);
@@ -100,6 +120,34 @@ export async function StudentEducationPortalPage({
 
     const studentIds = portal.map((student) => student.id);
     const studentOrgIds = [...new Set(portal.map((student) => student.organizationId))];
+    for (const student of portal) {
+      if (!studentInstitutionBranding.has(student.organizationId)) {
+        const [{ data: institution }, { data: companyProfile }] = await Promise.all([
+          supabase.from("education_institution_settings")
+            .select("institution_name, institution_code, institution_logo_url")
+            .eq("org_id", student.organizationId)
+            .maybeSingle(),
+          supabase.from("company_profile")
+            .select("logo_url")
+            .eq("org_id", student.organizationId)
+            .maybeSingle(),
+        ]);
+        studentInstitutionBranding.set(student.organizationId, {
+          name: getEducationInstitutionDisplayName(institution?.institution_name, student.organizationName),
+          code: institution?.institution_code ?? null,
+          logoUrl: getEducationInstitutionLogoUrl(institution?.institution_logo_url, companyProfile?.logo_url),
+        });
+      }
+      const { data, error } = await supabase.rpc("education_get_published_student_report_cards", {
+        p_org_id: student.organizationId,
+        p_student_id: student.id,
+      });
+      if (error) throw new Error(`Could not load published report cards: ${error.message}`);
+      publishedReportCards.push(...(data ?? []).map((report) => ({
+        student_id: student.id,
+        ...report,
+      })));
+    }
     if (studentIds.length) {
       const { data: assignmentRows, error: assignmentError, count: assignmentCount } = await supabase
         .from("education_assignments")
@@ -248,6 +296,14 @@ export async function StudentEducationPortalPage({
     userEmail={user?.email}
     organizationId={requestedOrganizationId}
   >
+      {showSection("results") && <style>{`
+        @media print {
+          @page { margin: 12mm; }
+          body { background: white !important; }
+          aside, header, nav, .student-report-card-controls { display: none !important; }
+          main { max-width: none !important; padding: 0 !important; }
+        }
+      `}</style>}
 
       {message && <p role={params.assignment === "error" || params.assignment === "attachment-error" || params.assignment === "invalid" ? "alert" : "status"} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">{message}</p>}
       {params.preference === "saved" && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Notification preference saved.</p>}
@@ -502,13 +558,55 @@ export async function StudentEducationPortalPage({
               </ul> : <p className="mt-2 text-sm text-slate-500">No active weekly timetable is available.</p>}
             </section>}
             {showSection("results") && <section>
-              <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-blue-700" /> Published results</h3>
+              {student.results.length > 0 && (() => {
+                const totalScore = student.results.reduce((total, result) => total + result.score, 0);
+                const totalMaximum = student.results.reduce((total, result) => total + result.maximumScore, 0);
+                const percentage = totalMaximum > 0 ? (totalScore / totalMaximum) * 100 : null;
+                return <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Overall weighted percentage</p>
+                  <p className="mt-1 text-xl font-bold text-slate-950">{percentage === null ? "—" : `${percentage.toFixed(1)}%`}</p>
+                  <p className="mt-1 text-xs text-slate-500">Calculated across published result entries.</p>
+                </div>;
+              })()}
+              {(() => {
+                const branding = studentInstitutionBranding.get(student.organizationId);
+                if (!branding) return null;
+                return <header className="mb-3 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-3">
+                    {branding.logoUrl
+                      ? <img src={branding.logoUrl} alt="" className="h-12 w-12 rounded-lg border border-slate-200 object-contain p-1" />
+                      : null}
+                    <div>
+                      <p className="font-bold text-slate-950">{branding.name}</p>
+                      {branding.code && <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{branding.code}</p>}
+                    </div>
+                  </div>
+                  <p className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Official report card</p>
+                </header>;
+              })()}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-blue-700" /> Published results</h3>
+                {student.results.length > 0 && <div className="student-report-card-controls"><StudentReportCardPrintButton /></div>}
+              </div>
               {student.results.length ? <ul className="mt-2 divide-y divide-slate-100">
                 {student.results.map((result, index) => <li key={`${result.examination}-${result.subject}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <span><span className="font-medium">{result.subject}</span><span className="block text-xs text-slate-500">{result.examination}</span></span>
                   <span className="shrink-0 text-right font-medium">{result.score}/{result.maximumScore}{result.grade ? ` · ${result.grade}` : ""}</span>
                 </li>)}
               </ul> : <p className="mt-2 text-sm text-slate-500">No results have been published.</p>}
+              {publishedReportCards.filter((report) => report.student_id === student.id).length > 0 && <div className="mt-4 space-y-3">
+                {publishedReportCards.filter((report) => report.student_id === student.id).map((report) => <article key={report.term_id} className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+                  <h4 className="font-semibold text-indigo-950">{report.term_name}</h4>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {new Date(`${report.starts_on}T00:00:00`).toLocaleDateString()} – {new Date(`${report.ends_on}T00:00:00`).toLocaleDateString()}
+                  </p>
+                  {report.teacher_comment && <p className="mt-2 text-sm"><strong>Class teacher:</strong> {report.teacher_comment}</p>}
+                  {report.principal_comment && <p className="mt-2 text-sm"><strong>Principal / head teacher:</strong> {report.principal_comment}</p>}
+                  <p className="mt-2 text-xs font-medium text-emerald-700">
+                    Published{report.published_at ? ` ${new Date(report.published_at).toLocaleDateString()}` : ""}
+                  </p>
+                </article>)}
+              </div>}
             </section>}
           </div>
         </article>)}

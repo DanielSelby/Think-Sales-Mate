@@ -281,6 +281,7 @@ export default async function EducationResultsPage({
       <p className="mt-1 text-sm text-slate-600">Enter scores, submit grades for approval, and publish finalized results.</p>
       <Link href={getProductAppPath("think-education", "/subjects")} className="mt-2 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Manage subject catalog</Link>
       <Link href={getProductAppPath("think-education", "/grade-bands")} className="ml-4 mt-2 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Manage organization grade bands</Link>
+      <Link href={getProductAppPath("think-education", "/results/report-cards")} className="ml-4 mt-2 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Generate term report cards</Link>
     </header>
 
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Result added.</p>}

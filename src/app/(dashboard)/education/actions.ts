@@ -5702,3 +5702,151 @@ export async function promoteEducationStudent(formData: FormData) {
   revalidatePath("/education/academics");
   redirect(`${getProductAppPath("think-education", "/promotion")}?updated=${progressionAction}`);
 }
+
+export async function saveEducationReportCard(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  if (!await canTabPermission("education_results", "results", "gradebook", "edit")) {
+    throw new Error("You do not have permission to edit Think Education report cards.");
+  }
+
+  const branchId = String(formData.get("branch_id") ?? "");
+  const termId = String(formData.get("term_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const teacherComment = String(formData.get("teacher_comment") ?? "").trim();
+  const principalComment = String(formData.get("principal_comment") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(branchId) || !uuidPattern.test(termId) || !uuidPattern.test(studentId)
+    || teacherComment.length > 2000 || principalComment.length > 2000) {
+    redirect(`${getProductAppPath("think-education", "/results/report-cards")}?error=invalid`);
+  }
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === branchId)) {
+    throw new Error("You cannot edit report cards outside your assigned campuses.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_save_report_card", {
+    p_org_id: context.orgId,
+    p_branch_id: branchId,
+    p_term_id: termId,
+    p_student_id: studentId,
+    p_teacher_comment: teacherComment || null,
+    p_principal_comment: principalComment || null,
+  });
+  if (error) {
+    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/results/report-cards")}?error=no-published-results`);
+    if (error.code === "42501") throw new Error("You are not authorized to edit this report card.");
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/results/report-cards")}?error=student`);
+    console.error("Could not save Think Education report card:", error.message);
+    redirect(`${getProductAppPath("think-education", "/results/report-cards")}?error=save`);
+  }
+
+  revalidatePath("/education/results/report-cards");
+  revalidatePath("/education/results");
+  revalidatePath("/education-portal");
+  redirect(`${getProductAppPath("think-education", "/results/report-cards")}?term=${encodeURIComponent(termId)}&branch=${encodeURIComponent(branchId)}&saved=1`);
+}
+
+export async function publishEducationReportCard(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const [canApprove, canPublish] = await Promise.all([
+    canTabPermission("education_results", "results", "gradebook", "approve"),
+    canTabPermission("education_results", "results", "gradebook", "publish"),
+  ]);
+  if (!canApprove || !canPublish) {
+    throw new Error("Approval and publish permissions are required to publish report cards.");
+  }
+
+  const branchId = String(formData.get("branch_id") ?? "");
+  const termId = String(formData.get("term_id") ?? "");
+  const studentId = String(formData.get("student_id") ?? "");
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(branchId) || !uuidPattern.test(termId) || !uuidPattern.test(studentId)) {
+    redirect(`${getProductAppPath("think-education", "/results/report-cards")}?error=invalid`);
+  }
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === branchId)) {
+    throw new Error("You cannot publish report cards outside your assigned campuses.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("education_publish_report_card", {
+    p_org_id: context.orgId,
+    p_branch_id: branchId,
+    p_term_id: termId,
+    p_student_id: studentId,
+  });
+  if (error) {
+    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/results/report-cards")}?error=not-saved`);
+    if (error.code === "42501") throw new Error("Approval and publish permission are required.");
+    console.error("Could not publish Think Education report card:", error.message);
+    redirect(`${getProductAppPath("think-education", "/results/report-cards")}?error=publish`);
+  }
+
+  revalidatePath("/education/results/report-cards");
+  revalidatePath("/education/results");
+  revalidatePath("/education-portal");
+  redirect(`${getProductAppPath("think-education", "/results/report-cards")}?term=${encodeURIComponent(termId)}&branch=${encodeURIComponent(branchId)}&published=1`);
+}
+
+export async function publishEducationReportCardsBulk(formData: FormData) {
+  const context = await getCurrentOrgContext();
+  if (!context) redirect("/login");
+  const [canApprove, canPublish] = await Promise.all([
+    canTabPermission("education_results", "results", "gradebook", "approve"),
+    canTabPermission("education_results", "results", "gradebook", "publish"),
+  ]);
+  if (!canApprove || !canPublish) {
+    throw new Error("Approval and publish permissions are required to publish report cards.");
+  }
+
+  const branchId = String(formData.get("branch_id") ?? "");
+  const termId = String(formData.get("term_id") ?? "");
+  const postedStudentIds = formData.getAll("student_ids");
+  const studentIds = postedStudentIds
+    .map((value) => typeof value === "string" ? value : "")
+    .filter((value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(branchId) || !uuidPattern.test(termId)
+    || studentIds.length === 0 || studentIds.length > 500
+    || new Set(studentIds).size !== studentIds.length) {
+    redirect(`${getProductAppPath("think-education", "/results/report-cards")}?error=invalid`);
+  }
+
+  const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
+  if (!campuses.some((campus) => campus.id === branchId)) {
+    throw new Error("You cannot publish report cards outside your assigned campuses.");
+  }
+
+  const supabase = await createClient();
+  let publishedCount = 0;
+  let skippedCount = 0;
+  for (const studentId of studentIds) {
+    const { error } = await supabase.rpc("education_publish_report_card", {
+      p_org_id: context.orgId,
+      p_branch_id: branchId,
+      p_term_id: termId,
+      p_student_id: studentId,
+    });
+    if (error?.code === "P0002") {
+      skippedCount += 1;
+      continue;
+    }
+    if (error) {
+      if (error.code === "42501") throw new Error("Approval and publish permission are required.");
+      console.error("Could not publish a bulk Think Education report card:", error.message);
+      redirect(`${getProductAppPath("think-education", "/results/report-cards")}?term=${encodeURIComponent(termId)}&branch=${encodeURIComponent(branchId)}&error=publish`);
+    }
+    publishedCount += 1;
+  }
+
+  revalidatePath("/education/results/report-cards");
+  revalidatePath("/education/results");
+  revalidatePath("/education-portal");
+  revalidatePath("/student-education-portal");
+  redirect(`${getProductAppPath("think-education", "/results/report-cards")}?term=${encodeURIComponent(termId)}&branch=${encodeURIComponent(branchId)}&bulkPublished=${publishedCount}&bulkSkipped=${skippedCount}`);
+}

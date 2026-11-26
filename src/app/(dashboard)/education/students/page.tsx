@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, GraduationCap, Search, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Eye, FileText, GraduationCap, MoreHorizontal, Pencil, Search, Users, Wallet } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
@@ -9,6 +9,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { formatCurrencyAmount } from "@/lib/currency";
+import {
+  EDUCATION_STUDENT_STATUSES,
+  parseEducationStudentDirectoryResult,
+  type EducationStudentDirectoryRow,
+  type EducationStudentStatus,
+} from "@/lib/education/student-directory";
 import { createEducationStudent } from "../actions";
 import { EducationRecordModal } from "@/components/education/education-record-modal";
 import { EducationImportModal } from "@/components/education/education-import-modal";
@@ -17,7 +23,6 @@ import { StudentFilters } from "./student-filters";
 const PAGE_SIZE_OPTIONS = ["10", "50", "100", "all"] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 const ALL_STUDENTS_LIMIT = 250;
-const STUDENT_STATUSES = ["active", "on_hold", "graduated", "transferred", "withdrawn", "archived"] as const;
 
 export default async function EducationStudentsPage({
   searchParams,
@@ -32,10 +37,15 @@ export default async function EducationStudentsPage({
 
   const params = await searchParams;
   const search = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
-  const status = STUDENT_STATUSES.find((item) => item === params.status) ?? "active";
+  const requestedStatus = typeof params.status === "string" ? params.status : "";
+  const status = requestedStatus === "all"
+    ? "all"
+    : EDUCATION_STUDENT_STATUSES.find((item) => item === requestedStatus) ?? "active";
+  const gender = typeof params.gender === "string" ? params.gender.trim().slice(0, 50) : "";
   const requestedPageSize = typeof params.pageSize === "string" ? params.pageSize : "";
   const pageSize = PAGE_SIZE_OPTIONS.find((item) => item === requestedPageSize) ?? "10";
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
+  const requestedClass = typeof params.class === "string" ? params.class : "";
   const requestedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10) || 1;
   const currentPage = pageSize === "all" ? 1 : Math.min(1_000_000, Math.max(1, requestedPage));
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -54,67 +64,39 @@ export default async function EducationStudentsPage({
     accessPermissions: context.accessPermissions,
   });
   const supabase = await createClient();
+  const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
+  let classes: Array<{ id: string; name: string; branch_id: string }> = [];
+  if (branchIds.length) {
+    const { data: classRows, error: classesError } = await supabase.from("education_classes")
+      .select("id, name, branch_id")
+      .eq("org_id", context.orgId)
+      .in("branch_id", branchIds)
+      .order("name");
+    if (classesError) throw new Error(`Could not load student directory classes: ${classesError.message}`);
+    classes = classRows ?? [];
+  }
+  const selectedClass = classes.some((classroom) => classroom.id === requestedClass) ? requestedClass : "";
 
   let totalCount = 0;
-  let students: Array<{
-    id: string;
-    student_number: string;
-    first_name: string;
-    last_name: string;
-    other_names: string | null;
-    branch_id: string;
-    status: string;
-    created_at: string;
-    photo_path: string | null;
-  }> = [];
+  let students: EducationStudentDirectoryRow[] = [];
+  let statusCounts = Object.fromEntries(EDUCATION_STUDENT_STATUSES.map((item) => [item, 0])) as Record<EducationStudentStatus, number>;
   if (branchIds.length) {
-    let countQuery = supabase.from("education_students").select("id", { count: "exact", head: true })
-      .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", status);
-    const buildStudentQuery = () => {
-      let studentQuery = supabase.from("education_students")
-        .select("id, student_number, first_name, last_name, other_names, branch_id, status, created_at, photo_path")
-        .eq("org_id", context.orgId).in("branch_id", branchIds).eq("status", status)
-        .order("last_name").order("first_name").order("id");
-      if (search) {
-        const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
-        if (safeSearch) {
-          const pattern = `%${safeSearch}%`;
-          const filter = `student_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},other_names.ilike.${pattern}`;
-          studentQuery = studentQuery.or(filter);
-        }
-      }
-      return studentQuery;
-    };
-    if (search) {
-      const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
-      if (safeSearch) {
-        const pattern = `%${safeSearch}%`;
-        countQuery = countQuery.or(
-          `student_number.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},other_names.ilike.${pattern}`
-        );
-      }
-    }
-
-    if (pageSize === "all") {
-      const [{ count, error: countError }, { data, error: studentsError }] = await Promise.all([
-        countQuery,
-        buildStudentQuery().range(0, ALL_STUDENTS_LIMIT - 1),
-      ]);
-      if (countError) throw new Error(`Could not count Think Education students: ${countError.message}`);
-      if (studentsError) throw new Error(`Could not load Think Education students: ${studentsError.message}`);
-      totalCount = count ?? 0;
-      students = data ?? [];
-    } else {
-      const numericPageSize = Number(pageSize);
-      const [{ count, error: countError }, { data, error: studentsError }] = await Promise.all([
-        countQuery,
-        buildStudentQuery().range((currentPage - 1) * numericPageSize, currentPage * numericPageSize - 1),
-      ]);
-      if (countError) throw new Error(`Could not count Think Education students: ${countError.message}`);
-      if (studentsError) throw new Error(`Could not load Think Education students: ${studentsError.message}`);
-      totalCount = count ?? 0;
-      students = data ?? [];
-    }
+    const numericPageSize = pageSize === "all" ? ALL_STUDENTS_LIMIT : Number(pageSize);
+    const { data, error } = await supabase.rpc("education_student_directory_page", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_search: safeSearch,
+      p_gender: gender,
+      p_class_id: selectedClass || null,
+      p_status: status,
+      p_page_size: numericPageSize,
+      p_offset: pageSize === "all" ? 0 : (currentPage - 1) * numericPageSize,
+    });
+    if (error) throw new Error(`Could not load Think Education student directory: ${error.message}`);
+    const directory = parseEducationStudentDirectoryResult(data?.[0]);
+    totalCount = directory.totalCount;
+    students = directory.students;
+    statusCounts = directory.statusCounts;
   }
 
   const [canViewFinanceCharges, canViewFinancePayments] = await Promise.all([
@@ -122,6 +104,12 @@ export default async function EducationStudentsPage({
     canTabPermission("education_finance", "finance", "payments", "view"),
   ]);
   const canViewBalances = canViewFinanceCharges && canViewFinancePayments;
+  const [canViewAttendance, canViewResults, canViewGuardians, canEditStudent] = await Promise.all([
+    canTabPermission("education_attendance", "attendance", "register", "view"),
+    canTabPermission("education_results", "results", "gradebook", "view"),
+    canTabPermission("education_guardians", "guardians", "directory", "view"),
+    canTabPermission("education_students", "students", "list", "edit"),
+  ]);
   const currencyConfig = canViewBalances ? await getOrganizationCurrencyConfig() : null;
   const studentPhotoUrlById = new Map<string, string>();
   const studentIdByPhotoPath = new Map(students.flatMap((student) =>
@@ -146,42 +134,7 @@ export default async function EducationStudentsPage({
     }
   }
 
-  const classByEnrollmentStudent = new Map<string, string[]>();
   const studentIds = students.map((student) => student.id);
-  const enrollmentRows: Array<{ student_id: string; class_id: string }> = [];
-  for (let batchOffset = 0; batchOffset < studentIds.length; batchOffset += 100) {
-    const batch = studentIds.slice(batchOffset, batchOffset + 100);
-    const { data: enrollments, error: enrollmentsError } = await supabase.from("education_student_enrollments")
-      .select("student_id, class_id")
-      .eq("org_id", context.orgId)
-      .in("branch_id", branchIds)
-      .in("student_id", batch)
-      .eq("status", "active")
-      .order("enrolled_on", { ascending: false });
-    if (enrollmentsError) throw new Error(`Could not load student class assignments: ${enrollmentsError.message}`);
-    enrollmentRows.push(...(enrollments ?? []));
-  }
-  const classIds = [...new Set(enrollmentRows.map((enrollment) => enrollment.class_id))];
-  const classNameById = new Map<string, string>();
-  for (let offset = 0; offset < classIds.length; offset += 100) {
-    const { data: classRows, error: classError } = await supabase.from("education_classes")
-      .select("id, name")
-      .eq("org_id", context.orgId)
-      .in("branch_id", branchIds)
-      .in("id", classIds.slice(offset, offset + 100));
-    if (classError) throw new Error(`Could not load student class names: ${classError.message}`);
-    for (const classroom of classRows ?? []) classNameById.set(classroom.id, classroom.name);
-  }
-  for (const enrollment of enrollmentRows) {
-    const className = classNameById.get(enrollment.class_id);
-    if (className) {
-      classByEnrollmentStudent.set(enrollment.student_id, [
-        ...(classByEnrollmentStudent.get(enrollment.student_id) ?? []),
-        className,
-      ]);
-    }
-  }
-
   const outstandingByStudent = new Map<string, number>();
   if (canViewBalances && studentIds.length) {
     const { data: balances, error: balancesError } = await supabase.rpc(
@@ -203,15 +156,20 @@ export default async function EducationStudentsPage({
   const branchNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const exportParams = new URLSearchParams();
   if (search) exportParams.set("search", search);
+  if (gender) exportParams.set("gender", gender);
   if (status !== "active") exportParams.set("status", status);
   if (selectedBranch) exportParams.set("branch", selectedBranch);
+  if (selectedClass) exportParams.set("class", selectedClass);
   const exportQuery = exportParams.toString();
   const csvHref = `${getProductAppPath("think-education", "/students/export")}${exportQuery ? `?${exportQuery}` : ""}`;
+  const printHref = `${getProductAppPath("think-education", "/students/print")}${exportQuery ? `?${exportQuery}` : ""}`;
   const queryForPage = (page: number) => {
     const next = new URLSearchParams();
     if (search) next.set("search", search);
+    if (gender) next.set("gender", gender);
     if (status !== "active") next.set("status", status);
     if (selectedBranch) next.set("branch", selectedBranch);
+    if (selectedClass) next.set("class", selectedClass);
     if (pageSize !== "10") next.set("pageSize", pageSize);
     next.set("page", String(page));
     return `${getProductAppPath("think-education", "/students")}?${next.toString()}`;
@@ -285,15 +243,23 @@ export default async function EducationStudentsPage({
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <StudentFilters
-        key={`${search}:${selectedBranch}:${status}:${pageSize}`}
+        key={`${search}:${gender}:${selectedBranch}:${selectedClass}:${status}:${pageSize}`}
         action={getProductAppPath("think-education", "/students")}
         search={search}
+        gender={gender}
         branch={selectedBranch}
+        classId={selectedClass}
+        classes={classes.map((classroom) => ({
+          id: classroom.id,
+          name: `${classroom.name} - ${campuses.find((campus) => campus.id === classroom.branch_id)?.name ?? "Campus"}`,
+        }))}
         status={status}
+        statusCounts={statusCounts}
         pageSize={pageSize}
         campuses={campuses}
-        canExport={canExport && students.length > 0}
+        canExport={canExport && totalCount > 0}
         csvHref={csvHref}
+        printHref={printHref}
         exportFilename={`education-students-${new Date().toISOString().slice(0, 10)}.csv`}
       />
 
@@ -312,7 +278,7 @@ export default async function EducationStudentsPage({
       </div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            <tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Full name</th><th className="px-4 py-3">Class</th>{canViewBalances && <th className="px-4 py-3">Outstanding balance</th>}<th className="px-4 py-3">Campus</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Enrolled</th></tr>
+            <tr><th className="px-4 py-3">Student ID</th><th className="px-4 py-3">Full name</th><th className="px-4 py-3">Class</th>{canViewBalances && <th className="px-4 py-3">Outstanding balance</th>}<th className="px-4 py-3">Campus</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Enrolled</th><th className="px-4 py-3">Actions</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {students.map((student) => <tr key={student.id} className="transition-colors hover:bg-slate-50/80">
@@ -328,13 +294,53 @@ export default async function EducationStudentsPage({
                 </span>
                 <span>{[student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ")}</span>
               </Link></td>
-              <td className="px-4 py-3 text-slate-600">{[...new Set(classByEnrollmentStudent.get(student.id) ?? [])].join(", ") || "—"}</td>
+              <td className="px-4 py-3 text-slate-600">{student.class_names.join(", ") || "—"}</td>
               {canViewBalances && <td className={`whitespace-nowrap px-4 py-3 font-semibold ${(outstandingByStudent.get(student.id) ?? 0) > 0 ? "text-rose-700" : "text-emerald-700"}`}>
                 {currencyConfig ? formatCurrencyAmount(outstandingByStudent.get(student.id) ?? 0, currencyConfig) : "—"}
               </td>}
               <td className="px-4 py-3 text-slate-600">{branchNameById.get(student.branch_id) ?? "Campus"}</td>
               <td className="px-4 py-3"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-800">{student.status.replace("_", " ")}</span></td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(student.created_at).toLocaleDateString()}</td>
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={getProductAppPath("think-education", `/students/${student.id}`)}
+                    aria-label={`View ${student.first_name} ${student.last_name}`}
+                    title="View student"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  ><Eye className="h-4 w-4" /></Link>
+                  {canViewBalances && <Link
+                    href={getProductAppPath("think-education", `/students/${student.id}?tab=fees`)}
+                    aria-label={`Fee summary for ${student.first_name} ${student.last_name}`}
+                    title="Fee summary"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  ><Wallet className="h-4 w-4" /></Link>}
+                  {canViewAttendance && <Link
+                    href={getProductAppPath("think-education", `/students/${student.id}?tab=attendance`)}
+                    aria-label={`Attendance report for ${student.first_name} ${student.last_name}`}
+                    title="Attendance report"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-orange-700 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                  ><CalendarDays className="h-4 w-4" /></Link>}
+                  {(canViewResults || canViewGuardians || canEditStudent) && <details className="relative">
+                    <summary
+                      aria-label={`More actions for ${student.first_name} ${student.last_name}`}
+                      title="More actions"
+                      className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 [&::-webkit-details-marker]:hidden"
+                    ><MoreHorizontal className="h-4 w-4" /></summary>
+                    <div className="absolute right-0 z-20 mt-1 min-w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                      {canViewResults && <Link href={getProductAppPath("think-education", `/students/${student.id}?tab=exams`)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">
+                        <FileText className="h-4 w-4" /> Exams &amp; results
+                      </Link>}
+                      {canViewGuardians && <Link href={getProductAppPath("think-education", `/students/${student.id}?tab=guardians`)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-violet-700 hover:bg-violet-50">
+                        <Users className="h-4 w-4" /> Linked parents
+                      </Link>}
+                      {canEditStudent && <Link href={getProductAppPath("think-education", `/students/${student.id}?tab=personal`)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-amber-700 hover:bg-amber-50">
+                        <Pencil className="h-4 w-4" /> Edit student
+                      </Link>}
+                    </div>
+                  </details>}
+                </div>
+              </td>
             </tr>)}
           </tbody>
         </table>
