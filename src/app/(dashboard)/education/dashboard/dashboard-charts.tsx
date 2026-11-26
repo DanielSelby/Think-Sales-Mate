@@ -195,7 +195,7 @@ export function StudentEnrollmentBarChart({ data }: { data: StudentEnrollmentPoi
         <YAxis allowDecimals={false} width={42} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <Tooltip
           labelFormatter={(_, payload) => payload?.[0]?.payload?.date ?? ""}
-          formatter={(value) => [Number(value).toLocaleString(), "Enrollments"]}
+          formatter={(value): [string, string | number] => [Number(value).toLocaleString(), "Enrollments"]}
           contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }}
         />
         <Bar dataKey="count" name="Enrollments" fill="#3b82f6" radius={[4, 4, 0, 0]} />
