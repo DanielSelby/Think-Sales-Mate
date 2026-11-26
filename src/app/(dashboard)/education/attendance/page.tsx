@@ -76,10 +76,10 @@ export default async function EducationAttendancePage({
   }));
   const selectedClass = classes.some((classroom) => classroom.id === requestedClass) ? requestedClass : "";
   let filteredStudentIds: Set<string> | null = null;
-  const intersectStudentIds = (studentIds: string[]) => {
+  const intersectStudentIds = (currentIds: Set<string> | null, studentIds: string[]) => {
     const next = new Set(studentIds);
-    filteredStudentIds = filteredStudentIds
-      ? new Set([...filteredStudentIds].filter((studentId) => next.has(studentId)))
+    return currentIds
+      ? new Set([...currentIds].filter((studentId) => next.has(studentId)))
       : next;
   };
 
@@ -101,7 +101,7 @@ export default async function EducationAttendancePage({
       }
       if (!data || data.length < 1000) break;
     }
-    intersectStudentIds(matchingIds);
+    filteredStudentIds = intersectStudentIds(filteredStudentIds, matchingIds);
   }
 
   if (branchIds.length && selectedClass) {
@@ -120,7 +120,7 @@ export default async function EducationAttendancePage({
       for (const row of data ?? []) matchingIds.push(row.student_id);
       if (!data || data.length < 1000) break;
     }
-    intersectStudentIds(matchingIds);
+    filteredStudentIds = intersectStudentIds(filteredStudentIds, matchingIds);
   }
 
   let students: Array<{ id: string; student_number: string; first_name: string; last_name: string; branch_id: string; photo_path: string | null }> = [];
