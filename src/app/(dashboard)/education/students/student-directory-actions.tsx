@@ -83,16 +83,16 @@ export function StudentDirectoryActions({ studentName, profileHref, actions }: P
         aria-labelledby="student-directory-action-title"
         className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
-        <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 sm:px-5">
+        <header className="flex items-center justify-between gap-4 border-b border-blue-950 bg-blue-950 px-4 py-3 text-white sm:px-5">
           <div className="min-w-0">
-            <h2 id="student-directory-action-title" className="font-semibold text-slate-950">{activeAction.label}</h2>
-            <p className="truncate text-sm text-slate-500">{studentName}</p>
+            <h2 id="student-directory-action-title" className="font-semibold text-white">{activeAction.label}</h2>
+            <p className="truncate text-sm text-blue-100">{studentName}</p>
           </div>
           <button
             type="button"
             onClick={closeDialog}
             aria-label="Close student action"
-            className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+            className="shrink-0 rounded-lg p-2 text-blue-100 hover:bg-white/10 hover:text-white"
           ><X className="h-4 w-4" /></button>
         </header>
         <iframe

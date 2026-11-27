@@ -59,7 +59,7 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const isStudentActionPopup = pathname.startsWith("/education/students/")
+  const isStudentActionPopup = pathname.includes("/students/")
     && searchParams.get("popup") === "1";
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
   const isProductHubSupportPage = pathname === "/support/product-hub";

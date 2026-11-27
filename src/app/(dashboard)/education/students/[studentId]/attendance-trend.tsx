@@ -1,6 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type AttendanceRecord = {
   attendance_date: string;
@@ -27,50 +35,36 @@ function dateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function formatDay(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${value}T00:00:00.000Z`));
-}
-
-function formatMonth(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${value}-01T00:00:00.000Z`));
-}
-
 function createPeriods(period: Period, now: Date): Bucket[] {
   const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
 
   if (period === "days") {
     return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(Date.UTC(year, month, now.getUTCDate() - 6 + index));
+      const date = new Date(Date.UTC(year, now.getUTCMonth(), now.getUTCDate()));
+      const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+      date.setUTCDate(date.getUTCDate() - daysSinceMonday + index);
       const key = dateKey(date);
-      return { key, label: formatDay(key), total: 0, present: 0 };
+      return {
+        key,
+        label: new Intl.DateTimeFormat(undefined, { weekday: "short", timeZone: "UTC" }).format(date),
+        total: 0,
+        present: 0,
+      };
     });
   }
 
   if (period === "months") {
     return Array.from({ length: 12 }, (_, index) => {
-      const date = new Date(Date.UTC(year, month - 11 + index, 1));
+      const date = new Date(Date.UTC(year, index, 1));
       const key = dateKey(date).slice(0, 7);
-      return { key, label: formatMonth(key), total: 0, present: 0 };
+      return { key, label: new Intl.DateTimeFormat(undefined, { month: "short", timeZone: "UTC" }).format(date), total: 0, present: 0 };
     });
   }
 
   if (period === "quarter") {
-    const currentQuarter = Math.floor(month / 3);
     return Array.from({ length: 4 }, (_, index) => {
-      const date = new Date(Date.UTC(year, currentQuarter * 3 - 9 + index * 3, 1));
-      const quarter = Math.floor(date.getUTCMonth() / 3) + 1;
-      const key = `${date.getUTCFullYear()}-Q${quarter}`;
-      return { key, label: `Q${quarter} · ${date.getUTCFullYear()}`, total: 0, present: 0 };
+      const quarter = index + 1;
+      return { key: `${year}-Q${quarter}`, label: `Q${quarter}`, total: 0, present: 0 };
     });
   }
 
@@ -105,12 +99,16 @@ export function AttendanceTrend({ records, today }: { records: AttendanceRecord[
     }
     return items;
   }, [period, records, today]);
+  const chartData = buckets.map((bucket) => ({
+    ...bucket,
+    rate: bucket.total ? (bucket.present / bucket.total) * 100 : null,
+  }));
 
   return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="text-base font-semibold text-slate-950">Attendance trend</h2>
-        <p className="mt-1 text-xs text-slate-500">Present as a share of recorded sessions. Days: last 7; months: last 12; Qtr: last 4; yearly: last 5 calendar years.</p>
+        <p className="mt-1 text-xs text-slate-500">Present as a share of recorded sessions for each period.</p>
       </div>
       <div role="group" aria-label="Attendance trend period" className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
         {PERIOD_OPTIONS.map((option) => <button
@@ -126,22 +124,45 @@ export function AttendanceTrend({ records, today }: { records: AttendanceRecord[
         >{option.label}</button>)}
       </div>
     </div>
-    <ul className="mt-4 max-h-80 space-y-3 overflow-y-auto">
-      {buckets.map((bucket) => {
-        const rate = bucket.total ? (bucket.present / bucket.total) * 100 : null;
-        return <li key={bucket.key} className="grid grid-cols-[88px_minmax(0,1fr)_58px] items-center gap-3 text-xs">
-          <span className="truncate text-slate-500">{bucket.label}</span>
-          <span
-            role="img"
-            className="h-2 overflow-hidden rounded-full bg-slate-100"
-            aria-label={rate === null ? `${bucket.label}: no attendance records` : `${bucket.label}: ${rate.toFixed(1)}% attendance`}
-            title={rate === null ? "No attendance records" : `${bucket.present} present of ${bucket.total} records`}
-          >
-            <span className="block h-full rounded-full bg-blue-600" style={{ width: `${rate ?? 0}%` }} />
-          </span>
-          <span className="text-right font-medium text-slate-700">{rate === null ? "—" : `${rate.toFixed(0)}%`}</span>
-        </li>;
-      })}
-    </ul>
+    <div className="mt-4 h-64 w-full" role="img" aria-label="Student attendance rate trend chart">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData} margin={{ top: 8, right: 12, left: -12, bottom: 4 }}>
+          <XAxis
+            dataKey="label"
+            orientation="bottom"
+            tick={{ fontSize: 11, fill: "#64748b" }}
+            tickLine={false}
+            axisLine={{ stroke: "#cbd5e1" }}
+            interval={0}
+          />
+          <YAxis
+            domain={[0, 100]}
+            tickFormatter={(value) => `${value}%`}
+            width={48}
+            tick={{ fontSize: 10, fill: "#64748b" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip
+            labelFormatter={(label) => String(label ?? "")}
+            formatter={(value): [string, string] => [
+              value == null ? "No records" : `${Number(value).toFixed(1)}%`,
+              "Attendance rate",
+            ]}
+            contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }}
+          />
+          <Line
+            dataKey="rate"
+            name="Attendance rate"
+            type="monotone"
+            stroke="#2563eb"
+            strokeWidth={2.5}
+            dot={{ r: 3 }}
+            activeDot={{ r: 5 }}
+            connectNulls={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   </section>;
 }
