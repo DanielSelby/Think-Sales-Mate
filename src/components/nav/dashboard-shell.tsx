@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAppStore, THEMES, type DarkStyleKey } from "@/store/useAppStore";
 import { Sidebar } from "./sidebar";
 import { NAV_ITEMS } from "./sidebar";
@@ -58,6 +58,9 @@ interface Props {
 export function DashboardShell({ children, userId, userEmail, orgId, currency, avatarUrl, darkStyle = "think-sales", orgName, logoUrl, educationInstitutionName, educationInstitutionLogoUrl, systemLogoUrl, systemName, productLogoUrls, productNames, workspaceHubDarkThemeEnabled, workspaceHubDarkSurfaceStyle = "opaque", roleTheme, userName, userRole, allowedLocationIds = [], canViewAllBranches = false, canChangeTheme = false, enabledModules, educationCampuses, watermark, organizationAccessExpiresAt, organizationUsage }: Props) {
   const { sidebarCollapsed, activeTheme, darkMode, setTheme } = useAppStore();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isStudentActionPopup = pathname.startsWith("/education/students/")
+    && searchParams.get("popup") === "1";
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
   const isProductHubSupportPage = pathname === "/support/product-hub";
   const isStandaloneSupportPage = pathname === "/support" || isProductHubSupportPage;
@@ -156,6 +159,10 @@ export function DashboardShell({ children, userId, userEmail, orgId, currency, a
             : watermark?.position === "bottom-right"
               ? { bottom: 0, right: 0, transform: "perspective(900px) rotateX(10deg) rotateY(-8deg)" }
               : { top: "50%", left: "50%", transform: "translate(-50%, -50%) perspective(900px) rotateX(10deg) rotateY(-8deg)" };
+
+  if (isStudentActionPopup) {
+    return <div className="min-h-screen overflow-auto bg-white">{children}</div>;
+  }
 
   return (
     <SessionTimeout>
