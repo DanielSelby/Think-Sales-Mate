@@ -4,6 +4,7 @@ import {
   EDUCATION_DOCUMENT_CATEGORIES,
   EDUCATION_DOCUMENT_MAX_BYTES,
   isAllowedEducationDocumentFile,
+  isSensitiveEducationDocumentCategory,
 } from "@/lib/education/documents";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
@@ -47,6 +48,10 @@ export async function POST(request: NextRequest) {
   const category = String(formData.get("category") ?? "");
   const retentionValue = String(formData.get("retention_until") ?? "");
   const file = formData.get("file");
+  if (isSensitiveEducationDocumentCategory(category)
+    && !await canTabPermission("education_sensitive_documents", "documents", "medical", "create")) {
+    return redirectWith(request, "error", "permission", admissionId, studentId);
+  }
   const fileName = file instanceof File
     ? file.name.replace(/[\/\\\u0000-\u001f\u007f]/g, "_").trim()
     : "";

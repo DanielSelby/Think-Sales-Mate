@@ -54,7 +54,7 @@ export default async function EducationReportCardsPage({
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
 
-  const [canViewResults, canExportResults, canEditResults, canApproveResults, canPublishResults, canViewAttendance, canExportAttendance] = await Promise.all([
+  const [canViewResults, canExportResults, canEditResults, canApproveResults, canPublishResults, canViewAttendance, canExportAttendance, canViewGuardians, canExportGuardians] = await Promise.all([
     canTabPermission("education_results", "results", "gradebook", "view"),
     canTabPermission("education_results", "results", "gradebook", "export"),
     canTabPermission("education_results", "results", "gradebook", "edit"),
@@ -62,6 +62,8 @@ export default async function EducationReportCardsPage({
     canTabPermission("education_results", "results", "gradebook", "publish"),
     canTabPermission("education_attendance", "attendance", "register", "view"),
     canTabPermission("education_attendance", "attendance", "register", "export"),
+    canTabPermission("education_guardians", "guardians", "directory", "view"),
+    canTabPermission("education_guardians", "guardians", "directory", "export"),
   ]);
   if (!canViewResults) redirect("/dashboard?accessDenied=think-education.results");
 
@@ -195,7 +197,7 @@ export default async function EducationReportCardsPage({
   }
 
   const examNameById = new Map(publishedExams.map((exam) => [exam.id, exam.name]));
-  const canPrintReports = canExportResults && (!canViewAttendance || canExportAttendance);
+  const canPrintReports = canExportResults;
   let reportCards: Array<{
     report_card_id: string;
     student_id: string;
@@ -223,7 +225,7 @@ export default async function EducationReportCardsPage({
     comment: string | null;
     acknowledged_at: string;
   }> = [];
-  if (selectedTerm && branchIds.length) {
+  if (selectedTerm && branchIds.length && canViewGuardians) {
     const { data, error } = await supabase.rpc("education_get_report_card_acknowledgements", {
       p_org_id: context.orgId,
       p_branch_ids: branchIds,
@@ -242,14 +244,14 @@ export default async function EducationReportCardsPage({
     ].join(" ").toLocaleLowerCase().includes(search);
   });
 
-  return <main className="education-report-cards mx-auto max-w-[1200px] space-y-6 p-4 md:p-6">
+  return <main className={`education-report-cards mx-auto max-w-[1200px] space-y-6 p-4 md:p-6 ${canPrintReports ? "print-authorized" : ""}`}>
     <style>{`
       @media print {
         @page { margin: 12mm; }
         body { background: white !important; }
         body * { visibility: hidden !important; }
-        .education-report-cards, .education-report-cards * { visibility: visible !important; }
-        .education-report-cards { position: absolute; inset: 0; width: 100%; max-width: none; padding: 0; }
+        .education-report-cards.print-authorized, .education-report-cards.print-authorized * { visibility: visible !important; }
+        .education-report-cards.print-authorized { position: absolute; inset: 0; width: 100%; max-width: none; padding: 0; }
         .report-controls, .no-print { display: none !important; }
         .report-card { break-after: page; page-break-after: always; box-shadow: none !important; }
         .report-card:last-child { break-after: auto; page-break-after: auto; }
@@ -346,19 +348,11 @@ export default async function EducationReportCardsPage({
       {visibleStudents.map((student) => {
         const studentResults = resultsByStudent.get(student.id) ?? [];
         const groupedByExam = new Map<string, PublishedResult[]>();
-        const subjectTotals = new Map<string, { score: number; maximum: number }>();
         for (const result of studentResults) {
           const current = groupedByExam.get(result.examination_id) ?? [];
           current.push(result);
           groupedByExam.set(result.examination_id, current);
-          const subjectTotal = subjectTotals.get(result.subject_name) ?? { score: 0, maximum: 0 };
-          subjectTotal.score += Number(result.score);
-          subjectTotal.maximum += Number(result.maximum_score);
-          subjectTotals.set(result.subject_name, subjectTotal);
         }
-        const recordedScore = [...subjectTotals.values()].reduce((total, subject) => total + subject.score, 0);
-        const recordedMaximum = [...subjectTotals.values()].reduce((total, subject) => total + subject.maximum, 0);
-        const overallPercentage = recordedMaximum > 0 ? (recordedScore / recordedMaximum) * 100 : null;
         const attendanceCounts = attendanceByStudent.get(student.id) ?? new Map<string, number>();
         const reportCard = reportCardByStudent.get(student.id);
         const fullName = [student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ");
@@ -389,24 +383,6 @@ export default async function EducationReportCardsPage({
 
           <section className="mt-5">
             <h3 className="font-semibold text-slate-900">Published academic results</h3>
-            {subjectTotals.size > 0 && <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Overall weighted percentage</p>
-                <p className="mt-1 text-2xl font-bold text-slate-950">{overallPercentage === null ? "—" : `${overallPercentage.toFixed(1)}%`}</p>
-                <p className="mt-1 text-xs text-slate-500">Calculated as total score ÷ total maximum across published term results.</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Subject totals</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {[...subjectTotals.entries()].map(([subject, total]) => {
-                    const percentage = total.maximum > 0 ? (total.score / total.maximum) * 100 : null;
-                    return <span key={subject} className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
-                      {subject}: <strong>{percentage === null ? "—" : `${percentage.toFixed(1)}%`}</strong>
-                    </span>;
-                  })}
-                </div>
-              </div>
-            </div>}
             {[...groupedByExam.entries()].map(([examId, examResults]) => (
               <div key={examId} className="mt-3">
                 <h4 className="text-sm font-semibold text-slate-700">{examNameById.get(examId) ?? "Examination"}</h4>
@@ -453,7 +429,7 @@ export default async function EducationReportCardsPage({
             {reportCard?.status === "draft" && <p className="mt-2 text-xs font-semibold text-amber-700">Draft — not published</p>}
           </section>}
 
-          {reportCard?.status === "published" && <section className="mt-5 border-t border-slate-200 pt-4">
+          {canViewGuardians && reportCard?.status === "published" && <section className={`mt-5 border-t border-slate-200 pt-4 ${canExportGuardians ? "" : "no-print"}`}>
             <h3 className="font-semibold text-slate-900">Guardian acknowledgements</h3>
             {acknowledgements.filter((ack) => ack.report_card_id === reportCard.report_card_id).length > 0
               ? <ul className="mt-3 space-y-2">

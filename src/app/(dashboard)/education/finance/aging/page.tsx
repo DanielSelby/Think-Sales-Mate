@@ -8,6 +8,7 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { FeePaymentDialog } from "../../students/[studentId]/fee-payment-dialog";
 
 const MAX_CHARGES = 20_000;
 const REPORT_PAGE_SIZE = 50;
@@ -45,6 +46,7 @@ export default async function EducationFeeAgingPage({
     canViewStudents,
     canExportStudents,
     canViewAcademicYears,
+    canRecordPayment,
   ] = await Promise.all([
     canTabPermission("education_finance", "finance", "charges", "view"),
     canTabPermission("education_finance", "finance", "charges", "export"),
@@ -53,12 +55,22 @@ export default async function EducationFeeAgingPage({
     canTabPermission("education_students", "students", "list", "view"),
     canTabPermission("education_students", "students", "list", "export"),
     canTabPermission("education_academics", "academics", "calendar", "view"),
+    canTabPermission("education_finance", "finance", "payments", "create"),
   ]);
   if (!canViewCharges || !canViewPayments || !canViewStudents || !canViewAcademicYears) {
     redirect("/dashboard?accessDenied=think-education.finance.aging");
   }
 
   const params = await searchParams;
+  const paymentErrorMessage = params.error === "invalid" || params.error === "payment"
+    ? "Check the payment amount and details, then try again."
+    : params.error === "accounting-mapping"
+      ? "Fee payments need an accounting mapping before they can be recorded."
+      : params.error === "accounting-period"
+        ? "Payments cannot be recorded because the accounting period is closed."
+        : params.error === "not-found"
+          ? "The fee charge is no longer available."
+          : params.error === "save" ? "The payment could not be saved. Please try again." : null;
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   const requestedYear = typeof params.year === "string" ? params.year : "";
   const currentPage = Math.min(1_000_000, Math.max(1, Number.parseInt(typeof params.page === "string" ? params.page : "1", 10) || 1));
@@ -167,6 +179,71 @@ export default async function EducationFeeAgingPage({
     }
   }
 
+  const payableChargesByStudent = new Map<string, Array<{
+    id: string;
+    description: string;
+    balance: number;
+    studentId: string;
+    studentName: string;
+  }>>();
+  if (canRecordPayment && !reportTooLarge && branchIds.length && studentsToLoad.length) {
+    const chargeRows: Array<{ id: string; student_id: string; description: string; amount: number }> = [];
+    for (let offset = 0; ; offset += 1000) {
+      let chargeQuery = supabase.from("education_fee_charges")
+        .select("id, student_id, description, amount")
+        .eq("org_id", context.orgId)
+        .in("branch_id", branchIds)
+        .in("student_id", studentsToLoad)
+        .eq("status", "open")
+        .order("id")
+        .range(offset, offset + 999);
+      if (selectedYear) chargeQuery = chargeQuery.eq("academic_year_id", selectedYear);
+      const { data, error } = await chargeQuery;
+      if (error) throw new Error(`Could not load payable fee charges: ${error.message}`);
+      const page = data ?? [];
+      chargeRows.push(...page);
+      if (page.length < 1000) break;
+    }
+
+    const paidByCharge = new Map<string, number>();
+    for (let chargeOffset = 0; chargeOffset < chargeRows.length; chargeOffset += 500) {
+      const chargeIds = chargeRows.slice(chargeOffset, chargeOffset + 500).map((charge) => charge.id);
+      for (let paymentOffset = 0; ; paymentOffset += 1000) {
+        const { data, error } = await supabase.from("education_fee_payments")
+          .select("id, charge_id, amount")
+          .eq("org_id", context.orgId)
+          .in("charge_id", chargeIds)
+          .order("id")
+          .range(paymentOffset, paymentOffset + 999);
+        if (error) throw new Error(`Could not load payments for outstanding fee charges: ${error.message}`);
+        const page = data ?? [];
+        for (const payment of page) {
+          paidByCharge.set(payment.charge_id, (paidByCharge.get(payment.charge_id) ?? 0) + Number(payment.amount));
+        }
+        if (page.length < 1000) break;
+        if (paymentOffset >= 100_000) {
+          throw new Error("The number of fee payments exceeds the processing limit for outstanding balances.");
+        }
+      }
+    }
+
+    for (const charge of chargeRows) {
+      const balance = Math.max(0, Number(charge.amount) - (paidByCharge.get(charge.id) ?? 0));
+      const account = accountByStudent.get(charge.student_id);
+      if (balance <= 0 || !account) continue;
+      const studentName = [account.firstName, account.lastName].filter(Boolean).join(" ");
+      const charges = payableChargesByStudent.get(account.studentId) ?? [];
+      charges.push({
+        id: charge.id,
+        description: charge.description,
+        balance,
+        studentId: account.studentId,
+        studentName,
+      });
+      payableChargesByStudent.set(account.studentId, charges);
+    }
+  }
+
   const visibleAccounts = accounts;
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
   const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
@@ -186,6 +263,9 @@ export default async function EducationFeeAgingPage({
         </a>}
       </div>
     </header>
+
+    {params.paid === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Payment recorded. Outstanding balances have been refreshed.</p>}
+    {paymentErrorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{paymentErrorMessage}</p>}
 
     <form method="get" action={getProductAppPath("think-education", "/finance/aging")} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]">
       <label className="text-sm font-medium text-slate-700">Campus
@@ -243,7 +323,17 @@ export default async function EducationFeeAgingPage({
               <span className="text-slate-500 md:text-xs">{String(label)}</span>
               <span className="font-medium text-slate-800">{formatMoney(Number(amount))}</span>
             </div>)}
-            <p className="text-right text-sm font-bold text-slate-950 md:col-start-2 md:col-span-5">Total outstanding: {formatMoney(account.balance)}</p>
+            <div className="flex flex-wrap items-center justify-between gap-3 md:col-start-2 md:col-span-5">
+              <p className="text-right text-sm font-bold text-slate-950">Total outstanding: {formatMoney(account.balance)}</p>
+              {canRecordPayment && payableChargesByStudent.has(account.studentId) && <FeePaymentDialog
+                charges={payableChargesByStudent.get(account.studentId)}
+                studentId={account.studentId}
+                studentName={`${account.firstName} ${account.lastName}`.trim()}
+                currencyConfig={currencyConfig}
+                returnToAging
+                returnToAgingFilters={{ branch: selectedBranch, year: selectedYear, page: currentPage }}
+              />}
+            </div>
           </article>)}
         </div> : <p className="p-8 text-center text-sm text-slate-500">No outstanding student fees match these filters.</p>}
 

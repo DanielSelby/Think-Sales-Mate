@@ -11,6 +11,7 @@ export type EducationStudentProfile = {
   photo_path: string | null;
   date_of_birth: string | null;
   gender: string | null;
+  nationality: string | null;
   home_address: string | null;
   branch_id: string;
   status: string;
@@ -34,6 +35,7 @@ export const educationStudentProfileInputSchema = z.object({
   phone: z.string().trim().max(32),
   dateOfBirth: z.string().trim().refine((value) => !value || isValidBirthDate(value)),
   gender: z.string().trim().max(50),
+  nationality: z.string().trim().max(100),
   homeAddress: z.string().trim().max(500),
 }).strict();
 

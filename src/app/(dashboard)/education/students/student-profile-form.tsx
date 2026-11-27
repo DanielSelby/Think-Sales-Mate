@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateEducationStudent } from "@/app/(dashboard)/education/actions";
 import type { EducationStudentProfile } from "@/lib/education/student-profile";
+import { EDUCATION_STUDENT_GENDERS, parseEducationStudentGender } from "@/lib/education/student-directory";
 
 type Props = {
   student: EducationStudentProfile;
@@ -28,6 +29,7 @@ export function StudentProfileForm({ student, canEdit, studentPhotoUrl }: Props)
         <div><dt className="text-sm text-slate-500">Phone</dt><dd className="mt-1 font-medium text-slate-900">{student.phone || "—"}</dd></div>
         <div><dt className="text-sm text-slate-500">Date of birth</dt><dd className="mt-1 font-medium text-slate-900">{student.date_of_birth || "—"}</dd></div>
         <div><dt className="text-sm text-slate-500">Gender</dt><dd className="mt-1 font-medium text-slate-900">{student.gender || "—"}</dd></div>
+        <div><dt className="text-sm text-slate-500">Nationality</dt><dd className="mt-1 font-medium text-slate-900">{student.nationality || "—"}</dd></div>
         <div className="sm:col-span-2"><dt className="text-sm text-slate-500">Home address</dt><dd className="mt-1 font-medium text-slate-900">{student.home_address || "—"}</dd></div>
       </dl>
     );
@@ -57,6 +59,7 @@ export function StudentProfileForm({ student, canEdit, studentPhotoUrl }: Props)
   }
 
   const inputClassName = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+  const parsedGender = student.gender ? parseEducationStudentGender(student.gender) : "";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6">
@@ -103,7 +106,15 @@ export function StudentProfileForm({ student, canEdit, studentPhotoUrl }: Props)
         </label>
         <label className="text-sm font-medium text-slate-700">
           Gender
-          <input name="gender" maxLength={50} defaultValue={student.gender ?? ""} className={inputClassName} />
+          <select name="gender" defaultValue={parsedGender || student.gender || ""} className={inputClassName}>
+            <option value="">Not specified</option>
+            {EDUCATION_STUDENT_GENDERS.map((gender) => <option key={gender} value={gender}>{gender}</option>)}
+            {student.gender && !parsedGender && <option value={student.gender}>{student.gender} (legacy value)</option>}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700">
+          Nationality
+          <input name="nationality" maxLength={100} defaultValue={student.nationality ?? ""} className={inputClassName} />
         </label>
         <label className="text-sm font-medium text-slate-700 sm:col-span-2">
           Home address

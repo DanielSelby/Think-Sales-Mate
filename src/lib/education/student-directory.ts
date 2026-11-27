@@ -7,6 +7,16 @@ export const EDUCATION_STUDENT_STATUSES = [
   "archived",
 ] as const;
 
+export const EDUCATION_STUDENT_GENDERS = ["Male", "Female"] as const;
+export type EducationStudentGender = typeof EDUCATION_STUDENT_GENDERS[number];
+
+export function parseEducationStudentGender(value: string): EducationStudentGender | "" {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "male") return "Male";
+  if (normalized === "female") return "Female";
+  return "";
+}
+
 export type EducationStudentStatus = typeof EDUCATION_STUDENT_STATUSES[number];
 export type EducationStudentDirectoryStatus = EducationStudentStatus | "all";
 
@@ -27,6 +37,7 @@ export type EducationStudentDirectoryRow = {
 export type EducationStudentDirectoryResult = {
   students: EducationStudentDirectoryRow[];
   statusCounts: Record<EducationStudentStatus, number>;
+  genderCounts: Record<EducationStudentGender, number>;
   totalCount: number;
 };
 
@@ -94,10 +105,22 @@ export function parseEducationStudentDirectoryResult(value: unknown): EducationS
     }
     return [status, parseCount(rawStatusCounts[status], "status count")];
   })) as Record<EducationStudentStatus, number>;
+  const rawGenderCounts = rawStatusCounts.gender_counts;
+  if (!isRecord(rawGenderCounts)) {
+    throw new Error("The student directory returned invalid gender counts.");
+  }
+  const genderCounts = Object.fromEntries(EDUCATION_STUDENT_GENDERS.map((gender) => {
+    const key = gender.toLowerCase();
+    if (!(key in rawGenderCounts)) {
+      throw new Error("The student directory returned incomplete gender counts.");
+    }
+    return [gender, parseCount(rawGenderCounts[key], "gender count")];
+  })) as Record<EducationStudentGender, number>;
 
   return {
     students: value.student_rows.map(parseStudentRow),
     statusCounts,
+    genderCounts,
     totalCount: parseCount(value.total_count, "total count"),
   };
 }

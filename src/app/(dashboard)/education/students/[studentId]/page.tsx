@@ -36,6 +36,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
 
   const [
     canViewStudents,
+    canExportStudents,
     canEditStudent,
     canViewAcademics,
     canViewResults,
@@ -46,12 +47,15 @@ export default async function EducationStudentProfilePage({ params, searchParams
     canViewGuardians,
     canViewDocuments,
     canCreateDocuments,
+    canViewSensitiveDocuments,
+    canCreateSensitiveDocuments,
     canEditDocuments,
     canViewTransfers,
     canViewDiscipline,
     { campuses },
   ] = await Promise.all([
     canTabPermission("education_students", "students", "list", "view"),
+    canTabPermission("education_students", "students", "list", "export"),
     canTabPermission("education_students", "students", "list", "edit"),
     canTabPermission("education_academics", "academics", "calendar", "view"),
     canTabPermission("education_results", "results", "gradebook", "view"),
@@ -62,6 +66,8 @@ export default async function EducationStudentProfilePage({ params, searchParams
     canTabPermission("education_guardians", "guardians", "directory", "view"),
     canTabPermission("education_documents", "documents", "library", "view"),
     canTabPermission("education_documents", "documents", "library", "create"),
+    canTabPermission("education_sensitive_documents", "documents", "medical", "view"),
+    canTabPermission("education_sensitive_documents", "documents", "medical", "create"),
     canTabPermission("education_documents", "documents", "library", "edit"),
     canTabPermission("education_transfers", "transfers", "requests", "view"),
     canTabPermission("education_discipline", "discipline", "incidents", "view"),
@@ -73,7 +79,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
   if (!campusIds.length) notFound();
   const supabase = await createClient();
   const { data: studentRow, error: studentError } = await supabase.from("education_students")
-    .select("id, student_number, first_name, last_name, other_names, email, phone, date_of_birth, gender, home_address, branch_id, status, photo_path, created_at")
+    .select("id, student_number, first_name, last_name, other_names, email, phone, date_of_birth, gender, nationality, home_address, branch_id, status, photo_path, created_at")
     .eq("org_id", context.orgId)
     .eq("id", studentId)
     .in("branch_id", campusIds)
@@ -89,6 +95,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
   const selectedTab = PROFILE_TABS.includes(selectedTabParam as typeof PROFILE_TABS[number])
     ? selectedTabParam as typeof PROFILE_TABS[number]
     : "overview";
+  const isPopup = firstParam(queryParams.popup) === "1";
   const switchSearch = firstParam(queryParams.switchSearch).trim().slice(0, 80);
   const canViewFinance = canViewFinanceCharges && canViewFinancePayments;
   const campusName = campuses.find((campus) => campus.id === student.branch_id)?.name ?? "Campus";
@@ -124,6 +131,16 @@ export default async function EducationStudentProfilePage({ params, searchParams
         : firstParam(queryParams.error) === "save"
           ? "The payment could not be saved. Please try again."
           : null;
+  const documentErrorMessages: Record<string, string> = {
+    auth: "Sign in before uploading a document.",
+    permission: "Your role does not allow this document action.",
+    campus: "Choose one of your assigned campuses.",
+    student: "The selected student is not active at this campus.",
+    invalid: "Check the document details, file type, file size, and retention date.",
+    upload: "The file could not be uploaded. Check the file and try again.",
+    save: "The document record could not be saved.",
+  };
+  const documentError = documentErrorMessages[firstParam(queryParams.documentError)] ?? null;
 
   const needsAcademics = ["overview", "academic", "performance", "exams", "history", "personal"].includes(selectedTab)
     && canViewAcademics;
@@ -135,6 +152,46 @@ export default async function EducationStudentProfilePage({ params, searchParams
   const needsTransfers = ["history"].includes(selectedTab) && canViewTransfers;
   const needsAdmission = ["overview", "personal", "history"].includes(selectedTab) && canViewAcademics;
   const needsConsent = selectedTab === "personal";
+  const attendanceTrendToday = new Date().toISOString().slice(0, 10);
+  const attendanceTrendStartDate = `${Number(attendanceTrendToday.slice(0, 4)) - 4}-01-01`;
+
+  async function loadAttendanceTrend() {
+    const records: Array<{ attendance_date: string; status: string }> = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from("education_attendance")
+        .select("attendance_date, status")
+        .eq("org_id", context.orgId)
+        .eq("student_id", student.id)
+        .in("branch_id", campusIds)
+        .gte("attendance_date", attendanceTrendStartDate)
+        .order("attendance_date", { ascending: false })
+        .range(offset, offset + pageSize - 1);
+      if (error) return { data: null, error };
+      records.push(...(data ?? []));
+      if (!data || data.length < pageSize) break;
+    }
+    return { data: records, error: null };
+  }
+
+  async function loadLessonAttendanceTrend() {
+    const records: Array<{ attendance_date: string; status: string }> = [];
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from("education_lesson_attendance")
+        .select("attendance_date, status")
+        .eq("org_id", context.orgId)
+        .eq("student_id", student.id)
+        .in("branch_id", campusIds)
+        .gte("attendance_date", attendanceTrendStartDate)
+        .order("attendance_date", { ascending: false })
+        .range(offset, offset + pageSize - 1);
+      if (error) return { data: null, error };
+      records.push(...(data ?? []));
+      if (!data || data.length < pageSize) break;
+    }
+    return { data: records, error: null };
+  }
 
   const [{ data: activeEnrollmentRow, error: activeEnrollmentError }, studentPhoto] = await Promise.all([
     supabase.from("education_student_enrollments")
@@ -163,6 +220,8 @@ export default async function EducationStudentProfilePage({ params, searchParams
     admissionResult,
     currencyConfig,
     consentResult,
+    attendanceTrendResult,
+    lessonAttendanceTrendResult,
   ] = await Promise.all([
     needsAcademics
       ? supabase.from("education_student_enrollments")
@@ -219,6 +278,12 @@ export default async function EducationStudentProfilePage({ params, searchParams
         .eq("org_id", context.orgId).eq("student_id", student.id).eq("branch_id", student.branch_id)
         .order("recorded_at", { ascending: false }).limit(100)
       : Promise.resolve({ data: [], error: null }),
+    selectedTab === "overview" && canViewAttendance
+      ? loadAttendanceTrend()
+      : Promise.resolve({ data: [], error: null }),
+    selectedTab === "overview" && canViewAttendance
+      ? loadLessonAttendanceTrend()
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const queryErrors = [
@@ -231,6 +296,8 @@ export default async function EducationStudentProfilePage({ params, searchParams
     ["student transfers", transfersResult.error],
     ["student admission", admissionResult.error],
     ["student consent history", consentResult.error],
+    ["attendance trend", attendanceTrendResult.error],
+    ["lesson attendance trend", lessonAttendanceTrendResult.error],
   ] as const;
   for (const [label, error] of queryErrors) {
     if (error) {
@@ -334,6 +401,17 @@ export default async function EducationStudentProfilePage({ params, searchParams
     note: row.note,
     class_name: row.class_id ? attendanceClassById.get(row.class_id) ?? null : null,
   }));
+  const attendanceTrend = [
+    ...(attendanceTrendResult.data ?? []),
+    ...(lessonAttendanceTrendResult.data ?? []),
+  ];
+  const attendanceRateRecords = [
+    ...(attendanceResult.data ?? []).map((row) => ({
+      attendance_date: row.attendance_date,
+      status: row.status,
+    })),
+    ...(lessonAttendanceTrendResult.data ?? []).slice(0, 30),
+  ].sort((left, right) => right.attendance_date.localeCompare(left.attendance_date)).slice(0, 30);
 
   const resultRows = resultsResult.data ?? [];
   const examinationIds = [...new Set(resultRows.map((row) => row.examination_id))];
@@ -509,6 +587,10 @@ export default async function EducationStudentProfilePage({ params, searchParams
     studentPhotoUrl={studentPhotoUrl}
     fullName={fullName}
     selectedTab={selectedTab}
+    isPopup={isPopup}
+    attendanceTrend={attendanceTrend}
+    attendanceTrendToday={attendanceTrendToday}
+    attendanceRateRecords={attendanceRateRecords}
     recordSwitcher={{
       recordType: "student",
       searchPath: getProductAppPath("think-education", `/students/${student.id}`),
@@ -518,6 +600,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     }}
     permissions={{
       canEditStudent,
+      canPrintAcademicHistory: canExportStudents,
       canViewAcademics,
       canViewResults,
       canViewAttendance,
@@ -525,6 +608,8 @@ export default async function EducationStudentProfilePage({ params, searchParams
       canViewGuardians,
       canViewDocuments,
       canCreateDocuments,
+      canViewSensitiveDocuments,
+      canCreateSensitiveDocuments,
       canEditDocuments,
       canViewTransfers,
       canViewDiscipline,
@@ -548,6 +633,8 @@ export default async function EducationStudentProfilePage({ params, searchParams
     canRecordFeePayment={canRecordFeePayment}
     paymentRecorded={firstParam(queryParams.paid) === "1"}
     paymentError={paymentError}
+    documentUploaded={firstParam(queryParams.documentUploaded) === "1"}
+    documentError={documentError}
     classPosition={classPosition}
     classPositionStatus={classPositionStatus}
   />;

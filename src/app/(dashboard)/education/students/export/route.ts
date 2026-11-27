@@ -5,6 +5,7 @@ import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import {
   EDUCATION_STUDENT_STATUSES,
+  parseEducationStudentGender,
   parseEducationStudentDirectoryResult,
 } from "@/lib/education/student-directory";
 
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
 
   const search = (params.get("search") ?? "").trim().slice(0, 80);
   const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
-  const gender = (params.get("gender") ?? "").trim().slice(0, 50);
+  const gender = parseEducationStudentGender(params.get("gender") ?? "");
   const requestedClass = params.get("class") ?? "";
   const supabase = await createClient();
   let classId = "";
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest) {
   }
 
   const campusNameById = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  const rows = [csvRow(["Student ID", "Full name", "Gender", "Class", "Campus", "Status", "Enrolled"])];
+  const rows = [csvRow(["Student ID", "Full name", "Gender", "Nationality", "Class", "Campus", "Status", "Enrolled"])];
   for (let offset = 0; offset < studentCount; offset += PAGE_SIZE) {
     let page = firstPage;
     if (offset > 0) {
@@ -119,11 +120,38 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Could not load student records for export." }, { status: 500 });
       }
     }
+    const pageStudentIds = page.students.map((student) => student.id);
+    let nationalityRows: Array<{ id: string; nationality: string | null }> = [];
+    if (pageStudentIds.length) {
+      const { data, error: nationalityError } = await supabase.from("education_students")
+        .select("id, nationality")
+        .eq("org_id", orgId)
+        .in("branch_id", branchIds)
+        .in("id", pageStudentIds);
+      if (nationalityError) {
+        console.error("Could not load Think Education student nationalities for export:", nationalityError.message);
+        return NextResponse.json({ error: "Could not load student records for export." }, { status: 500 });
+      }
+      nationalityRows = data ?? [];
+    }
+    if (nationalityRows.length !== pageStudentIds.length) {
+      console.error("Student export nationality lookup did not match the authorized directory rows.");
+      return NextResponse.json({ error: "Could not load student records for export." }, { status: 500 });
+    }
+    const nationalityByStudentId = new Map(
+      nationalityRows.map((student) => [student.id, student.nationality ?? ""]),
+    );
     for (const student of page.students) {
+      const nationality = nationalityByStudentId.get(student.id);
+      if (nationality === undefined) {
+        console.error("Student export did not include a nationality lookup for a directory row.");
+        return NextResponse.json({ error: "Could not load student records for export." }, { status: 500 });
+      }
       rows.push(csvRow([
         student.student_number,
         [student.first_name, student.other_names, student.last_name].filter(Boolean).join(" "),
         student.gender ?? "",
+        nationality,
         student.class_names.join(", "),
         campusNameById.get(student.branch_id) ?? "",
         student.status.replace("_", " "),

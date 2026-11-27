@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   Bar,
   BarChart,
-  CartesianGrid,
   Cell,
   Legend,
   Line,
@@ -50,6 +49,36 @@ export type FeeCollectionCampusPoint = {
 export type FeeAgingPoint = {
   bucket: string;
   amount: number;
+};
+
+export type ClassCapacityPoint = {
+  name: string;
+  campus: string;
+  enrolled: number;
+  capacity: number;
+  utilization: number;
+};
+
+export type AttendanceRatePoint = {
+  date: string;
+  label: string;
+  rate: number | null;
+};
+
+export type StudentEnrollmentOutcomePoint = {
+  outcome: string;
+  count: number;
+};
+
+export type ExpenseCategoryPoint = {
+  category: string;
+  amount: number;
+};
+
+export type StaffAttendanceRatePoint = {
+  date: string;
+  label: string;
+  rate: number | null;
 };
 
 const GENDER_COLORS = ["#3b82f6", "#ec4899", "#8b5cf6", "#94a3b8"];
@@ -164,7 +193,6 @@ export function AttendanceStatusLineChart({ data }: { data: AttendanceStatusPoin
   return <div className="mt-4 h-56 w-full">
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
-        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} width={42} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <Tooltip
@@ -190,7 +218,6 @@ export function StudentEnrollmentBarChart({ data }: { data: StudentEnrollmentPoi
   return <div className="mt-4 h-56 w-full">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
-        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} width={42} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <Tooltip
@@ -214,7 +241,6 @@ export function AdmissionPipelineBarChart({ data }: { data: AdmissionPipelinePoi
   return <div className="mt-4 h-56 w-full">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
-        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
         <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <YAxis type="category" dataKey="stage" width={94} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <Tooltip formatter={(value) => [Number(value).toLocaleString(), "Applications"]} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }} />
@@ -234,7 +260,6 @@ export function FeeCollectionsByCampusChart({ data }: { data: FeeCollectionCampu
   return <div className="mt-4 h-56 w-full">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="campus" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <YAxis width={72} tickFormatter={(value) => Number(value).toLocaleString()} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <Tooltip formatter={(value, name) => [Number(value).toLocaleString(), name]} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }} />
@@ -256,7 +281,6 @@ export function FeeAgingBarChart({ data }: { data: FeeAgingPoint[] }) {
   return <div className="mt-4 h-56 w-full">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
-        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
         <XAxis type="number" tickFormatter={(value) => Number(value).toLocaleString()} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <YAxis type="category" dataKey="bucket" width={100} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
         <Tooltip formatter={(value) => [Number(value).toLocaleString(), "Outstanding"]} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }} />
@@ -265,3 +289,132 @@ export function FeeAgingBarChart({ data }: { data: FeeAgingPoint[] }) {
     </ResponsiveContainer>
   </div>;
 }
+
+export function ClassCapacityBarChart({ data }: { data: ClassCapacityPoint[] }) {
+    const chartData = data.slice(0, 12);
+    if (!chartData.length) {
+      return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+        No active classes with configured capacity were found in this campus scope.
+      </div>;
+    }
+
+    return <div className="mt-4 h-72 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+          <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <YAxis type="category" dataKey="name" width={104} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <Tooltip
+            labelFormatter={(_, payload) => {
+              const point = payload?.[0]?.payload as ClassCapacityPoint | undefined;
+              return point
+                ? `${point.name} · ${point.campus} (${point.utilization.toFixed(1)}%)`
+                : "";
+            }}
+            formatter={(value, name) => [Number(value).toLocaleString(), name]}
+            contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }}
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar dataKey="capacity" name="Capacity" fill="#cbd5e1" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="enrolled" name="Enrolled" radius={[0, 4, 4, 0]}>
+            {chartData.map((point) => <Cell
+              key={`${point.campus}:${point.name}`}
+              fill={point.utilization >= 100 ? "#e11d48" : point.utilization >= 90 ? "#f59e0b" : "#3b82f6"}
+            />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>;
+  }
+
+export function AttendanceRateLineChart({ data }: { data: AttendanceRatePoint[] }) {
+    if (!data.some((point) => point.rate !== null)) {
+      return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+        No student attendance records were recorded in this date range.
+      </div>;
+    }
+
+    return <div className="mt-4 h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} width={48} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <Tooltip
+            labelFormatter={(_, payload) => payload?.[0]?.payload?.date ?? ""}
+            formatter={(value) => [`${Number(value).toFixed(1)}%`, "Present rate"]}
+            contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }}
+          />
+          <Line dataKey="rate" name="Present rate" type="monotone" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>;
+  }
+
+export function StudentEnrollmentOutcomeBarChart({ data }: { data: StudentEnrollmentOutcomePoint[] }) {
+    if (!data.some((point) => point.count > 0)) {
+      return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+        No student enrollments were started in this date range.
+      </div>;
+    }
+
+    const outcomeColor: Record<string, string> = {
+      Active: "#3b82f6",
+      Completed: "#16a34a",
+      Transferred: "#f59e0b",
+      Withdrawn: "#e11d48",
+    };
+    return <div className="mt-4 h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+          <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <YAxis type="category" dataKey="outcome" width={94} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <Tooltip formatter={(value) => [Number(value).toLocaleString(), "Enrollments"]} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }} />
+          <Bar dataKey="count" name="Enrollments" radius={[0, 4, 4, 0]}>
+            {data.map((point) => <Cell key={point.outcome} fill={outcomeColor[point.outcome] ?? "#64748b"} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>;
+  }
+
+export function ExpenseCategoryBarChart({ data }: { data: ExpenseCategoryPoint[] }) {
+    if (!data.some((point) => point.amount > 0)) {
+      return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+        No approved expenses were recorded in this date range.
+      </div>;
+    }
+
+    return <div className="mt-4 h-64 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+          <XAxis type="number" tickFormatter={(value) => Number(value).toLocaleString()} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <YAxis type="category" dataKey="category" width={112} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <Tooltip formatter={(value) => [Number(value).toLocaleString(), "Approved expenses"]} contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }} />
+          <Bar dataKey="amount" name="Approved expenses" fill="#e11d48" radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>;
+  }
+
+export function StaffAttendanceRateLineChart({ data }: { data: StaffAttendanceRatePoint[] }) {
+    if (!data.some((point) => point.rate !== null)) {
+      return <div className="mt-4 flex h-56 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+        No staff attendance records were recorded in this date range.
+      </div>;
+    }
+
+    return <div className="mt-4 h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} width={48} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
+          <Tooltip
+            labelFormatter={(_, payload) => payload?.[0]?.payload?.date ?? ""}
+            formatter={(value) => [`${Number(value).toFixed(1)}%`, "Attendance rate"]}
+            contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }}
+          />
+          <Line dataKey="rate" name="Attendance rate" type="monotone" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>;
+  }
+

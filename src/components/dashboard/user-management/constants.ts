@@ -125,6 +125,9 @@ export const PERMISSION_PAGE_CONFIGS: Record<string, PermissionPageConfig[]> = {
   education_documents: pages([
     ["documents", "Documents & Records", [["library", "Document Library"]]]
   ]),
+  education_sensitive_documents: pages([
+    ["documents", "Sensitive Documents", [["medical", "Medical Records"]]]
+  ]),
   education_notifications: pages([
     ["notifications", "Notifications", [["inbox", "Notification Centre"], ["preferences", "Preferences"]]]
   ]),
@@ -200,6 +203,7 @@ export const MODULE_CONFIGS: ModulePermissionConfig[] = [
   { key: "education_inventory_assets", name: "Education Inventory & Assets", description: "Campus stock, asset register, assignment, condition, and retirement", iconName: "Package", supportedActions: ["view", "create", "edit", "export"] },
   { key: "education_communication", name: "Education Communication", description: "Campus announcements for students, families, and staff", iconName: "MessageSquare", supportedActions: ["view", "create", "edit", "publish", "export"] },
   { key: "education_documents", name: "Education Documents", description: "Secure campus and student documents with controlled access and retention", iconName: "FolderOpen", supportedActions: ["view", "create", "edit", "delete", "export"] },
+  { key: "education_sensitive_documents", name: "Sensitive Education Documents", description: "Restricted access to medical records and other specially protected student documents", iconName: "ShieldCheck", supportedActions: ["view", "create", "edit", "delete"] },
   { key: "education_notifications", name: "Education Notifications", description: "Campus-scoped in-app notifications and personal delivery preferences", iconName: "Bell", supportedActions: ["view", "edit"] },
   { key: "education_audit", name: "Education Audit & Activity", description: "Searchable campus-scoped education record and access history", iconName: "ClipboardList", supportedActions: ["view_audit", "export"] },
   { key: "dashboard", name: "Dashboard", description: "Overview metrics, KPIs, and executive charts", iconName: "LayoutDashboard", supportedActions: ["view", "export", "print"] },
@@ -285,6 +289,7 @@ const PERMISSION_MODULE_FEATURES: Record<string, string[]> = {
   education_inventory_assets: ["Inventory & Assets"],
   education_communication: ["Communication"],
   education_documents: ["Documents & Records"],
+  education_sensitive_documents: ["Documents & Records"],
   education_notifications: ["Notifications"],
   education_audit: ["Audit & Activity"],
   dashboard: ["Dashboard"],

@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, FileText } from "lucide-react";
+import { ArrowLeft, Download, Eye, FileText } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
-import { EDUCATION_DOCUMENT_CATEGORIES } from "@/lib/education/documents";
+import {
+  EDUCATION_DOCUMENT_CATEGORIES,
+  isSensitiveEducationDocumentCategory,
+  isPreviewableEducationDocumentContentType,
+} from "@/lib/education/documents";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -34,13 +38,15 @@ export default async function EducationDocumentsPage({
   const requestedCategory = readParam(params.category);
   const requestedStatus = readParam(params.status);
   const requestedSearch = readParam(params.search).trim().toLowerCase();
-  const [canCreate, canEdit, canDelete, canViewStudents, canViewStaff, canExport, { campuses }] = await Promise.all([
+  const [canCreate, canEdit, canDelete, canViewStudents, canViewStaff, canExport, canViewSensitiveDocuments, canCreateSensitiveDocuments, { campuses }] = await Promise.all([
     canTabPermission("education_documents", "documents", "library", "create"),
     canTabPermission("education_documents", "documents", "library", "edit"),
     canTabPermission("education_documents", "documents", "library", "delete"),
     canTabPermission("education_students", "students", "list", "view"),
     canTabPermission("education_staff", "staff", "directory", "view"),
     canTabPermission("education_documents", "documents", "library", "export"),
+    canTabPermission("education_sensitive_documents", "documents", "medical", "view"),
+    canTabPermission("education_sensitive_documents", "documents", "medical", "create"),
     getAccessibleEducationCampuses(context.orgId, context.userId),
   ]);
   const campusIds = campuses.map((campus) => campus.id);
@@ -167,6 +173,7 @@ export default async function EducationDocumentsPage({
     {params.archived === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Document archived. Its file remains retained and is no longer downloadable.</p>}
     {params.purged === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Expired document and file permanently removed.</p>}
     {params.error && errorMessage && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errorMessage}</p>}
+    {!canViewSensitiveDocuments && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Medical records are restricted to staff with sensitive-document access.</p>}
 
     {canCreate && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="font-semibold text-slate-950">Upload a document</h2>
@@ -179,7 +186,9 @@ export default async function EducationDocumentsPage({
         </label>
         <label className="text-sm font-medium text-slate-700">Category
           <select required name="category" defaultValue="student_record" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal">
-            {EDUCATION_DOCUMENT_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            {EDUCATION_DOCUMENT_CATEGORIES
+              .filter(([value]) => !isSensitiveEducationDocumentCategory(value) || canCreateSensitiveDocuments)
+              .map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
         <label className="text-sm font-medium text-slate-700 md:col-span-2">Document title
@@ -228,7 +237,9 @@ export default async function EducationDocumentsPage({
           </select>
           <select name="category" defaultValue={categoryFilter} aria-label="Filter by category" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">All categories</option>
-            {EDUCATION_DOCUMENT_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            {EDUCATION_DOCUMENT_CATEGORIES
+              .filter(([value]) => !isSensitiveEducationDocumentCategory(value) || canViewSensitiveDocuments)
+              .map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
           <select name="status" defaultValue={statusFilter} aria-label="Filter by status" className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">All statuses</option>
@@ -267,6 +278,12 @@ export default async function EducationDocumentsPage({
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
+              {canDownload && isPreviewableEducationDocumentContentType(document.content_type) && <Link
+                href={`/api/education/documents/${document.id}/preview`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-50"
+              ><Eye className="h-4 w-4" /> Preview</Link>}
               {canDownload && <Link href={`/api/education/documents/${document.id}/download`} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-50">
                 <Download className="h-4 w-4" /> Download
               </Link>}

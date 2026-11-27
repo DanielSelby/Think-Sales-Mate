@@ -1,10 +1,15 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, FileText, GraduationCap, HeartPulse, Users, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarDays, Eye, FileText, GraduationCap, HeartPulse, Printer, Users, Wallet } from "lucide-react";
 import { StudentConsentForm } from "../student-consent-form";
 import { StudentProfileForm } from "../student-profile-form";
+import { AttendanceTrend } from "./attendance-trend";
 import { FeePaymentDialog } from "./fee-payment-dialog";
 import { archiveEducationDocument, enrollEducationStudentInClass } from "../../actions";
-import { EDUCATION_DOCUMENT_CATEGORIES } from "@/lib/education/documents";
+import {
+  EDUCATION_DOCUMENT_CATEGORIES,
+  isSensitiveEducationDocumentCategory,
+  isPreviewableEducationDocumentContentType,
+} from "@/lib/education/documents";
 import { EducationSubmitButton } from "../../submit-button";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import { formatCurrencyAmount, type CurrencyConfig } from "@/lib/currency";
@@ -139,6 +144,7 @@ type Props = {
   studentPhotoUrl: string | null;
   fullName: string;
   selectedTab: ProfileTab;
+  isPopup: boolean;
   recordSwitcher: {
     recordType: "student";
     searchPath: string;
@@ -148,6 +154,7 @@ type Props = {
   };
   permissions: {
     canEditStudent: boolean;
+    canPrintAcademicHistory: boolean;
     canViewAcademics: boolean;
     canViewResults: boolean;
     canViewAttendance: boolean;
@@ -155,6 +162,8 @@ type Props = {
     canViewGuardians: boolean;
     canViewDocuments: boolean;
     canCreateDocuments: boolean;
+    canViewSensitiveDocuments: boolean;
+    canCreateSensitiveDocuments: boolean;
     canEditDocuments: boolean;
     canViewTransfers: boolean;
     canViewDiscipline: boolean;
@@ -165,6 +174,9 @@ type Props = {
   enrollmentNotice: string | null;
   enrollmentNoticeIsError: boolean;
   attendance: AttendanceRow[];
+  attendanceTrend: Array<{ attendance_date: string; status: string }>;
+  attendanceTrendToday: string;
+  attendanceRateRecords: Array<{ attendance_date: string; status: string }>;
   results: ResultRow[];
   examinations: ExaminationRow[];
   componentScores: ComponentScoreRow[];
@@ -178,6 +190,8 @@ type Props = {
   canRecordFeePayment: boolean;
   paymentRecorded: boolean;
   paymentError: string | null;
+  documentUploaded: boolean;
+  documentError: string | null;
   classPosition: { position: number; cohortSize: number; examinationName: string } | null;
   classPositionStatus: string;
 };
@@ -218,9 +232,10 @@ function PermissionMessage() {
 
 export function StudentProfileView(props: Props) {
   const {
-    student, studentPhotoUrl, fullName, selectedTab, recordSwitcher, permissions, enrollments,
+    student, studentPhotoUrl, fullName, selectedTab, isPopup, recordSwitcher, permissions, enrollments,
     canAssignClass, enrollmentClasses, enrollmentNotice, enrollmentNoticeIsError,
-    attendance, results, examinations, componentScores, charges, guardians,
+    attendance, attendanceTrend, attendanceTrendToday, attendanceRateRecords,
+    results, examinations, componentScores, charges, guardians,
     documents, transfers, communications, consentEvents, currencyConfig,
     canRecordFeePayment, paymentRecorded, paymentError,
     classPosition, classPositionStatus,
@@ -232,8 +247,8 @@ export function StudentProfileView(props: Props) {
     ? (visibleResults.reduce((total, result) => total + result.score, 0)
       / visibleResults.reduce((total, result) => total + result.maximum_score, 0)) * 100
     : null;
-  const attendancePresent = attendance.filter((record) => record.status === "present").length;
-  const attendanceRate = attendance.length ? (attendancePresent / attendance.length) * 100 : null;
+  const attendancePresent = attendanceRateRecords.filter((record) => record.status === "present").length;
+  const attendanceRate = attendanceRateRecords.length ? (attendancePresent / attendanceRateRecords.length) * 100 : null;
   const totalBilled = charges.filter((charge) => charge.status === "open").reduce((total, charge) => total + charge.amount, 0);
   const totalPaid = charges.filter((charge) => charge.status === "open").reduce((total, charge) => total + charge.paid, 0);
   const balance = Math.max(0, totalBilled - totalPaid);
@@ -250,17 +265,6 @@ export function StudentProfileView(props: Props) {
   };
 
   function renderOverview() {
-    const recentAttendance = attendance.slice(0, 30).reverse();
-    const monthlyCounts = new Map<string, { present: number; total: number }>();
-    for (const record of recentAttendance) {
-      const month = record.attendance_date.slice(0, 7);
-      const current = monthlyCounts.get(month) ?? { present: 0, total: 0 };
-      monthlyCounts.set(month, {
-        present: current.present + (record.status === "present" ? 1 : 0),
-        total: current.total + 1,
-      });
-    }
-
     return <div className="space-y-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
@@ -305,20 +309,9 @@ export function StudentProfileView(props: Props) {
           </ul> : <EmptyState>{permissions.canViewResults ? "No published results are available." : "You do not have permission to view results."}</EmptyState>}
         </section>
 
-        <section className={cardClass}>
-          <h2 className={headingClass}>Attendance trend</h2>
-          {permissions.canViewAttendance && monthlyCounts.size ? <div className="mt-4 space-y-3">
-            {[...monthlyCounts.entries()].slice(-6).map(([month, counts]) => {
-              const rate = counts.total ? (counts.present / counts.total) * 100 : 0;
-              return <div key={month} className="grid grid-cols-[75px_1fr_45px] items-center gap-3 text-xs">
-              <span className="text-slate-500">{month}</span>
-              <span className="h-2 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-blue-600" style={{ width: `${rate}%` }} /></span>
-              <span className="text-right font-medium text-slate-700">{rate.toFixed(0)}%</span>
-            </div>
-            })}
-            <p className="text-xs text-slate-500">Attendance rates for the latest 30 recorded entries, grouped by month.</p>
-          </div> : <EmptyState>{permissions.canViewAttendance ? "No attendance has been recorded." : "You do not have permission to view attendance."}</EmptyState>}
-        </section>
+        {permissions.canViewAttendance
+          ? <AttendanceTrend records={attendanceTrend} today={attendanceTrendToday} />
+          : <section className={cardClass}><h2 className={headingClass}>Attendance trend</h2><PermissionMessage /></section>}
 
         <section className={cardClass}>
           <div className="flex items-center justify-between gap-2">
@@ -569,6 +562,9 @@ export function StudentProfileView(props: Props) {
     const today = new Date().toISOString().slice(0, 10);
     return <section className={cardClass}>
       <div className="flex items-center justify-between gap-3"><h2 className={headingClass}>Documents & certificates</h2><Link href={getProductAppPath("think-education", "/documents")} className="text-sm font-semibold text-blue-700 hover:underline">Open document library</Link></div>
+      {props.documentUploaded && <p role="status" className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Document uploaded securely.</p>}
+      {props.documentError && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{props.documentError}</p>}
+      {!permissions.canViewSensitiveDocuments && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Medical records are restricted to staff with sensitive-document access.</p>}
       {permissions.canCreateDocuments && <form
         action="/api/education/documents"
         method="post"
@@ -583,7 +579,9 @@ export function StudentProfileView(props: Props) {
         </label>
         <label className="text-sm font-medium text-slate-700">Category
           <select name="category" required defaultValue="student_record" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
-            {EDUCATION_DOCUMENT_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            {EDUCATION_DOCUMENT_CATEGORIES
+              .filter(([value]) => !isSensitiveEducationDocumentCategory(value) || permissions.canCreateSensitiveDocuments)
+              .map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
         <label className="text-sm font-medium text-slate-700">Retention until
@@ -611,6 +609,12 @@ export function StudentProfileView(props: Props) {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs capitalize text-slate-500">{document.verification_status.replaceAll("_", " ")}</span>
+            {downloadable && isPreviewableEducationDocumentContentType(document.content_type) && <Link
+              href={`/api/education/documents/${document.id}/preview`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"
+            ><Eye className="h-4 w-4" />Preview</Link>}
             {downloadable && <Link href={`/api/education/documents/${document.id}/download`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline"><FileText className="h-4 w-4" />Download</Link>}
             {document.status === "active" && permissions.canEditDocuments && <form action={archiveEducationDocument}>
               <input type="hidden" name="document_id" value={document.id} />
@@ -665,16 +669,18 @@ export function StudentProfileView(props: Props) {
     }
   }
 
-  return <main className="mx-auto w-full max-w-[1500px] space-y-5 p-4 md:p-6 xl:p-8">
-    <Link href={getProductAppPath("think-education", "/students")} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:text-blue-900"><ArrowLeft className="h-4 w-4" /> Students</Link>
-    <EducationRecordSwitcher key={student.id} {...recordSwitcher} />
-    <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+  return <main className={`mx-auto w-full max-w-[1500px] space-y-5 ${isPopup ? "p-3 sm:p-5" : "p-4 md:p-6 xl:p-8"}`}>
+    {!isPopup && <>
+      <Link href={getProductAppPath("think-education", "/students")} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:text-blue-900"><ArrowLeft className="h-4 w-4" /> Students</Link>
+      <EducationRecordSwitcher key={student.id} {...recordSwitcher} />
+    </>}
+    <header className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${isPopup ? "p-3" : "p-5 md:p-6"}`}>
       <div className="flex flex-wrap items-center gap-4">
-        <span role="img" aria-label={`${fullName} photo`} className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-2xl font-semibold text-blue-700" style={studentPhotoUrl ? { backgroundImage: `url(${JSON.stringify(studentPhotoUrl)})` } : undefined}>
+        {!isPopup && <span role="img" aria-label={`${fullName} photo`} className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 bg-cover bg-center text-2xl font-semibold text-blue-700" style={studentPhotoUrl ? { backgroundImage: `url(${JSON.stringify(studentPhotoUrl)})` } : undefined}>
           {!studentPhotoUrl && `${student.first_name[0] ?? ""}${student.last_name[0] ?? ""}`.toUpperCase()}
-        </span>
+        </span>}
         <div className="min-w-[220px] flex-1">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Student 360° profile</p>
+          {!isPopup && <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Student 360° profile</p>}
           <h1 className="mt-1 text-2xl font-bold text-slate-950">{fullName}</h1>
           <p className="mt-1 text-sm text-slate-600">Student ID: {student.student_number}{student.admissionNumber ? ` · Application: ${student.admissionNumber}` : ""}</p>
           <p className="mt-1 text-sm text-slate-600">{activeEnrollment?.class_name ?? "Class not assigned"} · {student.campusName} · {activeEnrollment?.year_name ?? "Academic year not assigned"}</p>
@@ -683,14 +689,20 @@ export function StudentProfileView(props: Props) {
       </div>
     </header>
 
-    <nav aria-label="Student profile sections" className="-mx-1 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+    {!isPopup && <nav aria-label="Student profile sections" className="-mx-1 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
       {TABS.map((tab) => <Link key={tab.id} href={`${profilePath}?tab=${tab.id}`} aria-current={selectedTab === tab.id ? "page" : undefined} className={`shrink-0 rounded-lg px-3 py-2 text-sm font-semibold transition ${selectedTab === tab.id ? "bg-blue-700 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"}`}>{tab.label}</Link>)}
-    </nav>
+    </nav>}
 
     {selectedTab === "personal" && <div className="grid gap-3 sm:grid-cols-3">
       {[["Student ID", student.student_number], ["Campus", student.campusName], ["Status", student.status.replaceAll("_", " ")]].map(([label, value]) => <article key={label} className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 font-semibold capitalize text-slate-900">{value}</p></article>)}
     </div>}
     {renderContent()}
+    {permissions.canPrintAcademicHistory && (selectedTab === "academic" || selectedTab === "history") && <div className="flex justify-end">
+      <Link
+        href={getProductAppPath("think-education", `/students/${student.id}/academic-history/print`)}
+        className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-50"
+      ><Printer className="h-4 w-4" />Print academic history</Link>
+    </div>}
     {selectedTab === "overview" && permissions.canViewGuardians && guardians.length > 0 && <section className={cardClass}>
       <div className="flex items-center justify-between"><h2 className={headingClass}>Guardians</h2><Users className="h-5 w-5 text-blue-700" /></div>
       <p className="mt-2 text-sm text-slate-600">{guardians.map((guardian) => `${guardian.first_name} ${guardian.last_name} (${guardian.relationship})`).join(" · ")}</p>

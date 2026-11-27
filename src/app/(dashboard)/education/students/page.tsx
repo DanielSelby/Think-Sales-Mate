@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, CalendarDays, Eye, FileText, GraduationCap, MoreHorizontal, Pencil, Search, Users, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, GraduationCap, Search, Users } from "lucide-react";
 import { getAccessibleEducationCampuses } from "@/lib/education/access";
 import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
@@ -11,16 +11,20 @@ import { getOrganizationCurrencyConfig } from "@/lib/currency/settings";
 import { formatCurrencyAmount } from "@/lib/currency";
 import {
   EDUCATION_STUDENT_STATUSES,
+  EDUCATION_STUDENT_GENDERS,
+  parseEducationStudentGender,
   parseEducationStudentDirectoryResult,
   type EducationStudentDirectoryRow,
+  type EducationStudentGender,
   type EducationStudentStatus,
 } from "@/lib/education/student-directory";
 import { createEducationStudent } from "../actions";
 import { EducationRecordModal } from "@/components/education/education-record-modal";
 import { EducationImportModal } from "@/components/education/education-import-modal";
 import { StudentFilters } from "./student-filters";
+import { StudentDirectoryActions } from "./student-directory-actions";
 
-const PAGE_SIZE_OPTIONS = ["10", "50", "100", "all"] as const;
+const PAGE_SIZE_OPTIONS = ["50", "10", "100", "all"] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 const ALL_STUDENTS_LIMIT = 250;
 
@@ -41,9 +45,9 @@ export default async function EducationStudentsPage({
   const status = requestedStatus === "all"
     ? "all"
     : EDUCATION_STUDENT_STATUSES.find((item) => item === requestedStatus) ?? "active";
-  const gender = typeof params.gender === "string" ? params.gender.trim().slice(0, 50) : "";
+  const gender = typeof params.gender === "string" ? parseEducationStudentGender(params.gender) : "";
   const requestedPageSize = typeof params.pageSize === "string" ? params.pageSize : "";
-  const pageSize = PAGE_SIZE_OPTIONS.find((item) => item === requestedPageSize) ?? "10";
+  const pageSize = PAGE_SIZE_OPTIONS.find((item) => item === requestedPageSize) ?? "50";
   const requestedBranch = typeof params.branch === "string" ? params.branch : "";
   const requestedClass = typeof params.class === "string" ? params.class : "";
   const requestedPage = Number.parseInt(typeof params.page === "string" ? params.page : "1", 10) || 1;
@@ -80,6 +84,7 @@ export default async function EducationStudentsPage({
   let totalCount = 0;
   let students: EducationStudentDirectoryRow[] = [];
   let statusCounts = Object.fromEntries(EDUCATION_STUDENT_STATUSES.map((item) => [item, 0])) as Record<EducationStudentStatus, number>;
+  let genderCounts = Object.fromEntries(EDUCATION_STUDENT_GENDERS.map((item) => [item, 0])) as Record<EducationStudentGender, number>;
   if (branchIds.length) {
     const numericPageSize = pageSize === "all" ? ALL_STUDENTS_LIMIT : Number(pageSize);
     const { data, error } = await supabase.rpc("education_student_directory_page", {
@@ -97,6 +102,7 @@ export default async function EducationStudentsPage({
     totalCount = directory.totalCount;
     students = directory.students;
     statusCounts = directory.statusCounts;
+    genderCounts = directory.genderCounts;
   }
 
   const [canViewFinanceCharges, canViewFinancePayments] = await Promise.all([
@@ -170,7 +176,7 @@ export default async function EducationStudentsPage({
     if (status !== "active") next.set("status", status);
     if (selectedBranch) next.set("branch", selectedBranch);
     if (selectedClass) next.set("class", selectedClass);
-    if (pageSize !== "10") next.set("pageSize", pageSize);
+    if (pageSize !== "50") next.set("pageSize", pageSize);
     next.set("page", String(page));
     return `${getProductAppPath("think-education", "/students")}?${next.toString()}`;
   };
@@ -201,11 +207,12 @@ export default async function EducationStudentsPage({
           { key: "phone", label: "Phone" },
           { key: "date_of_birth", label: "Date of Birth" },
           { key: "gender", label: "Gender" },
+          { key: "nationality", label: "Nationality" },
           { key: "home_address", label: "Home Address" },
         ]} />}
         {canCreate && campuses.length > 0 && <EducationRecordModal
           title="Add student"
-          description="Student numbers are generated automatically. Optionally provision a linked login."
+          description="Student numbers are generated automatically. Nationality is optional. Optionally provision a linked login."
           buttonLabel="Add student"
           submitLabel="Save student"
           action={createEducationStudent}
@@ -219,7 +226,8 @@ export default async function EducationStudentsPage({
             { name: "email", label: "Email", type: "email", maxLength: 254 },
             { name: "phone", label: "Phone", type: "tel", maxLength: 32 },
             { name: "date_of_birth", label: "Date of birth", type: "date" },
-            { name: "gender", label: "Gender", maxLength: 50 },
+            { name: "gender", label: "Gender", type: "select", options: EDUCATION_STUDENT_GENDERS.map((value) => ({ value, label: value })) },
+            { name: "nationality", label: "Nationality", maxLength: 100 },
             { name: "home_address", label: "Home address", maxLength: 500 },
             { name: "student_photo", label: "Student photo", type: "file", accept: "image/jpeg,image/png,image/webp" },
           ]}
@@ -230,11 +238,13 @@ export default async function EducationStudentsPage({
     {params.created === "1" && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Student record created.</p>}
     {errorMessage && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{errorMessage}</p>}
 
-    <section data-education-metrics className="grid gap-3 sm:grid-cols-3">
+    <section data-education-metrics className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {[
         { label: "Students matching filters", value: totalCount.toLocaleString(), icon: Users },
         { label: "Campuses in your access", value: campuses.length.toLocaleString(), icon: GraduationCap },
         { label: "Students on this page", value: students.length.toLocaleString(), icon: Search },
+        { label: "Male students", value: genderCounts.Male.toLocaleString(), icon: Users },
+        { label: "Female students", value: genderCounts.Female.toLocaleString(), icon: Users },
       ].map(({ label, value, icon: Icon }) => <article key={label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{value}</p></div>
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
@@ -309,36 +319,17 @@ export default async function EducationStudentsPage({
                     title="View student"
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                   ><Eye className="h-4 w-4" /></Link>
-                  {canViewBalances && <Link
-                    href={getProductAppPath("think-education", `/students/${student.id}?tab=fees`)}
-                    aria-label={`Fee summary for ${student.first_name} ${student.last_name}`}
-                    title="Fee summary"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                  ><Wallet className="h-4 w-4" /></Link>}
-                  {canViewAttendance && <Link
-                    href={getProductAppPath("think-education", `/students/${student.id}?tab=attendance`)}
-                    aria-label={`Attendance report for ${student.first_name} ${student.last_name}`}
-                    title="Attendance report"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-orange-700 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
-                  ><CalendarDays className="h-4 w-4" /></Link>}
-                  {(canViewResults || canViewGuardians || canEditStudent) && <details className="relative">
-                    <summary
-                      aria-label={`More actions for ${student.first_name} ${student.last_name}`}
-                      title="More actions"
-                      className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 [&::-webkit-details-marker]:hidden"
-                    ><MoreHorizontal className="h-4 w-4" /></summary>
-                    <div className="absolute right-0 z-20 mt-1 min-w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-                      {canViewResults && <Link href={getProductAppPath("think-education", `/students/${student.id}?tab=exams`)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">
-                        <FileText className="h-4 w-4" /> Exams &amp; results
-                      </Link>}
-                      {canViewGuardians && <Link href={getProductAppPath("think-education", `/students/${student.id}?tab=guardians`)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-violet-700 hover:bg-violet-50">
-                        <Users className="h-4 w-4" /> Linked parents
-                      </Link>}
-                      {canEditStudent && <Link href={getProductAppPath("think-education", `/students/${student.id}?tab=personal`)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-amber-700 hover:bg-amber-50">
-                        <Pencil className="h-4 w-4" /> Edit student
-                      </Link>}
-                    </div>
-                  </details>}
+                  <StudentDirectoryActions
+                    studentName={[student.first_name, student.other_names, student.last_name].filter(Boolean).join(" ")}
+                    profileHref={getProductAppPath("think-education", `/students/${student.id}`)}
+                    actions={[
+                      ...(canViewBalances ? [{ tab: "fees" as const, label: "Fee summary" }] : []),
+                      ...(canViewAttendance ? [{ tab: "attendance" as const, label: "Attendance report" }] : []),
+                      ...(canViewResults ? [{ tab: "exams" as const, label: "Exams & results" }] : []),
+                      ...(canViewGuardians ? [{ tab: "guardians" as const, label: "Linked parents" }] : []),
+                      ...(canEditStudent ? [{ tab: "personal" as const, label: "Edit student" }] : []),
+                    ]}
+                  />
                 </div>
               </td>
             </tr>)}

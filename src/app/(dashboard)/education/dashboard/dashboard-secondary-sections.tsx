@@ -4,10 +4,18 @@ import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
 import {
   AdmissionPipelineBarChart,
+  AttendanceRateLineChart,
   AttendanceStatusLineChart,
+  ExpenseCategoryBarChart,
   FeeAgingBarChart,
+  StaffAttendanceRateLineChart,
+  StudentEnrollmentOutcomeBarChart,
   type AdmissionPipelinePoint,
+  type AttendanceRatePoint,
+  type ExpenseCategoryPoint,
   type FeeAgingPoint,
+  type StaffAttendanceRatePoint,
+  type StudentEnrollmentOutcomePoint,
   type StudentEnrollmentPoint,
   StudentEnrollmentBarChart,
   StudentGenderDonutChart,
@@ -45,6 +53,19 @@ function getDateBucket(date: string, spanDays: number) {
   return { date: bucket, label: parsed.toLocaleDateString(undefined, { month: "short", year: "2-digit", timeZone: "UTC" }) };
 }
 
+function getAttendanceTrendBucket(date: string, spanDays: number) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (spanDays > 180) {
+    parsed.setUTCDate(1);
+    const bucket = parsed.toISOString().slice(0, 10);
+    return { date: bucket, label: parsed.toLocaleDateString(undefined, { month: "short", year: "2-digit", timeZone: "UTC" }) };
+  }
+  const weekday = parsed.getUTCDay() || 7;
+  parsed.setUTCDate(parsed.getUTCDate() - weekday + 1);
+  const bucket = parsed.toISOString().slice(0, 10);
+  return { date: bucket, label: parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" }) };
+}
+
 export async function AttendanceStatusCard({
   orgId,
   branchIds,
@@ -58,7 +79,7 @@ export async function AttendanceStatusCard({
 }) {
   const header = <div>
     <h2 className="text-lg font-bold text-slate-950">Attendance by status</h2>
-    <p className="mt-1 text-sm text-slate-500">Daily present, late, and absent counts across your selected campuses for the last seven days.</p>
+    <p className="mt-1 text-sm text-slate-500">Daily present, late, and absent counts for this week, Monday through Sunday.</p>
   </div>;
   if (!canReadAttendance) {
     return <section data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -72,7 +93,8 @@ export async function AttendanceStatusCard({
   }
 
   const firstDay = new Date(`${today}T00:00:00.000Z`);
-  firstDay.setUTCDate(firstDay.getUTCDate() - 6);
+  const weekday = firstDay.getUTCDay() || 7;
+  firstDay.setUTCDate(firstDay.getUTCDate() - weekday + 1);
   const from = firstDay.toISOString().slice(0, 10);
   const supabase = await createClient();
   const countsByDate = new Map<string, { present: number; late: number; absent: number }>();
@@ -109,6 +131,7 @@ export async function AttendanceStatusCard({
     if (page.length < pageSize) break;
   }
 
+  const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const trend: AttendanceStatusPoint[] = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${from}T00:00:00.000Z`);
     date.setUTCDate(date.getUTCDate() + index);
@@ -116,7 +139,7 @@ export async function AttendanceStatusCard({
     const counts = countsByDate.get(dateKey) ?? { present: 0, late: 0, absent: 0 };
     return {
       date: dateKey,
-      label: new Date(`${dateKey}T12:00:00.000Z`).toLocaleDateString(undefined, { weekday: "short" }),
+      label: weekdayLabels[index],
       ...counts,
     };
   });
@@ -128,6 +151,85 @@ export async function AttendanceStatusCard({
     </div>
     <AttendanceStatusLineChart data={trend} />
   </section>;
+}
+
+export async function AttendanceRateCard({
+  orgId,
+  branchIds,
+  from,
+  to,
+  canReadAttendance,
+}: {
+  orgId: string;
+  branchIds: string[];
+  from: string;
+  to: string;
+  canReadAttendance: boolean;
+}) {
+  const header = <div>
+    <h2 className="text-lg font-bold text-slate-950">Attendance rate over time</h2>
+    <p className="mt-1 text-sm text-slate-500">Weekly for ranges up to six months, monthly for longer ranges. Present marks as a share of recorded non-excused marks.</p>
+  </div>;
+  if (!canReadAttendance) {
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include attendance reporting access.</p>
+    </article>;
+  }
+  if (!branchIds.length) {
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see attendance rates.</p>
+    </article>;
+  }
+
+  const spanDays = Math.floor((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / 86_400_000) + 1;
+  const countsByBucket = new Map<string, { present: number; late: number; absent: number; excused: number }>();
+  const supabase = await createClient();
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from("education_attendance")
+      .select("id, attendance_date, status")
+      .eq("org_id", orgId).in("branch_id", branchIds)
+      .gte("attendance_date", from).lte("attendance_date", to)
+      .not("student_id", "is", null)
+      .order("attendance_date").order("id")
+      .range(offset, offset + pageSize - 1);
+    if (error) {
+      console.error("Could not load Think Education attendance rates:", error);
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<SectionError section="attendance rate trends" />
+      </article>;
+    }
+    const page = data ?? [];
+    if (offset >= 100_000 && page.length > 0) {
+      console.error("Think Education attendance rate chart exceeded its 100,000-record processing limit.");
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Attendance volume exceeds the chart limit. Narrow the date range to view this trend.</p>
+      </article>;
+    }
+    for (const record of page) {
+      const bucket = getAttendanceTrendBucket(record.attendance_date, spanDays);
+      const counts = countsByBucket.get(bucket.date) ?? { present: 0, late: 0, absent: 0, excused: 0 };
+      if (record.status === "present") counts.present += 1;
+      if (record.status === "late") counts.late += 1;
+      if (record.status === "absent") counts.absent += 1;
+      if (record.status === "excused") counts.excused += 1;
+      countsByBucket.set(bucket.date, counts);
+    }
+    if (page.length < pageSize) break;
+  }
+
+  const trend: AttendanceRatePoint[] = Array.from(countsByBucket, ([date, counts]) => {
+    const eligible = counts.present + counts.late + counts.absent;
+    return {
+      date,
+      label: getAttendanceTrendBucket(date, spanDays).label,
+      rate: eligible ? Math.round((counts.present / eligible) * 1000) / 10 : null,
+    };
+  }).sort((a, b) => a.date.localeCompare(b.date));
+  return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    {header}
+    <AttendanceRateLineChart data={trend} />
+  </article>;
 }
 
 export async function StudentDistributionSection({
@@ -362,6 +464,73 @@ export async function StudentGenderCard({
     </article>;
   }
 
+  export async function StudentEnrollmentOutcomeCard({
+    orgId,
+    branchIds,
+    from,
+    to,
+    canReadStudents,
+  }: {
+    orgId: string;
+    branchIds: string[];
+    from: string;
+    to: string;
+    canReadStudents: boolean;
+  }) {
+    const header = <div>
+      <h2 className="text-lg font-bold text-slate-950">Student retention &amp; progression</h2>
+      <p className="mt-1 text-sm text-slate-500">Enrollments started in the selected period, grouped by their current record status. This is not a cohort retention rate.</p>
+    </div>;
+    if (!canReadStudents) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include student reporting access.</p>
+      </article>;
+    }
+    if (!branchIds.length) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see enrollment outcomes.</p>
+      </article>;
+    }
+
+    const outcomes = ["active", "completed", "transferred", "withdrawn"] as const;
+    const counts = new Map<string, number>(outcomes.map((outcome) => [outcome, 0]));
+    const supabase = await createClient();
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from("education_student_enrollments")
+        .select("id, status")
+        .eq("org_id", orgId).in("branch_id", branchIds)
+        .gte("enrolled_on", from).lte("enrolled_on", to)
+        .order("id").range(offset, offset + pageSize - 1);
+      if (error) {
+        console.error("Could not load Think Education enrollment outcomes:", error);
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<SectionError section="student enrollment outcomes" />
+        </article>;
+      }
+      const page = data ?? [];
+      if (offset >= 100_000 && page.length > 0) {
+        console.error("Think Education enrollment outcome chart exceeded its 100,000-record processing limit.");
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Enrollment volume exceeds the chart limit. Narrow the date range to view these outcomes.</p>
+        </article>;
+      }
+      for (const enrollment of page) {
+        if (counts.has(enrollment.status)) counts.set(enrollment.status, (counts.get(enrollment.status) ?? 0) + 1);
+      }
+      if (page.length < pageSize) break;
+    }
+
+    const chartData: StudentEnrollmentOutcomePoint[] = outcomes.map((outcome) => ({
+      outcome: outcome[0].toUpperCase() + outcome.slice(1),
+      count: counts.get(outcome) ?? 0,
+    }));
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}
+      <StudentEnrollmentOutcomeBarChart data={chartData} />
+    </article>;
+  }
+
   export async function AdmissionsPipelineCard({
     orgId,
     branchIds,
@@ -428,6 +597,159 @@ export async function StudentGenderCard({
     return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       {header}
       <AdmissionPipelineBarChart data={chartData} />
+    </article>;
+  }
+
+  export async function ExpenseCategoryCard({
+    orgId,
+    branchIds,
+    from,
+    to,
+    canViewExpenses,
+  }: {
+    orgId: string;
+    branchIds: string[];
+    from: string;
+    to: string;
+    canViewExpenses: boolean;
+  }) {
+    const header = <div>
+      <h2 className="text-lg font-bold text-slate-950">Approved expenses by category</h2>
+      <p className="mt-1 text-sm text-slate-500">Approved expenses dated in the selected period; amounts are in your organization currency.</p>
+    </div>;
+    if (!canViewExpenses) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Your role does not include expense reporting access.</p>
+      </article>;
+    }
+    if (!branchIds.length) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see expense categories.</p>
+      </article>;
+    }
+
+    const amountByCategory = new Map<string, { label: string; amount: number }>();
+    const supabase = await createClient();
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from("education_expenses")
+        .select("id, category, amount")
+        .eq("org_id", orgId).in("branch_id", branchIds).eq("status", "approved")
+        .gte("expense_date", from).lte("expense_date", to)
+        .order("id").range(offset, offset + pageSize - 1);
+      if (error) {
+        console.error("Could not load Think Education expenses by category:", error);
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<SectionError section="expense categories" />
+        </article>;
+      }
+      const page = data ?? [];
+      if (offset >= 100_000 && page.length > 0) {
+        console.error("Think Education expense chart exceeded its 100,000-record processing limit.");
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Expense volume exceeds the chart limit. Narrow the date range to view these categories.</p>
+        </article>;
+      }
+      for (const expense of page) {
+        const label = expense.category.trim() || "Uncategorized";
+        const key = label.toLocaleLowerCase();
+        const current = amountByCategory.get(key) ?? { label, amount: 0 };
+        current.amount += Number(expense.amount);
+        amountByCategory.set(key, current);
+      }
+      if (page.length < pageSize) break;
+    }
+
+    const categories = Array.from(amountByCategory.values()).sort((a, b) => b.amount - a.amount);
+    const topCategories = categories.slice(0, 8).map(({ label, amount }) => ({ category: label, amount }));
+    const otherAmount = categories.slice(8).reduce((total, category) => total + category.amount, 0);
+    const chartData: ExpenseCategoryPoint[] = otherAmount > 0
+      ? [...topCategories, { category: "Other categories", amount: otherAmount }]
+      : topCategories;
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}
+      <ExpenseCategoryBarChart data={chartData} />
+    </article>;
+  }
+
+  export async function StaffAttendanceTrendCard({
+    orgId,
+    branchIds,
+    from,
+    to,
+    canReadAttendance,
+    canReadStaff,
+  }: {
+    orgId: string;
+    branchIds: string[];
+    from: string;
+    to: string;
+    canReadAttendance: boolean;
+    canReadStaff: boolean;
+  }) {
+    const header = <div>
+      <h2 className="text-lg font-bold text-slate-950">Staff attendance rate</h2>
+      <p className="mt-1 text-sm text-slate-500">Weekly for ranges up to six months, monthly for longer ranges. Present and late marks as a share of recorded non-excused staff marks.</p>
+    </div>;
+    if (!canReadAttendance || !canReadStaff) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Staff directory and attendance reporting access are required.</p>
+      </article>;
+    }
+    if (!branchIds.length) {
+      return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {header}<p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see staff attendance rates.</p>
+      </article>;
+    }
+
+    const spanDays = Math.floor((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / 86_400_000) + 1;
+    const countsByBucket = new Map<string, { present: number; late: number; absent: number; excused: number }>();
+    const supabase = await createClient();
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.from("education_attendance")
+        .select("id, attendance_date, status")
+        .eq("org_id", orgId).in("branch_id", branchIds)
+        .gte("attendance_date", from).lte("attendance_date", to)
+        .not("staff_id", "is", null).is("student_id", null)
+        .order("attendance_date").order("id")
+        .range(offset, offset + pageSize - 1);
+      if (error) {
+        console.error("Could not load Think Education staff attendance trends:", error);
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<SectionError section="staff attendance trends" />
+        </article>;
+      }
+      const page = data ?? [];
+      if (offset >= 100_000 && page.length > 0) {
+        console.error("Think Education staff attendance chart exceeded its 100,000-record processing limit.");
+        return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {header}<p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">Staff attendance volume exceeds the chart limit. Narrow the date range to view this trend.</p>
+        </article>;
+      }
+      for (const record of page) {
+        const bucket = getAttendanceTrendBucket(record.attendance_date, spanDays);
+        const counts = countsByBucket.get(bucket.date) ?? { present: 0, late: 0, absent: 0, excused: 0 };
+        if (record.status === "present") counts.present += 1;
+        if (record.status === "late") counts.late += 1;
+        if (record.status === "absent") counts.absent += 1;
+        if (record.status === "excused") counts.excused += 1;
+        countsByBucket.set(bucket.date, counts);
+      }
+      if (page.length < pageSize) break;
+    }
+
+    const trend: StaffAttendanceRatePoint[] = Array.from(countsByBucket, ([date, counts]) => {
+      const eligible = counts.present + counts.late + counts.absent;
+      return {
+        date,
+        label: getAttendanceTrendBucket(date, spanDays).label,
+        rate: eligible ? Math.round(((counts.present + counts.late) / eligible) * 1000) / 10 : null,
+      };
+    }).sort((a, b) => a.date.localeCompare(b.date));
+    return <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {header}
+      <StaffAttendanceRateLineChart data={trend} />
     </article>;
   }
 

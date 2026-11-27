@@ -582,13 +582,17 @@ export async function recordEducationFeePayment(formData: FormData) {
   const requestedStudentId = String(formData.get("student_id") ?? "");
   const returnTo = String(formData.get("return_to") ?? "");
   const returnToFinance = returnTo === "finance" || returnTo === "payments";
+  const returnToAging = returnTo === "aging";
+  const returnBranch = String(formData.get("return_branch") ?? "");
+  const returnYear = String(formData.get("return_year") ?? "");
+  const returnPage = String(formData.get("return_page") ?? "");
   const amountText = String(formData.get("amount") ?? "").trim();
   const paymentMethod = String(formData.get("payment_method") ?? "");
   const reference = String(formData.get("reference") ?? "").trim();
   const amount = Number(amountText);
   const supabase = await createClient();
   let returnStudentId = "";
-  if (!returnToFinance && EDUCATION_COMMUNICATION_UUID_PATTERN.test(requestedStudentId) && chargeId) {
+  if (!returnToFinance && !returnToAging && EDUCATION_COMMUNICATION_UUID_PATTERN.test(requestedStudentId) && chargeId) {
     const { data: charge, error: chargeError } = await supabase.from("education_fee_charges")
       .select("student_id, branch_id")
       .eq("org_id", context.orgId)
@@ -602,11 +606,17 @@ export async function recordEducationFeePayment(formData: FormData) {
   }
   const financePath = getProductAppPath("think-education", "/finance");
   const paymentsPath = getProductAppPath("think-education", "/finance/payments");
+  const agingPath = getProductAppPath("think-education", "/finance/aging");
   const returnPath = (error?: string) => {
     const path = returnStudentId
       ? getProductAppPath("think-education", `/students/${returnStudentId}`)
-      : returnTo === "payments" ? paymentsPath : financePath;
+      : returnToAging ? agingPath : returnTo === "payments" ? paymentsPath : financePath;
     const query = new URLSearchParams(returnStudentId ? { tab: "fees" } : {});
+    if (returnToAging) {
+      if (EDUCATION_COMMUNICATION_UUID_PATTERN.test(returnBranch)) query.set("branch", returnBranch);
+      if (EDUCATION_COMMUNICATION_UUID_PATTERN.test(returnYear)) query.set("year", returnYear);
+      if (/^[1-9]\d{0,6}$/.test(returnPage) && Number(returnPage) > 1) query.set("page", returnPage);
+    }
     if (error) query.set("error", error);
     const queryString = query.toString();
     return queryString ? `${path}?${queryString}` : path;
@@ -633,6 +643,7 @@ export async function recordEducationFeePayment(formData: FormData) {
     redirect(returnPath("save"));
   }
   revalidatePath("/education/finance");
+  if (returnToAging) revalidatePath("/education/finance/aging");
   revalidatePath("/education/accounting");
   revalidatePath("/education/accounting/journal-entries");
   revalidatePath("/education/accounting/general-ledger");
@@ -1611,6 +1622,7 @@ export async function createEducationStudent(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim();
   const dateOfBirth = String(formData.get("date_of_birth") ?? "").trim();
   const gender = String(formData.get("gender") ?? "").trim();
+  const nationality = String(formData.get("nationality") ?? "").trim();
   const homeAddress = String(formData.get("home_address") ?? "").trim();
   const createAccount = formData.get("create_account") === "true";
   const photoResult = await getEducationStudentPhoto(formData);
@@ -1622,9 +1634,10 @@ export async function createEducationStudent(formData: FormData) {
     || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     || phone.length > 32
     || gender.length > 50
+    || nationality.length > 100
     || homeAddress.length > 500
     || (dateOfBirth && !isValidEducationStaffDate(dateOfBirth))) {
-    return { error: "Enter a valid email address, date of birth, gender, and address." };
+    return { error: "Enter a valid email address, date of birth, gender, nationality, and address." };
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -1681,6 +1694,7 @@ export async function createEducationStudent(formData: FormData) {
     phone: phone || null,
     date_of_birth: dateOfBirth || null,
     gender: gender || null,
+    nationality: nationality || null,
     home_address: homeAddress || null,
     created_by: context.userId,
   }).select("id").single();
@@ -1736,10 +1750,11 @@ export async function updateEducationStudent(formData: FormData) {
     phone: String(formData.get("phone") ?? ""),
     dateOfBirth: String(formData.get("date_of_birth") ?? ""),
     gender: String(formData.get("gender") ?? ""),
+    nationality: String(formData.get("nationality") ?? ""),
     homeAddress: String(formData.get("home_address") ?? ""),
   });
   if (!parsed.success) {
-    return { error: "Check the student name, email, phone, and date of birth." };
+    return { error: "Check the student name, email, phone, date of birth, and nationality." };
   }
   const photoResult = await getEducationStudentPhoto(formData);
   if (photoResult.error) return { error: photoResult.error };
@@ -1760,6 +1775,7 @@ export async function updateEducationStudent(formData: FormData) {
       phone: parsed.data.phone || null,
       date_of_birth: parsed.data.dateOfBirth || null,
       gender: parsed.data.gender || null,
+      nationality: parsed.data.nationality || null,
       home_address: parsed.data.homeAddress || null,
       updated_at: new Date().toISOString(),
     })
@@ -2326,11 +2342,13 @@ export async function importEducationRecords(
         const email = getValue(values, "email");
         const phone = getValue(values, "phone");
         const dateOfBirth = getValue(values, "date_of_birth");
+        const nationality = getValue(values, "nationality");
         if ((studentNumber && !/^[A-Za-z0-9._/-]{1,32}$/.test(studentNumber))
           || !firstName || firstName.length > 100 || !lastName || lastName.length > 100
           || otherNames.length > 100 || !emailIsValid(email) || phone.length > 32
+          || nationality.length > 100
         ) {
-          return { row: rowNumber, error: "Check the student number (if supplied), name, and contact fields." };
+          return { row: rowNumber, error: "Check the student number (if supplied), name, contact fields, and nationality." };
         }
         if (dateOfBirth && !isValidEducationStaffDate(dateOfBirth)) {
           return { row: rowNumber, error: "Date of birth must use DD-MM-YYYY (or YYYY-MM-DD) and cannot be in the future." };

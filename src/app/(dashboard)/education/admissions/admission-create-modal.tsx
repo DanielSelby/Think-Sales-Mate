@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, UserPlus, X } from "lucide-react";
 import { createEducationAdmission } from "../actions";
+import { EDUCATION_STUDENT_GENDERS } from "@/lib/education/student-directory";
 
 type CampusOption = { id: string; name: string };
 type ClassOption = { id: string; branchId: string; label: string };
@@ -168,7 +169,10 @@ export function AdmissionCreateModal({
               <input name="date_of_birth" type="date" max={new Date().toISOString().slice(0, 10)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
             </label>
             <label className="text-sm font-medium text-slate-700">Gender
-              <input name="gender" maxLength={50} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />
+              <select name="gender" defaultValue="" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal">
+                <option value="">Not specified</option>
+                {EDUCATION_STUDENT_GENDERS.map((gender) => <option key={gender} value={gender}>{gender}</option>)}
+              </select>
             </label>
             <label className="text-sm font-medium text-slate-700">Home address
               <textarea name="address" maxLength={500} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" />

@@ -9,16 +9,24 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canPermission, canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
+import { getEducationInstitutionDisplayName } from "@/lib/education/institution-branding";
 import { grantOwnEducationOrganizationScope } from "../actions";
 import { DashboardFilters } from "./dashboard-filters";
+import { OutstandingBalanceCard } from "./outstanding-balance-card";
 import {
+  ClassCapacityBarChart,
   FeeCollectionsByCampusChart,
+  type ClassCapacityPoint,
   type FeeCollectionCampusPoint,
 } from "./dashboard-charts";
 import {
   AdmissionsPipelineCard,
+  AttendanceRateCard,
   AttendanceStatusCard,
+  ExpenseCategoryCard,
   FeeAgingCard,
+  StaffAttendanceTrendCard,
+  StudentEnrollmentOutcomeCard,
   StudentEnrollmentTrendCard,
   StudentDistributionCard,
   StudentGenderCard,
@@ -43,20 +51,21 @@ async function loadClassCapacity(
   supabase: Awaited<ReturnType<typeof createClient>>,
   orgId: string,
   branchIds: string[],
+  campusNameById: Map<string, string>,
 ) {
   const { data: activeYears, error: yearsError } = await supabase.from("education_academic_years")
     .select("id").eq("org_id", orgId).eq("status", "active");
   if (yearsError) throw new Error(`Could not load active academic years for capacity: ${yearsError.message}`);
   const activeYearIds = (activeYears ?? []).map((year) => year.id);
   if (!activeYearIds.length) {
-    return { totalCapacity: 0, enrolledCount: 0, fullClassCount: 0, hasActiveYear: false };
+    return { totalCapacity: 0, enrolledCount: 0, fullClassCount: 0, capacityPoints: [] as ClassCapacityPoint[], hasActiveYear: false };
   }
 
-  const classes: Array<{ id: string; capacity: number }> = [];
+  const classes: Array<{ id: string; branchId: string; name: string; capacity: number }> = [];
   const pageSize = 1000;
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await supabase.from("education_classes")
-      .select("id, capacity")
+      .select("id, branch_id, name, capacity")
       .eq("org_id", orgId).in("branch_id", branchIds)
       .in("academic_year_id", activeYearIds).eq("status", "active").not("capacity", "is", null)
       .order("id").range(offset, offset + pageSize - 1);
@@ -66,7 +75,14 @@ async function loadClassCapacity(
       throw new Error("The number of capacity-limited classes exceeds the dashboard processing limit.");
     }
     for (const classroom of page) {
-      if (classroom.capacity !== null) classes.push({ id: classroom.id, capacity: classroom.capacity });
+      if (classroom.capacity !== null) {
+        classes.push({
+          id: classroom.id,
+          branchId: classroom.branch_id,
+          name: classroom.name,
+          capacity: classroom.capacity,
+        });
+      }
     }
     if (page.length < pageSize) break;
   }
@@ -74,6 +90,7 @@ async function loadClassCapacity(
   let totalCapacity = 0;
   let enrolledCount = 0;
   let fullClassCount = 0;
+  const capacityPoints: ClassCapacityPoint[] = [];
   for (let offset = 0; offset < classes.length; offset += 500) {
     const batch = classes.slice(offset, offset + 500);
     const { data, error } = await supabase.rpc("education_get_class_enrollment_counts", {
@@ -87,9 +104,17 @@ async function loadClassCapacity(
       totalCapacity += classroom.capacity;
       enrolledCount += activeCount;
       if (activeCount >= classroom.capacity) fullClassCount += 1;
+      capacityPoints.push({
+        name: classroom.name,
+        campus: campusNameById.get(classroom.branchId) ?? "Campus",
+        enrolled: activeCount,
+        capacity: classroom.capacity,
+        utilization: Math.round((activeCount / classroom.capacity) * 1000) / 10,
+      });
     }
   }
-  return { totalCapacity, enrolledCount, fullClassCount, hasActiveYear: true };
+  capacityPoints.sort((a, b) => b.utilization - a.utilization);
+  return { totalCapacity, enrolledCount, fullClassCount, capacityPoints, hasActiveYear: true };
 }
 
 export default async function ThinkEducationDashboardPage({
@@ -105,6 +130,18 @@ export default async function ThinkEducationDashboardPage({
 
   const params = await searchParams;
   const supabase = await createClient();
+  const { data: institutionSettings, error: institutionSettingsError } = await supabase
+    .from("education_institution_settings")
+    .select("institution_name")
+    .eq("org_id", context.orgId)
+    .maybeSingle();
+  if (institutionSettingsError) {
+    throw new Error(`Could not load Think Education institution settings: ${institutionSettingsError.message}`);
+  }
+  const institutionDisplayName = getEducationInstitutionDisplayName(
+    institutionSettings?.institution_name,
+    context.orgName,
+  );
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
   const today = new Date().toISOString().slice(0, 10);
   const defaultFrom = `${today.slice(0, 7)}-01`;
@@ -157,6 +194,36 @@ export default async function ThinkEducationDashboardPage({
   ]);
   const canReadFeeAging = canReadFeePayments && canReadFeeCharges
     && canReadStudentDirectory && canReadAcademicCalendar;
+  let outstandingStudentPreview: Array<{ id: string; name: string; balance: number }> = [];
+  if (canReadFeeAging && branchIds.length) {
+    const { data: previewRows, error: previewError } = await supabase.rpc("education_get_fee_aging_page", {
+      p_org_id: context.orgId,
+      p_branch_ids: branchIds,
+      p_academic_year_id: null,
+      p_as_of_date: today,
+      p_limit: 8,
+      p_offset: 0,
+    });
+    if (previewError) throw new Error(`Could not load outstanding student balances: ${previewError.message}`);
+    const rows = (previewRows ?? []).filter((row) => row.student_id && row.branch_id && Number(row.balance) > 0);
+    const studentIds = Array.from(new Set(rows.map((row) => row.student_id)));
+    if (studentIds.length) {
+      const { data: students, error: studentsError } = await supabase.from("education_students")
+        .select("id, branch_id, first_name, last_name")
+        .eq("org_id", context.orgId)
+        .in("branch_id", branchIds)
+        .in("id", studentIds);
+      if (studentsError) throw new Error(`Could not load names for outstanding student balances: ${studentsError.message}`);
+      const studentsByAccount = new Map((students ?? []).map((student) => [
+        `${student.branch_id}:${student.id}`,
+        [student.first_name, student.last_name].filter(Boolean).join(" "),
+      ]));
+      outstandingStudentPreview = rows.flatMap((row) => {
+        const name = studentsByAccount.get(`${row.branch_id}:${row.student_id}`);
+        return name ? [{ id: `${row.branch_id}:${row.student_id}`, name, balance: Number(row.balance) }] : [];
+      });
+    }
+  }
   const financeSummaryPromise = Promise.all([
     supabase.rpc("education_get_dashboard_finance_summary", {
       p_org_id: context.orgId,
@@ -223,7 +290,7 @@ export default async function ThinkEducationDashboardPage({
     }
   })();
   const classCapacityPromise = canReadAcademics && branchIds.length
-    ? loadClassCapacity(supabase, context.orgId, branchIds)
+    ? loadClassCapacity(supabase, context.orgId, branchIds, new Map(selectedCampuses.map((campus) => [campus.id, campus.name])))
     : Promise.resolve(null);
   const parentCountPromise = (async () => {
     if (!canReadGuardians || !branchIds.length) return 0;
@@ -340,6 +407,10 @@ export default async function ThinkEducationDashboardPage({
   const todayCollections = (todayFinanceSummaryResult.data ?? [])
     .reduce((total, row) => total + Number(row.paid_in_range), 0);
   const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
+  const formattedOutstandingStudentPreview = outstandingStudentPreview.map((student) => ({
+    ...student,
+    balance: formatMoney(student.balance),
+  }));
   const totalOutstandingFees = Array.from(feeStatsByCampus.values())
     .reduce((total, stats) => total + stats.outstanding, 0);
   const expectedStudents = Math.max(0, (studentCount ?? 0) - (excusedCount ?? 0));
@@ -424,8 +495,8 @@ export default async function ThinkEducationDashboardPage({
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--theme-primary, #2563eb)" }}>Think Education</p>
-        <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>Welcome to Think Education</h1>
-        <p className="mt-1 text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{context.orgName} · organization overview for campuses you are authorized to access.</p>
+        <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--theme-text, #111827)" }}>Welcome to {institutionDisplayName}</h1>
+        <p className="mt-1 text-sm" style={{ color: "var(--theme-text-muted, #4b5563)" }}>{institutionDisplayName} · organization overview for campuses you are authorized to access.</p>
       </div>
       <Link href={getProductAppPath("think-education", "/organization")} className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white hover:opacity-95" style={{ backgroundColor: "var(--theme-primary, #2563eb)" }}>
         Organization &amp; campuses <ArrowRight className="h-4 w-4" />
@@ -465,6 +536,15 @@ export default async function ThinkEducationDashboardPage({
             : iconTone === "amber" ? "rgba(245,158,11,0.12)"
               : iconTone === "rose" ? "rgba(244,63,94,0.10)"
                 : "rgba(59,130,246,0.10)";
+        if (label === "Outstanding fees") {
+          return <OutstandingBalanceCard
+            key={label}
+            value={typeof value === "string" ? value : value === null ? "—" : formatMoney(value)}
+            href={href}
+            students={formattedOutstandingStudentPreview}
+            canViewStudents={canReadFeeAging}
+          />;
+        }
         const card = <article key={label} className={`rounded-xl border p-4 shadow-sm${href ? " transition-shadow group-hover:shadow-md" : ""}`} style={{
           borderColor: highlight ? "#fecdd3" : "var(--theme-header-border-light, #dbeafe)",
           backgroundColor: highlight ? "#fff1f2" : "var(--theme-surface, #fff)",
@@ -509,7 +589,7 @@ export default async function ThinkEducationDashboardPage({
       </Suspense>
       <Suspense fallback={<article aria-label="Attendance chart loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-slate-950">Attendance by status</h2>
-        <p className="mt-1 text-sm text-slate-500">Daily present, late, and absent counts for the last seven days.</p>
+        <p className="mt-1 text-sm text-slate-500">Daily present, late, and absent counts for this week, Monday through Sunday.</p>
         <div className="mt-4 h-56 animate-pulse rounded-lg bg-slate-100" />
       </article>}>
         <AttendanceStatusCard
@@ -518,6 +598,39 @@ export default async function ThinkEducationDashboardPage({
           today={today}
           canReadAttendance={canReadAttendance}
         />
+      </Suspense>
+    </section>
+
+    <section aria-label="Education capacity, progression, expenses, and attendance charts" className="grid gap-4 lg:grid-cols-2">
+      {canReadAcademics && <article data-education-dashboard-card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div>
+          <h2 className="text-lg font-bold text-slate-950">Class capacity utilization</h2>
+          <p className="mt-1 text-sm text-slate-500">Highest-utilization active classes in the active academic year with configured seat limits.</p>
+        </div>
+        {!branchIds.length
+          ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Assign campus access to see class capacity.</p>
+          : classCapacity?.hasActiveYear === false
+            ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">There is no active academic year to report.</p>
+            : classCapacity?.capacityPoints.length === 0
+              ? <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">No active classes have capacity limits configured for the active academic year.</p>
+              : <>
+                <p className="mt-2 text-xs text-slate-500">
+                  {classCapacity?.fullClassCount.toLocaleString()} class{classCapacity?.fullClassCount === 1 ? "" : "es"} at or over capacity. Amber marks 90–99.9%; red marks 100% or more.
+                </p>
+                <ClassCapacityBarChart data={classCapacity?.capacityPoints ?? []} />
+              </>}
+      </article>}
+      <Suspense fallback={<article aria-label="Attendance rate trend loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-950">Attendance rate over time</h2><div className="mt-4 h-56 animate-pulse rounded-lg bg-slate-100" /></article>}>
+        <AttendanceRateCard orgId={context.orgId} branchIds={branchIds} from={from} to={to} canReadAttendance={canReadAttendance} />
+      </Suspense>
+      <Suspense fallback={<article aria-label="Student progression loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-950">Student retention &amp; progression</h2><div className="mt-4 h-56 animate-pulse rounded-lg bg-slate-100" /></article>}>
+        <StudentEnrollmentOutcomeCard orgId={context.orgId} branchIds={branchIds} from={from} to={to} canReadStudents={canReadStudents} />
+      </Suspense>
+      <Suspense fallback={<article aria-label="Expense categories loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-950">Approved expenses by category</h2><div className="mt-4 h-56 animate-pulse rounded-lg bg-slate-100" /></article>}>
+        <ExpenseCategoryCard orgId={context.orgId} branchIds={branchIds} from={from} to={to} canViewExpenses={canViewExpenseRecords} />
+      </Suspense>
+      <Suspense fallback={<article aria-label="Staff attendance trend loading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-950">Staff attendance rate</h2><div className="mt-4 h-56 animate-pulse rounded-lg bg-slate-100" /></article>}>
+        <StaffAttendanceTrendCard orgId={context.orgId} branchIds={branchIds} from={from} to={to} canReadAttendance={canReadAttendance} canReadStaff={canReadStaff} />
       </Suspense>
     </section>
 

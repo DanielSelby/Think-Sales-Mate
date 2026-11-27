@@ -49,6 +49,7 @@ const PERMISSION_MODULE_PATHS: Record<string, string> = {
   education_attendance: "/education/attendance",
   education_communication: "/education/communication",
   education_documents: "/education/documents",
+  education_sensitive_documents: "/education/documents",
   education_notifications: "/education/notifications",
   education_audit: "/education/activity",
   education_examinations: "/education/examinations",

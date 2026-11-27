@@ -3,7 +3,10 @@ import { getCurrentOrgContext } from "@/lib/organizations/current";
 import { canTabPermission } from "@/lib/rbac/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { getProductAppPath } from "@/lib/product-app-routes";
-import { educationDocumentDownloadSchema } from "@/lib/education/documents";
+import {
+  educationDocumentDownloadSchema,
+  isSensitiveEducationDocumentCategory,
+} from "@/lib/education/documents";
 
 function documentsPage(request: NextRequest, error?: string) {
   const url = new URL(getProductAppPath("think-education", "/documents"), request.url);
@@ -26,6 +29,21 @@ export async function GET(
   }
 
   const supabase = await createClient();
+  const { data: document, error: documentError } = await supabase.from("education_documents")
+    .select("category")
+    .eq("org_id", context.orgId)
+    .eq("id", documentId)
+    .maybeSingle();
+  if (documentError) {
+    console.error("Could not check Think Education document access:", documentError.message);
+    return documentsPage(request, "download");
+  }
+  if (!document) return documentsPage(request, "not-found");
+  if (isSensitiveEducationDocumentCategory(document.category)
+    && !await canTabPermission("education_sensitive_documents", "documents", "medical", "view")) {
+    return documentsPage(request, "permission");
+  }
+
   const { data, error } = await supabase.rpc("education_document_prepare_download", {
     p_org_id: context.orgId,
     p_document_id: documentId,

@@ -200,6 +200,7 @@ type EducationStudent = {
   photo_path: string | null;
   date_of_birth: string | null;
   gender: string | null;
+  nationality: string | null;
   home_address: string | null;
   status: "active" | "on_hold" | "graduated" | "transferred" | "withdrawn" | "archived";
   created_by: string | null;

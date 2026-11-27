@@ -25,6 +25,8 @@ export function FeePaymentDialog({
   currencyConfig,
   returnToFinance = false,
   returnToPayments = false,
+  returnToAging = false,
+  returnToAgingFilters,
   buttonLabel = "Record payment",
 }: {
   chargeId?: string;
@@ -36,6 +38,8 @@ export function FeePaymentDialog({
   currencyConfig: CurrencyConfig;
   returnToFinance?: boolean;
   returnToPayments?: boolean;
+  returnToAging?: boolean;
+  returnToAgingFilters?: { branch: string; year: string; page: number };
   buttonLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -47,7 +51,7 @@ export function FeePaymentDialog({
   const activeStudentName = selectedCharge?.studentName ?? studentName;
   const activeDescription = selectedCharge?.description ?? chargeDescription ?? "";
   const activeBalance = selectedCharge?.balance ?? balance ?? 0;
-  const dialogTitleId = `fee-payment-title-${chargeId ?? "selected"}`;
+  const dialogTitleId = `fee-payment-title-${studentId}-${chargeId ?? "selected"}`;
   const formatMoney = (amount: number) => formatCurrencyAmount(amount, currencyConfig);
 
   useEffect(() => {
@@ -94,7 +98,16 @@ export function FeePaymentDialog({
         <form action={recordEducationFeePayment} className="mt-5 grid gap-3">
           <input type="hidden" name="charge_id" value={activeChargeId} />
           <input type="hidden" name="student_id" value={activeStudentId} />
-          {(returnToFinance || returnToPayments) && <input type="hidden" name="return_to" value={returnToPayments ? "payments" : "finance"} />}
+          {(returnToFinance || returnToPayments || returnToAging) && <input
+            type="hidden"
+            name="return_to"
+            value={returnToAging ? "aging" : returnToPayments ? "payments" : "finance"}
+          />}
+          {returnToAging && returnToAgingFilters && <>
+            <input type="hidden" name="return_branch" value={returnToAgingFilters.branch} />
+            <input type="hidden" name="return_year" value={returnToAgingFilters.year} />
+            <input type="hidden" name="return_page" value={String(returnToAgingFilters.page)} />
+          </>}
           {charges && (
             <label className="text-sm font-medium">Fee charge
               <select required value={selectedChargeId} onChange={(event) => setSelectedChargeId(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100">

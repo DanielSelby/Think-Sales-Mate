@@ -105,6 +105,11 @@ html.dark .education-page-content {
   transition: box-shadow 160ms ease, transform 160ms ease;
 }
 
+.education-page-content [data-outstanding-balance-card] {
+  position: relative;
+  overflow: visible !important;
+}
+
 .education-page-content main > section[data-education-metrics] > article::before {
   position: absolute;
   inset: 0 auto 0 0;
@@ -171,8 +176,8 @@ html.dark .education-page-content :is([class~="bg-blue-50"], [class~="bg-violet-
 }
 
 html.dark .education-page-content :is(
-  main > section[data-education-dashboard-metrics] > article,
-  [data-education-dashboard-card]
+  main > section[data-education-dashboard-metrics] > article:not([data-outstanding-balance-card]),
+  [data-education-dashboard-card]:not([data-outstanding-balance-card])
 ) {
   border-color: color-mix(in srgb, var(--theme-primary, #60a5fa) 28%, #334960) !important;
   background:
@@ -180,6 +185,22 @@ html.dark .education-page-content :is(
     color-mix(in srgb, var(--theme-surface, #0f1d2d) 68%, transparent) !important;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18), inset 0 1px rgb(255 255 255 / 0.035);
   backdrop-filter: blur(12px);
+}
+
+html.dark .education-page-content [data-outstanding-balance-card] {
+  overflow: visible !important;
+  border-color: #475569 !important;
+  background: #102033 !important;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+  backdrop-filter: none;
+}
+
+html.dark .education-page-content [data-outstanding-balance-card] button {
+  color: #fda4af;
+}
+
+html.dark .education-page-content [data-outstanding-balance-card] a {
+  color: #93c5fd;
 }
 
 html.dark .education-page-content [data-education-metric-icon] {

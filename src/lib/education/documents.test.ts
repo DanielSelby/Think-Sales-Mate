@@ -3,6 +3,7 @@ import {
   EDUCATION_DOCUMENT_MAX_BYTES,
   educationDocumentDownloadSchema,
   isAllowedEducationDocumentFile,
+  isSensitiveEducationDocumentCategory,
 } from "./documents";
 
 describe("Think Education document handling", () => {
@@ -36,5 +37,10 @@ describe("Think Education document handling", () => {
       file_name: "student.pdf",
       content_type: "application/pdf",
     }).success).toBe(false);
+  });
+
+  it("classifies medical records as sensitive without restricting ordinary student records", () => {
+    expect(isSensitiveEducationDocumentCategory("medical")).toBe(true);
+    expect(isSensitiveEducationDocumentCategory("student_record")).toBe(false);
   });
 });

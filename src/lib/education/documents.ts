@@ -10,11 +10,32 @@ export const EDUCATION_DOCUMENT_CATEGORIES = [
   ["other", "Other"],
 ] as const;
 
+export const EDUCATION_SENSITIVE_DOCUMENT_CATEGORIES = ["medical"] as const;
+
+export function isSensitiveEducationDocumentCategory(
+  category: string,
+): category is typeof EDUCATION_SENSITIVE_DOCUMENT_CATEGORIES[number] {
+  return EDUCATION_SENSITIVE_DOCUMENT_CATEGORIES.some((value) => value === category);
+}
+
 export const educationDocumentDownloadSchema = z.object({
   storage_path: z.string().min(1),
   file_name: z.string().min(1).max(255),
   content_type: z.string().min(1),
 });
+
+export const EDUCATION_DOCUMENT_PREVIEW_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export function isPreviewableEducationDocumentContentType(
+  contentType: string,
+): contentType is typeof EDUCATION_DOCUMENT_PREVIEW_MIME_TYPES[number] {
+  return EDUCATION_DOCUMENT_PREVIEW_MIME_TYPES.some((type) => type === contentType);
+}
 
 export const EDUCATION_DOCUMENT_MAX_BYTES = 15 * 1024 * 1024;
 export const EDUCATION_DOCUMENT_MIME_TYPES = [

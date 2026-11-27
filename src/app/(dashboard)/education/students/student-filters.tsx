@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Printer, Search } from "lucide-react";
 import {
+  EDUCATION_STUDENT_GENDERS,
   EDUCATION_STUDENT_STATUSES,
   type EducationStudentStatus,
 } from "@/lib/education/student-directory";
@@ -68,7 +69,7 @@ export function StudentFilters({
     if (nextBranch) params.set("branch", nextBranch);
     if (nextClassId) params.set("class", nextClassId);
     if (nextStatus !== "active") params.set("status", nextStatus);
-    if (nextPageSize !== "10") params.set("pageSize", nextPageSize);
+    if (nextPageSize !== "50") params.set("pageSize", nextPageSize);
     const query = params.toString();
     router.replace(query ? `${action}?${query}` : action, { scroll: false });
   }
@@ -84,9 +85,7 @@ export function StudentFilters({
   function updateGender(value: string) {
     setGender(value);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => {
-      applyFilters(search, value, branch, classId, status, pageSize);
-    }, 350);
+    applyFilters(search, value, branch, classId, status, pageSize);
   }
 
   function updateBranch(value: string) {
@@ -167,16 +166,16 @@ export function StudentFilters({
       </label>
       <label>
         <span className="sr-only">Filter by gender</span>
-        <input
-          type="search"
+        <select
           name="gender"
           value={gender}
-          maxLength={50}
           onChange={(event) => updateGender(event.target.value)}
-          placeholder="Gender contains..."
           aria-label="Filter by gender"
-          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        />
+          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"
+        >
+          <option value="">All genders</option>
+          {EDUCATION_STUDENT_GENDERS.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
       </label>
       <label className="sr-only" htmlFor="student-page-size">Rows per page</label>
       <select

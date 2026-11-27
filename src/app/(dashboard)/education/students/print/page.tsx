@@ -7,6 +7,7 @@ import { getProductAppPath } from "@/lib/product-app-routes";
 import { createClient } from "@/lib/supabase/server";
 import {
   EDUCATION_STUDENT_STATUSES,
+  parseEducationStudentGender,
   parseEducationStudentDirectoryResult,
   type EducationStudentDirectoryRow,
 } from "@/lib/education/student-directory";
@@ -33,7 +34,7 @@ export default async function EducationStudentDirectoryPrintPage({
   const params = await searchParams;
   const search = typeof params.search === "string" ? params.search.trim().slice(0, 80) : "";
   const safeSearch = search.replace(/[^A-Za-z0-9\s_-]/g, "");
-  const gender = typeof params.gender === "string" ? params.gender.trim().slice(0, 50) : "";
+  const gender = typeof params.gender === "string" ? parseEducationStudentGender(params.gender) : "";
   const requestedStatus = typeof params.status === "string" ? params.status : "active";
   const matchedStatus = requestedStatus === "all"
     ? "all"
@@ -95,7 +96,7 @@ export default async function EducationStudentDirectoryPrintPage({
   const filterSummary = [
     requestedBranch ? campusNameById.get(requestedBranch) : "All accessible campuses",
     classId ? `Class: ${className}` : null,
-    gender ? `Gender contains "${gender}"` : null,
+    gender ? `Gender: ${gender}` : null,
     search ? `Search: "${search}"` : null,
     status === "all" ? "All statuses" : status.replace("_", " "),
   ].filter(Boolean);

@@ -61,6 +61,7 @@ export const EDUCATION_ROLE_PRESETS: EducationRolePreset[] = [
       education_inventory_assets: ["view", "create", "edit", "export"],
       education_communication: ["view", "create", "edit", "publish", "export"],
       education_documents: ["view", "create", "edit", "delete", "export"],
+      education_sensitive_documents: ["view", "create", "edit", "delete"],
       education_notifications: ["view", "edit", "export"],
       education_audit: ["view_audit", "export"],
     },
