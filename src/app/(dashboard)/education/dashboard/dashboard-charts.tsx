@@ -339,8 +339,8 @@ export function AttendanceRateLineChart({ data }: { data: AttendanceRatePoint[] 
           <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
           <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} width={48} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
           <Tooltip
-            labelFormatter={(_, payload) => payload?.[0]?.payload?.date ?? ""}
-            formatter={(value) => [`${Number(value).toFixed(1)}%`, "Present rate"]}
+            labelFormatter={(label) => String(label ?? "")}
+            formatter={(value): [string, string] => [`${Number(value).toFixed(1)}%`, "Present rate"]}
             contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }}
           />
           <Line dataKey="rate" name="Present rate" type="monotone" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls={false} />
