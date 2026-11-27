@@ -33,6 +33,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
 
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
+  const orgId = context.orgId;
 
   const [
     canViewStudents,
@@ -161,7 +162,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     for (let offset = 0; ; offset += pageSize) {
       const { data, error } = await supabase.from("education_attendance")
         .select("attendance_date, status")
-        .eq("org_id", context.orgId)
+        .eq("org_id", orgId)
         .eq("student_id", student.id)
         .in("branch_id", campusIds)
         .gte("attendance_date", attendanceTrendStartDate)
@@ -180,7 +181,7 @@ export default async function EducationStudentProfilePage({ params, searchParams
     for (let offset = 0; ; offset += pageSize) {
       const { data, error } = await supabase.from("education_lesson_attendance")
         .select("attendance_date, status")
-        .eq("org_id", context.orgId)
+        .eq("org_id", orgId)
         .eq("student_id", student.id)
         .in("branch_id", campusIds)
         .gte("attendance_date", attendanceTrendStartDate)

@@ -205,7 +205,11 @@ export default async function ThinkEducationDashboardPage({
       p_offset: 0,
     });
     if (previewError) throw new Error(`Could not load outstanding student balances: ${previewError.message}`);
-    const rows = (previewRows ?? []).filter((row) => row.student_id && row.branch_id && Number(row.balance) > 0);
+    const rows = (previewRows ?? []).flatMap((row) => {
+      const balance = Number(row.balance);
+      if (!row.student_id || !row.branch_id || !Number.isFinite(balance) || balance <= 0) return [];
+      return [{ student_id: row.student_id, branch_id: row.branch_id, balance }];
+    });
     const studentIds = Array.from(new Set(rows.map((row) => row.student_id)));
     if (studentIds.length) {
       const { data: students, error: studentsError } = await supabase.from("education_students")
@@ -220,7 +224,7 @@ export default async function ThinkEducationDashboardPage({
       ]));
       outstandingStudentPreview = rows.flatMap((row) => {
         const name = studentsByAccount.get(`${row.branch_id}:${row.student_id}`);
-        return name ? [{ id: `${row.branch_id}:${row.student_id}`, name, balance: Number(row.balance) }] : [];
+        return name ? [{ id: `${row.branch_id}:${row.student_id}`, name, balance: row.balance }] : [];
       });
     }
   }

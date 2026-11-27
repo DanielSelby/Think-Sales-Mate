@@ -408,8 +408,8 @@ export function StaffAttendanceRateLineChart({ data }: { data: StaffAttendanceRa
           <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
           <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} width={48} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
           <Tooltip
-            labelFormatter={(_, payload) => payload?.[0]?.payload?.date ?? ""}
-            formatter={(value) => [`${Number(value).toFixed(1)}%`, "Attendance rate"]}
+            labelFormatter={(label) => String(label ?? "")}
+            formatter={(value): [string, string] => [`${Number(value).toFixed(1)}%`, "Attendance rate"]}
             contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0", fontSize: 12 }}
           />
           <Line dataKey="rate" name="Attendance rate" type="monotone" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls={false} />
