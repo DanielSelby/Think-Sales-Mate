@@ -972,6 +972,12 @@ export async function deleteEducationGuardianRecord(formData: FormData) {
   redirect(`${getProductAppPath("think-education", "/guardians")}?error=invalid`);
 }
 
+function getEducationFeeScheduleReturnPath(formData: FormData) {
+  return String(formData.get("return_to") ?? "") === "structures"
+    ? getProductAppPath("think-education", "/finance/structures")
+    : getProductAppPath("think-education", "/finance");
+}
+
 export async function voidEducationFeeCharge(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
@@ -1006,6 +1012,7 @@ export async function voidEducationFeeCharge(formData: FormData) {
 export async function createEducationFeeSchedule(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
+  const returnPath = getEducationFeeScheduleReturnPath(formData);
   if (!await canTabPermission("education_finance", "finance", "charges", "create")
     || !await canTabPermission("education_students", "students", "list", "view")
     || !await canTabPermission("education_academics", "academics", "calendar", "view")) {
@@ -1024,7 +1031,7 @@ export async function createEducationFeeSchedule(formData: FormData) {
     || (dueOn && (!/^\d{4}-\d{2}-\d{2}$/.test(dueOn)
       || Number.isNaN(Date.parse(`${dueOn}T00:00:00Z`))
       || new Date(`${dueOn}T00:00:00Z`).toISOString().slice(0, 10) !== dueOn))) {
-    redirect(`${getProductAppPath("think-education", "/finance")}?error=invalid`);
+    redirect(`${returnPath}?error=invalid`);
   }
 
   const { campuses } = await getAccessibleEducationCampuses(context.orgId, context.userId);
@@ -1041,7 +1048,7 @@ export async function createEducationFeeSchedule(formData: FormData) {
     .eq("status", "active")
     .maybeSingle();
   if (classError) throw new Error(`Could not verify the selected class: ${classError.message}`);
-  if (!classroom) redirect(`${getProductAppPath("think-education", "/finance")}?error=invalid`);
+  if (!classroom)   redirect(`${returnPath}?error=invalid`);
 
   const { error } = await supabase.from("education_fee_schedules").insert({
     org_id: context.orgId,
@@ -1053,24 +1060,26 @@ export async function createEducationFeeSchedule(formData: FormData) {
     due_on: dueOn || null,
   });
   if (error) {
-    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-mapping`);
-    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-period`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance")}?error=invalid`);
+    if (error.code === "23514") redirect(`${returnPath}?error=accounting-mapping`);
+    if (error.message.includes("open fiscal period")) redirect(`${returnPath}?error=accounting-period`);
+    if (error.code === "22023") redirect(`${returnPath}?error=invalid`);
     console.error("Could not create Think Education fee schedule:", error.message);
-    redirect(`${getProductAppPath("think-education", "/finance")}?error=save`);
+    redirect(`${returnPath}?error=save`);
   }
   revalidatePath("/education/finance");
-  redirect(`${getProductAppPath("think-education", "/finance")}?scheduleCreated=1`);
+  revalidatePath("/education/finance/structures");
+  redirect(`${returnPath}?scheduleCreated=1`);
 }
 
 export async function applyEducationFeeSchedule(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
+  const returnPath = getEducationFeeScheduleReturnPath(formData);
   if (!await canTabPermission("education_finance", "finance", "charges", "create")) {
     throw new Error("You do not have permission to apply Think Education fee schedules.");
   }
   const scheduleId = String(formData.get("schedule_id") ?? "");
-  if (!scheduleId) redirect(`${getProductAppPath("think-education", "/finance")}?error=invalid`);
+  if (!scheduleId) redirect(`${returnPath}?error=invalid`);
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("education_apply_fee_schedule", {
@@ -1078,25 +1087,27 @@ export async function applyEducationFeeSchedule(formData: FormData) {
     p_schedule_id: scheduleId,
   });
   if (error) {
-    if (error.code === "23514") redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-mapping`);
-    if (error.message.includes("open fiscal period")) redirect(`${getProductAppPath("think-education", "/finance")}?error=accounting-period`);
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance")}?error=schedule`);
-    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/finance")}?error=not-found`);
+    if (error.code === "23514") redirect(`${returnPath}?error=accounting-mapping`);
+    if (error.message.includes("open fiscal period")) redirect(`${returnPath}?error=accounting-period`);
+    if (error.code === "22023") redirect(`${returnPath}?error=schedule`);
+    if (error.code === "P0002") redirect(`${returnPath}?error=not-found`);
     if (error.code === "42501") throw new Error("You are not authorized to apply that fee schedule.");
     console.error("Could not apply Think Education fee schedule:", error.message);
-    redirect(`${getProductAppPath("think-education", "/finance")}?error=save`);
+    redirect(`${returnPath}?error=save`);
   }
   revalidatePath("/education/finance");
+  revalidatePath("/education/finance/structures");
   revalidatePath("/education/accounting");
   revalidatePath("/education/accounting/journal-entries");
   revalidatePath("/education/accounting/general-ledger");
   revalidatePath("/education/accounting/reports");
-  redirect(`${getProductAppPath("think-education", "/finance")}?applied=${data}`);
+  redirect(`${returnPath}?applied=${data}`);
 }
 
 export async function archiveEducationFeeSchedule(formData: FormData) {
   const context = await getCurrentOrgContext();
   if (!context) redirect("/login");
+  const returnPath = getEducationFeeScheduleReturnPath(formData);
   if (!await canTabPermission("education_finance", "finance", "charges", "edit")) {
     throw new Error("You do not have permission to archive Think Education fee schedules.");
   }
@@ -1104,7 +1115,7 @@ export async function archiveEducationFeeSchedule(formData: FormData) {
   const scheduleId = String(formData.get("schedule_id") ?? "");
   const reason = String(formData.get("reason") ?? "").trim();
   if (!scheduleId || reason.length < 3 || reason.length > 500) {
-    redirect(`${getProductAppPath("think-education", "/finance")}?error=schedule-archive-invalid`);
+    redirect(`${returnPath}?error=schedule-archive-invalid`);
   }
 
   const supabase = await createClient();
@@ -1114,14 +1125,15 @@ export async function archiveEducationFeeSchedule(formData: FormData) {
     p_reason: reason,
   });
   if (error) {
-    if (error.code === "22023") redirect(`${getProductAppPath("think-education", "/finance")}?error=schedule-archive-blocked`);
-    if (error.code === "P0002") redirect(`${getProductAppPath("think-education", "/finance")}?error=not-found`);
+    if (error.code === "22023") redirect(`${returnPath}?error=schedule-archive-blocked`);
+    if (error.code === "P0002") redirect(`${returnPath}?error=not-found`);
     if (error.code === "42501") throw new Error("You are not authorized to archive fee schedules at this campus.");
     console.error("Could not archive Think Education fee schedule:", error.message);
-    redirect(`${getProductAppPath("think-education", "/finance")}?error=save`);
+    redirect(`${returnPath}?error=save`);
   }
   revalidatePath("/education/finance");
-  redirect(`${getProductAppPath("think-education", "/finance")}?scheduleArchived=1`);
+  revalidatePath("/education/finance/structures");
+  redirect(`${returnPath}?scheduleArchived=1`);
 }
 
 type CreatedEducationAccount = {

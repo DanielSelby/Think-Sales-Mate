@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ShoppingCart, Boxes, Users, Contact,
-  Wallet, Landmark, Receipt, Package, FolderKanban,
+  Wallet, Landmark, Receipt, Package, FolderKanban, BookOpen,
   BarChart3, Settings, Sparkles, TrendingUp,
   ChevronLeft, ChevronRight, ChevronDown,
   Truck, ClipboardEdit, ClipboardList, Users2, FileText, Tag,
@@ -61,6 +61,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Transport", href: "/education/transport", icon: Truck, section: "Campus Operations" },
       { label: "Inventory List", href: "/education/inventory", icon: Package, section: "Campus Operations" },
       { label: "Fees & Finance", href: "/education/finance", icon: Wallet, section: "Finance" },
+      { label: "Class Fee Structures", href: "/education/finance/structures", icon: BookOpen, section: "Finance", alwaysVisible: true },
       { label: "Fee Payments", href: "/education/finance/payments", icon: CreditCard, section: "Finance" },
       { label: "Accounting", href: "/education/accounting", icon: Landmark, section: "Finance", alwaysVisible: true },
       { label: "Expenses", href: "/education/expenses", icon: Tag, section: "Finance" },
